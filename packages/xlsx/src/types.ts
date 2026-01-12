@@ -7,10 +7,13 @@ export interface OfficeShape {
     fill?: any;
     stroke?: any;
     geometry?: string;
+    path?: string; // Custom geometry path
+    effects?: any[]; // Shadow, glow, etc.
     rotation?: number;
     flipH?: boolean;
     flipV?: boolean;
     textBody?: any;
+    style?: any;
     anchor: any; 
 }
 
@@ -37,6 +40,14 @@ export interface OfficeConnector {
     flipV?: boolean;
     startArrow?: string;
     endArrow?: string;
+    style?: any;
+}
+
+export interface OfficeStyle {
+    fillRef?: { idx: number, color?: string };
+    lnRef?: { idx: number, color?: string };
+    effectRef?: { idx: number, color?: string };
+    fontRef?: { idx: string, color?: string };
 }
 
 export interface OfficeGroupShape {

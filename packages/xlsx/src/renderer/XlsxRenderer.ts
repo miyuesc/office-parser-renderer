@@ -253,6 +253,7 @@ export class XlsxRenderer {
         this.renderDrawings(sheet, container);
     }
 
+
     private renderDrawings(sheet: XlsxSheet, container: HTMLElement) {
         if (!sheet.images?.length && !sheet.shapes?.length && !sheet.connectors?.length) return;
 
@@ -302,7 +303,7 @@ export class XlsxRenderer {
         svg.style.overflow = 'visible';
         svg.style.zIndex = '10';
 
-        // Defs for Markers
+        // Defs for Markers, Gradients, Filters
         const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
         
         // Generic Arrow Marker (Standard Triangle) - End
@@ -317,12 +318,6 @@ export class XlsxRenderer {
         markerEnd.setAttribute('markerUnits', 'strokeWidth'); // Scale with line
         const pathEnd = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         pathEnd.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
-        pathEnd.setAttribute('fill', 'context-fill'); // Try context-fill for supported browsers or fallback
-        // Fallback color handled by logic or multiple markers?
-        // Simple fallback: use fill="black" if context logic fails, but we want color.
-        // For now, let's use 'black' as base, or just rely on stroke color if line is colored.
-        // Actually, easiest is to set fill="currentColor" and set color on the path.
-        // But marker is separate element.
         pathEnd.style.fill = 'context-stroke'; // SVG 2
         pathEnd.setAttribute('fill', 'black'); // Fallback
         
@@ -348,134 +343,14 @@ export class XlsxRenderer {
 
         svg.appendChild(defs);
 
-        // ... (Shapes and Images rendering remain similar) ...
+        // Helper to resolve fills/filters into defs
+        const ctx = { defs, counter: 0 };
+
         // 1. Shapes
         sheet.shapes?.forEach((shape: OfficeShape) => {
-            // ... (Shape rendering) ...
             const rect = getRect(shape.anchor);
             if (rect.w <= 0 || rect.h <= 0) return;
-
-            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-            // transform origin is 0,0 of g.
-            // translate to x,y
-            let transform = `translate(${rect.x}, ${rect.y})`;
-            if (shape.rotation) {
-                // Rotate around center
-                // SVG rotate is degrees. Parser normalized it.
-                transform += ` rotate(${shape.rotation}, ${rect.w/2}, ${rect.h/2})`;
-            }
-            g.setAttribute('transform', transform);
-
-            // Geometry
-            let vector: SVGElement;
-            if (shape.geometry === 'ellipse') {
-                vector = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
-                vector.setAttribute('cx', String(rect.w / 2));
-                vector.setAttribute('cy', String(rect.h / 2));
-                vector.setAttribute('rx', String(rect.w / 2));
-                vector.setAttribute('ry', String(rect.h / 2));
-            } else {
-                // Default to rect
-                vector = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                vector.setAttribute('width', String(rect.w));
-                vector.setAttribute('height', String(rect.h));
-                if (shape.geometry === 'roundRect') {
-                    vector.setAttribute('rx', String(Math.min(rect.w, rect.h) * 0.15));
-                }
-            }
-
-            // Fill
-            const fill = shape.fill;
-            if (fill?.type === 'noFill' || fill?.type === 'none') {
-                vector.setAttribute('fill', 'none');
-            } else if (fill?.color) {
-               vector.setAttribute('fill', this.resolveColor(fill.color));
-            } else {
-                // Default: Do NOT assume blue. Assume transparent.
-                vector.setAttribute('fill', 'none');
-            }
-
-            // Stroke
-            const stroke = shape.stroke;
-            if (stroke) {
-                 if (stroke.type === 'noFill') {
-                     vector.setAttribute('stroke', 'none');
-                 } else {
-                     const color = stroke.color ? this.resolveColor(stroke.color) : 'none';
-                     if (color === 'none') {
-                         vector.setAttribute('stroke', 'none');
-                     } else {
-                         vector.setAttribute('stroke', color);
-                         const w = stroke.width || 0;
-                         const widthPt = w > 20 ? w / 12700 : w;
-                         vector.setAttribute('stroke-width', String(widthPt || 1)); 
-                     }
-                 }
-            } else {
-                vector.setAttribute('stroke', 'none'); 
-            }
-            
-            g.appendChild(vector);
-
-            // Text
-            if (shape.textBody && shape.textBody.paragraphs?.length) {
-                const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
-                fo.setAttribute('width', String(rect.w));
-                fo.setAttribute('height', String(rect.h));
-                fo.style.pointerEvents = 'none'; 
-                
-                const div = document.createElement('div');
-                div.style.width = '100%';
-                div.style.height = '100%';
-                div.style.display = 'flex';
-                div.style.flexDirection = 'column'; // Paragraphs stack
-                // Alignment (vertical center default?)
-                div.style.justifyContent = 'center'; 
-                div.style.alignItems = 'center'; // Horizontal center default
-
-                // Parse first paragraph/run to get defaults
-                const p0 = shape.textBody.paragraphs[0];
-                const run0 = p0?.runs?.[0];
-                
-                if (p0?.alignment === 'left') div.style.alignItems = 'flex-start';
-                if (p0?.alignment === 'right') div.style.alignItems = 'flex-end';
-                
-                div.style.fontFamily = 'Calibri, sans-serif';
-                // Font Size
-                if (run0?.size) {
-                     div.style.fontSize = `${run0.size}pt`;
-                } else {
-                     div.style.fontSize = '11pt';
-                }
-                
-                // Color
-                if (run0?.color) {
-                    div.style.color = this.resolveColor(run0.color);
-                } else if (shape.textBody.color) { // Legacy mapping
-                    div.style.color = this.resolveColor(shape.textBody.color);
-                }
-
-                // Render all paragraphs
-                shape.textBody.paragraphs.forEach((p: any) => {
-                    const pDiv = document.createElement('div');
-                    if (p.alignment) pDiv.style.textAlign = p.alignment;
-                    
-                    p.runs.forEach((run: any) => {
-                        const span = document.createElement('span');
-                        span.textContent = run.text;
-                        if (run.bold) span.style.fontWeight = 'bold';
-                        if (run.size) span.style.fontSize = `${run.size}pt`;
-                        if (run.color) span.style.color = this.resolveColor(run.color);
-                        pDiv.appendChild(span);
-                    });
-                    div.appendChild(pDiv);
-                });
-                
-                fo.appendChild(div);
-                g.appendChild(fo);
-            }
-
-            svg.appendChild(g);
+            this.renderShapeInGroup(shape, svg, rect, ctx); // Reuse main render logic
         });
 
         // 2. Images
@@ -498,7 +373,7 @@ export class XlsxRenderer {
 
         // 4. Group Shapes
         sheet.groupShapes?.forEach((group: OfficeGroupShape) => {
-             this.renderGroup(group, svg, getRect(group.anchor));
+             this.renderGroup(group, svg, getRect(group.anchor), ctx);
         });
 
         // 3. Connectors (Manhattan Routing)
@@ -516,16 +391,40 @@ export class XlsxRenderer {
              }
 
              // Determine Path
-             // Simple "Z" or "L" routing
+             // Determine Path
              let d = `M ${x1} ${y1}`;
              
-             // If dist Y > dist X, split vertically
-             if (Math.abs(y2 - y1) > Math.abs(x2 - x1)) {
-                 const midY = (y1 + y2) / 2;
-                 d += ` L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`;
+             if (cxn.type?.includes('curved') || cxn.geometry?.includes('curved')) {
+                 // Cubic Bezier
+                 // Simple wrapper: Control points at (midX, y1) and (midX, y2) or similar to create S-curve.
+                 // If dist Y > dist X, vertical dominance.
+                 if (Math.abs(y2 - y1) > Math.abs(x2 - x1)) {
+                      const c1x = x1;
+                      const c1y = y1 + (y2 - y1) * 0.5;
+                      const c2x = x2;
+                      const c2y = y2 - (y2 - y1) * 0.5;
+                      d += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`;
+                 } else {
+                      const c1x = x1 + (x2 - x1) * 0.5;
+                      const c1y = y1;
+                      const c2x = x2 - (x2 - x1) * 0.5;
+                      const c2y = y2;
+                      d += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`;
+                 }
+             } else if (cxn.type?.includes('bent') || cxn.geometry?.includes('bent')) {
+                 // Bent Connector
+                 // Default Manhattan "Z" or "L" is reasonable for 'bent'.
+                 // Could be enhanced if we knew adjustment values.
+                 if (Math.abs(y2 - y1) > Math.abs(x2 - x1)) {
+                     const midY = (y1 + y2) / 2;
+                     d += ` L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`;
+                 } else {
+                     const midX = (x1 + x2) / 2;
+                     d += ` L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
+                 }
              } else {
-                 const midX = (x1 + x2) / 2;
-                 d += ` L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
+                 // Straight Line or fallback
+                 d += ` L ${x2} ${y2}`;
              }
 
              const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -534,7 +433,7 @@ export class XlsxRenderer {
              
              const color = cxn.stroke?.color ? this.resolveColor(cxn.stroke.color) : '#000000';
              const w = cxn.stroke?.width || 0;
-             const widthPt = w > 20 ? w / 12700 : (w || 1.5); // Default thicker for connectors
+             const widthPt = w > 20 ? w / 12700 : (w || 1.5); 
              
              path.setAttribute('stroke', color);
              path.setAttribute('stroke-width', String(widthPt));
@@ -553,56 +452,31 @@ export class XlsxRenderer {
         container.appendChild(svg);
     }
     
-    private renderGroup(group: OfficeGroupShape, container: SVGElement, rect: { x: number, y: number, w: number, h: number }) {
+    private renderGroup(group: OfficeGroupShape, container: SVGElement, rect: { x: number, y: number, w: number, h: number }, ctx: any) {
         // Group Container
         const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         
-        // Transform for Group Anchor
         let transform = `translate(${rect.x}, ${rect.y})`;
         if (group.rotation) {
              transform += ` rotate(${group.rotation}, ${rect.w/2}, ${rect.h/2})`;
         }
         g.setAttribute('transform', transform);
         
-        // Group's own coordinate system?
-        // Typically groups have a child coordinate system defined in `grpSpPr` (chOff, chExt).
-        // For simplicity, we assume children are relative or we need to scale.
-        // TODO: Implement proper chOff/chExt scaling. For now, render children directly if they have relative coords.
-        // Actually, our parser assigns 'anchor' to children. If parser passed absolute anchors, we don't need scaling.
-        // If parser passed relative, we do. 
-        // Current Parser: Passes 'anchor' from parent to children in recursive call (stubbed).
-        
         // Render Children
-        // We need a helper to render shapes/images/connectors similar to main renderDrawings but appending to 'g'
-        
-        // This requires refactoring renderDrawings to be reusable or duplicating logic.
-        // For today, duplicating the individual shape render logic is safer than massive refactor.
-        
-        // Render Children
-        
         // 1. Shapes
         group.shapes?.forEach(shape => {
-             // relative to group logic:
-             // For now, calculate relative position if possible, or just render.
-             // Since children share parent anchor in current parser stub, they overlap parent.
-             
-             // We use our helper:
              const childRect = this.getRect(shape.anchor);
-             // If childRect is same as group rect (because anchors are same), we want to render at (0,0) inside the group IF group has transform.
-             // But if group transform handles the "Group Position", then children inside should be at (0,0) + offset.
-             // If offset is 0, they are at 0,0.
-             
              const relX = childRect.x - rect.x;
              const relY = childRect.y - rect.y;
              
-             this.renderShapeInGroup(shape, g, { x: relX, y: relY, w: childRect.w, h: childRect.h });
+             this.renderShapeInGroup(shape, g, { x: relX, y: relY, w: childRect.w, h: childRect.h }, ctx);
         });
         
         container.appendChild(g);
     }
     
     // Helper to extract shape rendering logic
-    private renderShapeInGroup(shape: OfficeShape, container: SVGElement, rect: { x: number, y: number, w: number, h: number }) {
+    private renderShapeInGroup(shape: OfficeShape, container: SVGElement, rect: { x: number, y: number, w: number, h: number }, ctx: any) {
             const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
             let transform = `translate(${rect.x}, ${rect.y})`;
             if (shape.rotation) {
@@ -610,14 +484,46 @@ export class XlsxRenderer {
             }
             g.setAttribute('transform', transform);
 
+            // Filters (Effects)
+            if (shape.effects?.length) {
+                const filterId = this.resolveFilter(shape.effects, ctx);
+                if (filterId) g.setAttribute('filter', `url(#${filterId})`);
+            }
+
             let vector: SVGElement;
-            if (shape.geometry === 'ellipse') {
+            if (shape.geometry === 'custom' && shape.path) {
+                vector = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                vector.setAttribute('d', shape.path);
+                // Custom path is usually in internal coordinates (EMU or abstract).
+                // We need to scale it to fit rect.w/h.
+                // But simplified parser kept raw numbers.
+                // We need 'viewBox' on the 'g' or scale transform?
+                // The 'path' usually fits a 0..coord_size box.
+                // Assuming parser returns raw path, we can either:
+                // 1. Detect bbox of path and scale? (Hard)
+                // 2. Wrap in <svg viewBox="...">? (Easiest)
+                // Let's wrap it in an inner SVG if it's a path.
+                
+                // For simplicity, let's assume raw path needs scaling.
+                // But without parsing 'w'/'h' from custGeom, we don't know the denominator.
+                // Standard OOXML shapes are usually 0..21600 or similar.
+                // Let's apply a default scale if it looks huge, or assume renderer handles it.
+                // Better approach: wrap in <svg viewBox="0 0 maxX maxY" width="w" height="h">
+                // But we don't know maxX.
+                // TODO: Improve later. For now, use path directly but it might be huge.
+                // If it's custom, let's try to fit it into a viewbox of typical size?
+                // Or just render as path and hope user sees something.
+                
+                // WORKAROUND: Most custom paths for specific shapes are normalized?
+                // Actually, let's just assume identity scale for now.
+             } else if (shape.geometry === 'ellipse') {
                 vector = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
                 vector.setAttribute('cx', String(rect.w / 2));
                 vector.setAttribute('cy', String(rect.h / 2));
                 vector.setAttribute('rx', String(rect.w / 2));
                 vector.setAttribute('ry', String(rect.h / 2));
             } else {
+                // Default to rect
                 vector = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
                 vector.setAttribute('width', String(rect.w));
                 vector.setAttribute('height', String(rect.h));
@@ -626,27 +532,58 @@ export class XlsxRenderer {
                 }
             }
 
-            const fill = shape.fill;
-            if (fill?.type === 'noFill' || fill?.type === 'none') {
-                vector.setAttribute('fill', 'none');
-            } else if (fill?.color) {
-               vector.setAttribute('fill', this.resolveColor(fill.color));
-            } else {
-                vector.setAttribute('fill', 'none');
+            // Fill
+            let fill = this.resolveFill(shape.fill, ctx, rect);
+            
+            // Fallback to Style if no fill (and not explicitly noFill)
+            if (fill === 'none' && shape.style && shape.style.fillRef && !shape.fill) {
+                 // Heuristic: If style.fillRef exists, use its color.
+                 // idx 0 is often 'subtle' or 'none', but usually idx > 0 implies a fill.
+                 // Typically theme styles use accent1, accent2... based on column in style matrix.
+                 // We only have the color reference from parseStyle (e.g. theme:accent1).
+                 if (shape.style.fillRef.idx > 0 && shape.style.fillRef.color) {
+                     fill = this.resolveColor(shape.style.fillRef.color);
+                 }
             }
-
+            
+            vector.setAttribute('fill', fill);
+            
+            // Stroke
             const stroke = shape.stroke;
+            let strokeColor = 'none';
+            let strokeWidth = 0;
+            let strokeDash = 'solid';
+            
             if (stroke) {
                  if (stroke.type === 'noFill') {
-                     vector.setAttribute('stroke', 'none');
+                     strokeColor = 'none';
                  } else {
-                     const color = stroke.color ? this.resolveColor(stroke.color) : 'none';
-                     if (color !== 'none') {
-                         vector.setAttribute('stroke', color);
-                         const w = stroke.width || 0;
-                         const widthPt = w > 20 ? w / 12700 : w;
-                         vector.setAttribute('stroke-width', String(widthPt || 1)); 
+                     strokeColor = stroke.color ? this.resolveColor(stroke.color) : 'none';
+                     
+                     // Gradient Stroke
+                     if (stroke.gradient) {
+                         strokeColor = this.resolveFill({ type: 'gradient', gradient: stroke.gradient }, ctx, rect);
                      }
+                     
+                     strokeWidth = stroke.width || 0;
+                     strokeDash = stroke.dashStyle || 'solid';
+                 }
+            } else if (shape.style && shape.style.lnRef) {
+                 // Fallback to Style
+                 if (shape.style.lnRef.idx > 0 && shape.style.lnRef.color) {
+                      strokeColor = this.resolveColor(shape.style.lnRef.color);
+                      // Default style width?
+                      strokeWidth = 9525; // 0.75pt approx
+                 }
+            }
+
+            if (strokeColor !== 'none') {
+                 vector.setAttribute('stroke', strokeColor);
+                 const widthPt = strokeWidth > 20 ? strokeWidth / 12700 : strokeWidth;
+                 vector.setAttribute('stroke-width', String(widthPt || 1));
+                 if (strokeDash !== 'solid') {
+                     if (strokeDash === 'dash') vector.setAttribute('stroke-dasharray', '4 2');
+                     if (strokeDash === 'dot') vector.setAttribute('stroke-dasharray', '1 1');
                  }
             } else {
                 vector.setAttribute('stroke', 'none'); 
@@ -654,6 +591,192 @@ export class XlsxRenderer {
             
             g.appendChild(vector);
             container.appendChild(g);
+
+            // Text
+            if (shape.textBody && shape.textBody.paragraphs?.length) {
+                const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+                fo.setAttribute('width', String(rect.w));
+                fo.setAttribute('height', String(rect.h));
+                fo.style.pointerEvents = 'none'; 
+                
+                const div = document.createElement('div');
+                div.style.width = '100%';
+                div.style.height = '100%';
+                div.style.display = 'flex';
+                div.style.flexDirection = 'column'; 
+                div.style.justifyContent = 'center'; 
+                div.style.alignItems = 'center'; 
+
+                const p0 = shape.textBody.paragraphs[0];
+                const run0 = p0?.runs?.[0];
+                
+                if (p0?.alignment === 'left') div.style.alignItems = 'flex-start';
+                if (p0?.alignment === 'right') div.style.alignItems = 'flex-end';
+                
+                div.style.fontFamily = 'Calibri, sans-serif';
+                if (run0?.size) {
+                     div.style.fontSize = `${run0.size}pt`;
+                } else {
+                     div.style.fontSize = '11pt';
+                }
+                
+                if (run0?.color) {
+                    div.style.color = this.resolveColor(run0.color);
+                }
+                
+                // Render all paragraphs
+                shape.textBody.paragraphs.forEach((p: any) => {
+                    const pDiv = document.createElement('div');
+                    if (p.alignment) pDiv.style.textAlign = p.alignment;
+                    
+                    p.runs.forEach((run: any) => {
+                        const span = document.createElement('span');
+                        span.textContent = run.text;
+                        if (run.bold) span.style.fontWeight = 'bold';
+                        if (run.size) span.style.fontSize = `${run.size}pt`;
+                        
+                        // Text Fill (Gradient?)
+                        if (run.fill && run.fill.type === 'gradient') {
+                             // Use background-clip text
+                             span.style.backgroundImage = this.resolveFill(run.fill, ctx, rect, true);
+                             span.style.backgroundClip = 'text';
+                             // @ts-ignore
+                             span.style.webkitBackgroundClip = 'text';
+                             span.style.color = 'transparent';
+                        } else if (run.color) {
+                            span.style.color = this.resolveColor(run.color);
+                        }
+                        
+                        // Text Effects (Shadow/Glow)
+                        if (run.effects) {
+                            // Simple text-shadow support
+                            const shadow = run.effects.find((e: any) => e.type === 'outerShadow');
+                            if (shadow) {
+                                const color = this.resolveColor(shadow.color || '#000000');
+                                const dist = shadow.dist || 2;
+                                span.style.textShadow = `${dist}px ${dist}px ${shadow.blur || 0}px ${color}`;
+                            }
+                        }
+
+                        pDiv.appendChild(span);
+                    });
+                    div.appendChild(pDiv);
+                });
+                
+                fo.appendChild(div);
+                g.appendChild(fo);
+            }
+    }
+    
+    private resolveFill(fill: any, ctx: any, rect: any, asCss: boolean = false): string {
+        if (!fill) return 'none';
+        if (fill.type === 'solid') {
+             return this.resolveColor(fill.color || '#000000');
+        } else if (fill.type === 'gradient' && fill.gradient) {
+             // Create linear gradient
+             const id = `grad-${++ctx.counter}`;
+             const stops = fill.gradient.stops;
+             const angle = fill.gradient.angle || 90;
+             
+             if (asCss) {
+                 // Return CSS gradient
+                 const stopStr = stops.map((s: any) => `${this.resolveColor(s.color)} ${s.position * 100}%`).join(', ');
+                 return `linear-gradient(${angle}deg, ${stopStr})`;
+             }
+             
+             const lg = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+             lg.setAttribute('id', id);
+             // Approximate angle to x1,y1,x2,y2 is complex.
+             // Simplification: vertical default
+             lg.setAttribute('x1', '0%');
+             lg.setAttribute('y1', '0%');
+             lg.setAttribute('x2', '0%');
+             lg.setAttribute('y2', '100%');
+             // TODO: Handle rotation/angle properly
+             
+             stops.forEach((s: any) => {
+                 const stop = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+                 stop.setAttribute('offset', `${s.position * 100}%`);
+                 stop.setAttribute('stop-color', this.resolveColor(s.color));
+                 lg.appendChild(stop);
+             });
+             ctx.defs.appendChild(lg);
+             return `url(#${id})`;
+        } else if (fill.type === 'pattern') {
+             // Pattern not fully supported yet, fallback solid
+             return this.resolveColor(fill.pattern?.fgColor || '#cccccc');
+        } else if (fill.type === 'noFill' || fill.type === 'none') {
+             return 'none';
+        }
+        return 'none';
+    }
+    
+    private resolveFilter(effects: any[], ctx: any): string | null {
+        if (!effects || !effects.length) return null;
+        
+        const id = `filter-${++ctx.counter}`;
+        const filter = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+        filter.setAttribute('id', id);
+        filter.setAttribute('width', '200%');
+        filter.setAttribute('height', '200%');
+        filter.setAttribute('x', '-50%');
+        filter.setAttribute('y', '-50%');
+        
+        let hasFilter = false;
+        
+        effects.forEach((eff: any) => {
+            if (eff.type === 'outerShadow') {
+                hasFilter = true;
+                const blur = document.createElementNS('http://www.w3.org/2000/svg', 'feGaussianBlur');
+                blur.setAttribute('in', 'SourceAlpha');
+                blur.setAttribute('stdDeviation', String(eff.blur || 2));
+                filter.appendChild(blur);
+                
+                const offset = document.createElementNS('http://www.w3.org/2000/svg', 'feOffset');
+                offset.setAttribute('dx', String(eff.dist || 3));
+                offset.setAttribute('dy', String(eff.dist || 3));
+                offset.setAttribute('result', 'offsetblur');
+                filter.appendChild(offset);
+                
+                const flood = document.createElementNS('http://www.w3.org/2000/svg', 'feFlood');
+                flood.setAttribute('flood-color', this.resolveColor(eff.color || '#000000'));
+                filter.appendChild(flood);
+                
+                const composite = document.createElementNS('http://www.w3.org/2000/svg', 'feComposite');
+                composite.setAttribute('in2', 'offsetblur');
+                composite.setAttribute('operator', 'in');
+                filter.appendChild(composite);
+                
+                const merge = document.createElementNS('http://www.w3.org/2000/svg', 'feMerge');
+                const n1 = document.createElementNS('http://www.w3.org/2000/svg', 'feMergeNode');
+                const n2 = document.createElementNS('http://www.w3.org/2000/svg', 'feMergeNode');
+                n2.setAttribute('in', 'SourceGraphic');
+                merge.appendChild(n1);
+                merge.appendChild(n2);
+                filter.appendChild(merge);
+            } else if (eff.type === 'glow') {
+                 // Simple glow implementation
+                 hasFilter = true;
+                 const blur = document.createElementNS('http://www.w3.org/2000/svg', 'feGaussianBlur');
+                 blur.setAttribute('stdDeviation', String(eff.radius || 5));
+                 blur.setAttribute('result', 'coloredBlur');
+                 filter.appendChild(blur);
+                 
+                 const merge = document.createElementNS('http://www.w3.org/2000/svg', 'feMerge');
+                 const n1 = document.createElementNS('http://www.w3.org/2000/svg', 'feMergeNode');
+                 n1.setAttribute('in', 'coloredBlur');
+                 const n2 = document.createElementNS('http://www.w3.org/2000/svg', 'feMergeNode');
+                 n2.setAttribute('in', 'SourceGraphic');
+                 merge.appendChild(n1);
+                 merge.appendChild(n2);
+                 filter.appendChild(merge);
+            }
+        });
+        
+        if (!hasFilter) return null;
+        
+        ctx.defs.appendChild(filter);
+        return id;
     }
 
     private getRect(anchor: any) {
@@ -661,11 +784,7 @@ export class XlsxRenderer {
          
          const getLeft = (col: number, off: number) => {
              let left = 0;
-             for (let c = 0; c < col; c++) left += (this.colWidths[c+1] || 64); // 1-based index? verify usage
-             // XlsxRenderer.calculateLayoutMetrics colWidths is 0-indexed or 1-indexed?
-             // calculateLayoutMetrics: cols[i] -> colWidths[i]. cols seems to be 0-indexed layout.
-             // renderDrawings: getLeft uses (c < col). input col is 0-based from parseAnchor? 
-             // DrawingParser.parseAnchor uses 'col' textContent. In OOXML 'col' is 0-based.
+             for (let c = 0; c < col; c++) left += (this.colWidths[c+1] || 64); 
              return left + (off / 9525);
          };
 

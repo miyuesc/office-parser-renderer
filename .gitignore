@@ -44,13 +44,12 @@ temp/
 
 docx-zip/
 docx-files/
-src/**/*.docx
+packages/**/*.docx
 
 xlsx-zip/
 xlsx-files/
-src/**/*.xlsx
+packages/**/*.xlsx
 
 pptx-zip/
 pptx-files/
-src/**/*.pptx
-packages/playground/public/test.xlsx
+packages/**/*.pptx

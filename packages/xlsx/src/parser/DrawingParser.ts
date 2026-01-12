@@ -61,7 +61,7 @@ export class DrawingParser {
                     let rotation = 0;
                     if (spPr) {
                         const style = DrawingMLParser.parseShapeProperties(spPr);
-                        if (style.rotation) rotation = style.rotation / 60000;
+                        if (style.rotation) rotation = style.rotation;
                         
                         const xfrm = XmlUtils.query(spPr, 'a\\:xfrm');
                         if (xfrm && xfrm.getAttribute('rot')) {
@@ -89,9 +89,12 @@ export class DrawingParser {
                 const name = cNvPr?.getAttribute('name');
 
                 const spPr = XmlUtils.query(sp, 'xdr\\:spPr');
+                const styleNode = XmlUtils.query(sp, 'xdr\\:style');
+            
                 if (spPr) {
                     const props = DrawingMLParser.parseShapeProperties(spPr);
                     const txBody = DrawingMLParser.parseTextBody(XmlUtils.query(sp, 'xdr\\:txBody'));
+                    const style = styleNode ? DrawingMLParser.parseStyle(styleNode) : undefined;
 
                     target.shapes.push({
                         id,
@@ -100,7 +103,10 @@ export class DrawingParser {
                         fill: props.fill,
                         stroke: props.stroke,
                         geometry: props.geometry, 
-                        rotation: props.rotation ? props.rotation / 60000 : 0,
+                        path: props.path,
+                        effects: props.effects,
+                        style,
+                        rotation: props.rotation || 0,
                         flipH: props.flipH,
                         flipV: props.flipV,
                         textBody: txBody,
@@ -120,27 +126,20 @@ export class DrawingParser {
                  const spPr = XmlUtils.query(cxnSp, 'xdr\\:spPr');
                  if (spPr) {
                      const props = DrawingMLParser.parseShapeProperties(spPr);
+                     const styleNode = XmlUtils.query(cxnSp, 'xdr\\:style');
+                     const style = styleNode ? DrawingMLParser.parseStyle(styleNode) : undefined;
                      
-                     const ln = XmlUtils.query(spPr, 'a\\:ln');
-                     let startArrow = 'none';
-                     let endArrow = 'none';
-                     if (ln) {
-                        const head = XmlUtils.query(ln, 'a\\:headEnd');
-                        const tail = XmlUtils.query(ln, 'a\\:tailEnd');
-                        if (head?.getAttribute('type')) endArrow = head.getAttribute('type')!;
-                        if (tail?.getAttribute('type')) startArrow = tail.getAttribute('type')!;
-                     }
-
                      target.connectors.push({
                          id,
                          name,
                          type: props.geometry || 'line',
                          geometry: props.geometry,
                          stroke: props.stroke,
-                         startArrow,
-                         endArrow,
+                         style,
+                         startArrow: props.stroke?.headEnd?.type || 'none',
+                         endArrow: props.stroke?.tailEnd?.type || 'none',
                          anchor: anchor,
-                         rotation: props.rotation ? props.rotation / 60000 : 0,
+                         rotation: props.rotation || 0,
                          flipH: props.flipH,
                          flipV: props.flipV
                      });
