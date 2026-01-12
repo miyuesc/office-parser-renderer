@@ -1,0 +1,14 @@
+{
+  "name": "@ai-space/shared",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch"
+  },
+  "dependencies": {
+    "fflate": "^0.8.0"
+  }
+}

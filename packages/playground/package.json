@@ -1,0 +1,20 @@
+{
+  "name": "@ai-space/playground",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@ai-space/shared": "workspace:*",
+    "@ai-space/docx": "workspace:*",
+    "@ai-space/pptx": "workspace:*",
+    "@ai-space/xlsx": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "typescript": "^5.0.0"
+  }
+}

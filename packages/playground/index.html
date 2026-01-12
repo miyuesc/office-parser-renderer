@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Office Canvas Renderer Playground</title>
+    <style>
+      body { font-family: sans-serif; padding: 20px; }
+      #app { margin-top: 20px; }
+      canvas { border: 1px solid #ccc; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+      .controls { margin-bottom: 20px; }
+    </style>
+  </head>
+  <body>
+    <div class="controls">
+      <h1>Office Canvas Renderer</h1>
+      <input type="file" id="fileInput" accept=".docx,.pptx,.xlsx" />
+      <span id="status"></span>
+    </div>
+    <div id="app">
+      <div id="container" style="border: 1px solid #ccc; width: 100%; min-height: 500px; position: relative; overflow: auto;"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
