@@ -4,6 +4,10 @@ import { OfficeImage, OfficeShape, OfficeConnector, OfficeGroupShape } from '../
 
 export class DrawingParser {
     static parse(drawingXml: string): { images: OfficeImage[], shapes: OfficeShape[], connectors: OfficeConnector[], groupShapes: OfficeGroupShape[] } {
+        console.group('DrawingParser.parse');
+        console.log('XML Length:', drawingXml.length);
+        // console.log('XML Content:', drawingXml); 
+
         const doc = XmlUtils.parse(drawingXml);
         const images: OfficeImage[] = [];
         const shapes: OfficeShape[] = [];
@@ -20,6 +24,7 @@ export class DrawingParser {
             // 1. Group Shape (xdr:grpSp)
             const grpSp = XmlUtils.query(node, 'xdr\\:grpSp') || (node.tagName === 'xdr:grpSp' ? node : null);
             if (grpSp) { 
+                console.log('Found GroupShape', grpSp);
                 const cNvPr = XmlUtils.query(grpSp, 'xdr\\:cNvPr');
                 
                 const group: OfficeGroupShape = {
@@ -51,6 +56,7 @@ export class DrawingParser {
             // 2. Image (xdr:pic)
             const pic = XmlUtils.query(node, 'xdr\\:pic') || (node.tagName === 'xdr:pic' ? node : null);
             if (pic) {
+                console.log('Found Image', pic);
                 const blip = XmlUtils.query(pic, 'a\\:blip');
                 const embedId = blip?.getAttribute('r:embed');
                 if (embedId) {
@@ -59,14 +65,21 @@ export class DrawingParser {
                     
                     const spPr = XmlUtils.query(pic, 'xdr\\:spPr');
                     let rotation = 0;
+                    let stroke;
+                    let effects;
+                    
                     if (spPr) {
                         const style = DrawingMLParser.parseShapeProperties(spPr);
+                        console.log(`Image [${name}] Props:`, style);
                         if (style.rotation) rotation = style.rotation;
                         
                         const xfrm = XmlUtils.query(spPr, 'a\\:xfrm');
                         if (xfrm && xfrm.getAttribute('rot')) {
                             rotation = parseInt(xfrm.getAttribute('rot')!, 10) / 60000;
                         }
+                        
+                        stroke = style.stroke;
+                        effects = style.effects;
                     }
 
                     target.images.push({
@@ -75,7 +88,9 @@ export class DrawingParser {
                         name,
                         src: '', 
                         rotation,
-                        anchor: anchor 
+                        anchor: anchor,
+                        stroke,
+                        effects
                     });
                 }
                 return;
@@ -84,6 +99,7 @@ export class DrawingParser {
             // 3. Shape (xdr:sp)
             const sp = XmlUtils.query(node, 'xdr\\:sp') || (node.tagName === 'xdr:sp' ? node : null);
             if (sp) {
+                console.log('Found Shape', sp);
                 const cNvPr = XmlUtils.query(sp, 'xdr\\:cNvPr');
                 const id = cNvPr?.getAttribute('id') || '0';
                 const name = cNvPr?.getAttribute('name');
@@ -93,6 +109,8 @@ export class DrawingParser {
             
                 if (spPr) {
                     const props = DrawingMLParser.parseShapeProperties(spPr);
+                    console.log(`Shape [${name}] Props:`, props);
+                    
                     const txBody = DrawingMLParser.parseTextBody(XmlUtils.query(sp, 'xdr\\:txBody'));
                     const style = styleNode ? DrawingMLParser.parseStyle(styleNode) : undefined;
 
@@ -104,11 +122,14 @@ export class DrawingParser {
                         stroke: props.stroke,
                         geometry: props.geometry, 
                         path: props.path,
+                        pathWidth: props.pathWidth,
+                        pathHeight: props.pathHeight,
                         effects: props.effects,
                         style,
                         rotation: props.rotation || 0,
                         flipH: props.flipH,
                         flipV: props.flipV,
+                        adjustValues: props.adjustValues,
                         textBody: txBody,
                         anchor: anchor
                     });
@@ -119,6 +140,7 @@ export class DrawingParser {
             // 4. Connector (xdr:cxnSp)
             const cxnSp = XmlUtils.query(node, 'xdr\\:cxnSp') || (node.tagName === 'xdr:cxnSp' ? node : null);
             if (cxnSp) {
+                 console.log('Found Connector', cxnSp);
                  const cNvPr = XmlUtils.query(cxnSp, 'xdr\\:cNvPr');
                  const id = cNvPr?.getAttribute('id') || '0';
                  const name = cNvPr?.getAttribute('name');
@@ -126,6 +148,7 @@ export class DrawingParser {
                  const spPr = XmlUtils.query(cxnSp, 'xdr\\:spPr');
                  if (spPr) {
                      const props = DrawingMLParser.parseShapeProperties(spPr);
+                     console.log(`Connector [${name}] Props:`, props);
                      const styleNode = XmlUtils.query(cxnSp, 'xdr\\:style');
                      const style = styleNode ? DrawingMLParser.parseStyle(styleNode) : undefined;
                      
@@ -141,7 +164,8 @@ export class DrawingParser {
                          anchor: anchor,
                          rotation: props.rotation || 0,
                          flipH: props.flipH,
-                         flipV: props.flipV
+                         flipV: props.flipV,
+                         adjustValues: props.adjustValues
                      });
                  }
                  return;
@@ -165,11 +189,16 @@ export class DrawingParser {
 
         // Two Cell Anchor
         const twoCellAnchors = XmlUtils.queryAll(doc, 'xdr\\:twoCellAnchor');
+        console.log('twoCellAnchors:', twoCellAnchors.length);
         twoCellAnchors.forEach((anchor: Element) => processAnchor(anchor));
 
         // One Cell Anchor
         const oneCellAnchors = XmlUtils.queryAll(doc, 'xdr\\:oneCellAnchor');
+        console.log('oneCellAnchors:', oneCellAnchors.length);
         oneCellAnchors.forEach((anchor: Element) => processAnchor(anchor));
+        
+        console.log('Parsed Results:', { images, shapes, connectors, groupShapes });
+        console.groupEnd();
         
         return { images, shapes, connectors, groupShapes };
     }

@@ -63,23 +63,30 @@ fileInput.addEventListener('change', async (e) => {
         status.textContent = 'Error: ' + err.message;
     }
 });
+
 // Auto-load test.xlsx
 (async () => {
     try {
-        const res = await fetch('/test.xlsx');
+        console.log('Fetching test file...');
+        // Encode the filename to handle Chinese characters
+        const res = await fetch('/' + encodeURIComponent('测试xlsx.xlsx'));
+        // fallback to unencoded if needed, but standard is encoded
         if (res.ok) {
             const buf = await res.arrayBuffer();
+            const { XlsxParser, XlsxRenderer } = await import('@ai-space/xlsx');
+            
+            console.group('Auto-Load Process');
+            console.log('Parsing XLSX...');
             const parser = new XlsxParser();
             const doc = await parser.parse(buf);
-            console.log('XLSX AST (Auto):', doc);
+            console.log('XLSX AST:', doc);
+            
             const renderer = new XlsxRenderer(container);
             await renderer.render(doc);
-            
-            // Re-render tabs?
-            // Existing `renderer.render` handles basic tabs internally now?
-            // The renderer I looked at HAS tab rendering in `renderLayout`.
-            // So I don't need external controls in main.ts necessarily, 
-            // but let's leave existing listener alone.
+            console.log('Render Complete');
+            console.groupEnd();
+        } else {
+            console.error('Failed to fetch /测试xlsx.xlsx', res.status, res.statusText);
         }
     } catch (e) {
         console.error('Auto-load failed', e);

@@ -8,7 +8,7 @@ export class DrawingMLParser {
      * Parses the Shape Properties (spPr) element.
      * Namespaces: usually 'a' (http://schemas.openxmlformats.org/drawingml/2006/main)
      */
-    static parseShapeProperties(node: Element): { fill?: OfficeFill, stroke?: OfficeStroke, geometry?: string, path?: string, rotation?: number, flipH?: boolean, flipV?: boolean, effects?: OfficeEffect[] } {
+    static parseShapeProperties(node: Element): { fill?: OfficeFill, stroke?: OfficeStroke, geometry?: string, path?: string, pathWidth?: number, pathHeight?: number, rotation?: number, flipH?: boolean, flipV?: boolean, effects?: OfficeEffect[] } {
         const result: any = {};
 
         const xfrm = XmlUtils.query(node, 'a\\:xfrm');
@@ -22,11 +22,29 @@ export class DrawingMLParser {
         const prstGeom = XmlUtils.query(node, 'a\\:prstGeom');
         if (prstGeom) {
             result.geometry = prstGeom.getAttribute('prst');
+            const avLst = XmlUtils.query(prstGeom, 'a\\:avLst');
+            if (avLst) {
+                const gds = XmlUtils.queryAll(avLst, 'a\\:gd');
+                if (gds.length > 0) {
+                    result.adjustValues = {};
+                    gds.forEach(gd => {
+                        const name = gd.getAttribute('name');
+                        const fmla = gd.getAttribute('fmla');
+                        // fmla is usually "val 50000"
+                        if (name && fmla && fmla.startsWith('val ')) {
+                             result.adjustValues![name] = parseInt(fmla.substring(4), 10);
+                        }
+                    });
+                }
+            }
         } else {
              const custGeom = XmlUtils.query(node, 'a\\:custGeom');
              if (custGeom) {
                  result.geometry = 'custom';
-                 result.path = this.parseCustomGeometry(custGeom);
+                 const { path, w, h } = this.parseCustomGeometry(custGeom);
+                 result.path = path;
+                 if (w) result.pathWidth = w;
+                 if (h) result.pathHeight = h;
              }
         }
 
@@ -159,10 +177,45 @@ export class DrawingMLParser {
                  alignment
              });
          });
+
+         let verticalAlignment: any = 'top';
+         const bodyPr = XmlUtils.query(node, 'a\\:bodyPr');
+         let padding = { left: 0, top: 0, right: 0, bottom: 0 };
+         let wrap: 'square' | 'none' = 'square';
+            
+         if (bodyPr) {
+             const anchor = bodyPr.getAttribute('anchor');
+             if (anchor) {
+                 if (anchor === 'ctr') verticalAlignment = 'middle';
+                 else if (anchor === 'b') verticalAlignment = 'bottom';
+                 else if (anchor === 'just') verticalAlignment = 'justified';
+                 else if (anchor === 'dist') verticalAlignment = 'distributed';
+             }
+                
+             const lIns = parseInt(bodyPr.getAttribute('lIns') || '91440', 10);
+             const tIns = parseInt(bodyPr.getAttribute('tIns') || '45720', 10);
+             const rIns = parseInt(bodyPr.getAttribute('rIns') || '91440', 10);
+             const bIns = parseInt(bodyPr.getAttribute('bIns') || '45720', 10);
+                
+             // Convert EMU to PT (approx) or keep EMU? Renderer expects values.
+             // 1 pt = 12700 EMU.
+             padding = {
+                 left: lIns / 12700,
+                 top: tIns / 12700,
+                 right: rIns / 12700,
+                 bottom: bIns / 12700
+             };
+                
+             const wrapAttr = bodyPr.getAttribute('wrap');
+             if (wrapAttr === 'none') wrap = 'none';
+         }
          
          return {
              text: paragraphs.map(p => p.text).join('\n'),
-             paragraphs
+             paragraphs,
+             verticalAlignment,
+             padding,
+             wrap
          };
     }
 
@@ -270,21 +323,50 @@ export class DrawingMLParser {
             });
         }
 
+        // Reflection
+        const reflection = XmlUtils.query(effectLst, 'a\\:reflection');
+        if (reflection) {
+            effects.push({
+                type: 'reflection',
+                blur: parseInt(reflection.getAttribute('blurRad') || '0', 10) / 12700,
+                startOpacity: parseInt(reflection.getAttribute('stA') || '100000', 10) / 100000,
+                endOpacity: parseInt(reflection.getAttribute('endA') || '0', 10) / 100000,
+                dist: parseInt(reflection.getAttribute('dist') || '0', 10) / 12700,
+                dir: parseInt(reflection.getAttribute('dir') || '0', 10) / 60000,
+                fadeDir: parseInt(reflection.getAttribute('fadeDir') || '5400000', 10) / 60000,
+                sy: parseInt(reflection.getAttribute('sy') || '100000', 10) / 100000,
+                kx: parseInt(reflection.getAttribute('kx') || '0', 10) / 60000,
+                ky: parseInt(reflection.getAttribute('ky') || '0', 10) / 60000,
+            });
+        }
+        
+        // Soft Edge
+        const softEdge = XmlUtils.query(effectLst, 'a\\:softEdge');
+        if (softEdge) {
+            effects.push({
+                type: 'softEdge',
+                radius: parseInt(softEdge.getAttribute('rad') || '0', 10) / 12700
+            });
+        }
+
         return effects;
     }
 
-    private static parseCustomGeometry(custGeom: Element): string {
+    private static parseCustomGeometry(custGeom: Element): { path: string, w?: number, h?: number } {
         // Simplified path parser for custGeom -> pathLst -> path
         const pathLst = XmlUtils.query(custGeom, 'a\\:pathLst');
-        if (!pathLst) return '';
+        if (!pathLst) return { path: '' };
 
         let d = '';
+        let totalW: number | undefined;
+        let totalH: number | undefined;
+        
         const paths = XmlUtils.queryAll(pathLst, 'a\\:path');
         paths.forEach(p => {
              const w = parseInt(p.getAttribute('w') || '0', 10);
              const h = parseInt(p.getAttribute('h') || '0', 10);
-             // We can store w/h to normalize later if needed.
-             // For now, we accumulate raw path commands.
+             if (!totalW && w > 0) totalW = w;
+             if (!totalH && h > 0) totalH = h;
              
              Array.from(p.children).forEach(cmd => {
                  const tagName = cmd.tagName.split(':').pop(); // remove prefix
@@ -307,10 +389,6 @@ export class DrawingMLParser {
                          break;
                      }
                      case 'arcTo': {
-                         // Arc is complex (wR, hR, stAng, swAng). SVG uses rx ry rot large sweep x y.
-                         // Do simplified mapping or skip. ArcTo in OOXML is rotation based.
-                         // Implementation requires math. Skipping valid arc for now, treating as line to end?
-                         // It's better to implement linear approx if possible, or just ignore.
                          break;
                      }
                      case 'close': {
@@ -320,7 +398,7 @@ export class DrawingMLParser {
                  }
              });
         });
-        return d.trim();
+        return { path: d.trim(), w: totalW, h: totalH };
     }
 
     private static parseColor(node: Element): string | undefined {

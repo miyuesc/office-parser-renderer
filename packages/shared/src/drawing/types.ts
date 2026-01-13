@@ -32,6 +32,9 @@ export interface OfficeShape {
     flipV?: boolean;
     geometry?: string; // prstGeom type
     path?: string; // SVG Path 'd' for custGeom
+    pathWidth?: number; // path coordinate system width
+    pathHeight?: number; // path coordinate system height
+    adjustValues?: Record<string, number>; // gd name -> value
     effects?: OfficeEffect[];
 }
 
@@ -68,6 +71,9 @@ export interface OfficeTextBody {
     paragraphs: OfficeParagraph[];
     verticalOverflow?: 'overflow' | 'ellipsis' | 'clip';
     horizontalOverflow?: 'overflow' | 'ellipsis' | 'clip';
+    verticalAlignment?: 'top' | 'middle' | 'bottom' | 'justified' | 'distributed';
+    padding?: { left: number, top: number, right: number, bottom: number }; // EMU or pt? Let's use pt
+    wrap?: 'square' | 'none';
 }
 
 export interface OfficeParagraph {
@@ -125,6 +131,7 @@ export interface OfficeStroke {
 }
 
 export interface OfficeEffect {
+
     type: 'outerShadow' | 'innerShadow' | 'glow' | 'reflection' | 'softEdge';
     // Shadow props
     blur?: number; // pt
@@ -134,4 +141,14 @@ export interface OfficeEffect {
     alpha?: number; // 0-1
     // Glow props
     radius?: number; // pt
+    // Reflection props
+    startOpacity?: number;
+    endOpacity?: number;
+    dist?: number; // pt
+    dir?: number; // degrees
+    fadeDir?: number;
+    sy?: number; // Y scale (percentage)
+    kx?: number; // Skew X
+    ky?: number; // Skew Y
+    blur?: number; // pt
 }

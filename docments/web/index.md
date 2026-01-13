@@ -1,0 +1,7 @@
+1. [OOXML info](https://ooxml.info/docs/)
+2. [Office Open XML](http://officeopenxml.com/)
+3. [ECMA-376 中文](https://hellowac.github.io/technology/ecma376/ecma-part1/)
+4. [microsoft overview sdk](https://learn.microsoft.com/en-us/dotnet/api/overview/openxml/?view=openxml-3.0.1)
+5. [OOXML 维基百科](https://en.wikipedia.org/wiki/Office_Open_XML)
+6. [ECMA-376 online](https://c-rex.net/samples/ooxml/e1/index.html)
+7. [ONLYOFFICE sdkjs](https://github.com/ONLYOFFICE/sdkjs)

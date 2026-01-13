@@ -8,6 +8,8 @@ export interface OfficeShape {
     stroke?: any;
     geometry?: string;
     path?: string; // Custom geometry path
+    pathWidth?: number;
+    pathHeight?: number;
     effects?: any[]; // Shadow, glow, etc.
     rotation?: number;
     flipH?: boolean;
@@ -15,6 +17,7 @@ export interface OfficeShape {
     textBody?: any;
     style?: any;
     anchor: any; 
+    adjustValues?: Record<string, number>;
 }
 
 export interface OfficeImage {
@@ -26,6 +29,8 @@ export interface OfficeImage {
     mimeType?: string;
     rotation?: number;
     anchor: any;
+    stroke?: any;
+    effects?: any[];
 }
 
 export interface OfficeConnector {
@@ -41,6 +46,7 @@ export interface OfficeConnector {
     startArrow?: string;
     endArrow?: string;
     style?: any;
+    adjustValues?: Record<string, number>;
 }
 
 export interface OfficeStyle {

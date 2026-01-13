@@ -358,6 +358,25 @@ export class XlsxRenderer {
              const rect = getRect(img.anchor);
              if (rect.w <= 0 || rect.h <= 0) return;
 
+             const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+             const cx = rect.x + rect.w/2;
+             const cy = rect.y + rect.h/2;
+
+             if (img.rotation) {
+                 g.setAttribute('transform', `rotate(${img.rotation * 60000}, ${cx}, ${cy})`); 
+                 // Wait, rotation from parser is already normalized? 
+                 // Parser: if (style.rotation) rotation = style.rotation.
+                 // In parseShapeProperties: result.rotation = rot / 60000.
+                 // So img.rotation is in degrees.
+                 g.setAttribute('transform', `rotate(${img.rotation}, ${cx}, ${cy})`);
+             }
+             
+             // Filters (Effects)
+             if (img.effects?.length) {
+                 const filterId = this.resolveFilter(img.effects, ctx);
+                 if (filterId) g.setAttribute('filter', `url(#${filterId})`);
+             }
+
              const image = document.createElementNS('http://www.w3.org/2000/svg', 'image');
              image.setAttribute('href', img.src); 
              image.setAttribute('x', String(rect.x));
@@ -365,11 +384,34 @@ export class XlsxRenderer {
              image.setAttribute('width', String(rect.w));
              image.setAttribute('height', String(rect.h));
              
-             if (img.rotation) {
-                 image.setAttribute('transform', `rotate(${img.rotation}, ${rect.x + rect.w/2}, ${rect.y + rect.h/2})`);
+             g.appendChild(image);
+
+             // Border
+             if (img.stroke) {
+                 const border = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                 border.setAttribute('x', String(rect.x));
+                 border.setAttribute('y', String(rect.y));
+                 border.setAttribute('width', String(rect.w));
+                 border.setAttribute('height', String(rect.h));
+                 border.setAttribute('fill', 'none');
+                 const color = img.stroke.color ? this.resolveColor(img.stroke.color) : 'black';
+                 border.setAttribute('stroke', color);
+                 const widthPt = img.stroke.width ? img.stroke.width / 12700 : 1;
+                 border.setAttribute('stroke-width', String(widthPt));
+                 
+                 if (img.stroke.dashStyle && img.stroke.dashStyle !== 'solid') {
+                     // Simple dash mapping
+                     if (img.stroke.dashStyle === 'dash') border.setAttribute('stroke-dasharray', '4 2');
+                     if (img.stroke.dashStyle === 'dot') border.setAttribute('stroke-dasharray', '1 1');
+                 }
+
+                 g.appendChild(border);
              }
-             svg.appendChild(image);
+             
+             svg.appendChild(g);
         });
+        
+        // 4. Group Shapes (Moved order? No, keeps same)
 
         // 4. Group Shapes
         sheet.groupShapes?.forEach((group: OfficeGroupShape) => {
@@ -391,35 +433,50 @@ export class XlsxRenderer {
              }
 
              // Determine Path
-             // Determine Path
              let d = `M ${x1} ${y1}`;
              
              if (cxn.type?.includes('curved') || cxn.geometry?.includes('curved')) {
                  // Cubic Bezier
-                 // Simple wrapper: Control points at (midX, y1) and (midX, y2) or similar to create S-curve.
-                 // If dist Y > dist X, vertical dominance.
+                 // Use adjust values if available
+                 const adj1 = cxn.adjustValues?.['adj1'] ?? 50000;
+                 const adj2 = cxn.adjustValues?.['adj2'] ?? 50000;
+
+                 // If vertical dominance, we assume standard S-curve
                  if (Math.abs(y2 - y1) > Math.abs(x2 - x1)) {
-                      const c1x = x1;
-                      const c1y = y1 + (y2 - y1) * 0.5;
-                      const c2x = x2;
-                      const c2y = y2 - (y2 - y1) * 0.5;
-                      d += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`;
+                      // Internal logic for CurvedConnector4 often implies tangents at start/end
+                      // For vertical flow:
+                      // CP1 is (x1, y1 + h*adj1%)
+                      // CP2 is (x2, y2 - h*adj2%) ? OR based on direction.
+                      // Heuristic:
+                      const h = y2 - y1;
+                      const cp1x = x1;
+                      const cp1y = y1 + h * (adj1 / 100000); 
+                      const cp2x = x2;
+                      const cp2y = y2 - h * (adj2 / 100000); // Usually adj2 is distance from end?
+                      
+                      // Try to match "standard" visualization where it curves out then in.
+                      // If adj1/adj2 are 50000 (0.5), it puts CPs at midpoint Y but kept at X1/X2 x-coords.
+                      d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
                  } else {
-                      const c1x = x1 + (x2 - x1) * 0.5;
-                      const c1y = y1;
-                      const c2x = x2 - (x2 - x1) * 0.5;
-                      const c2y = y2;
-                      d += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`;
+                      const w = x2 - x1;
+                      const cp1x = x1 + w * (adj1 / 100000);
+                      const cp1y = y1;
+                      const cp2x = x2 - w * (adj2 / 100000);
+                      const cp2y = y2;
+                      d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
                  }
              } else if (cxn.type?.includes('bent') || cxn.geometry?.includes('bent')) {
                  // Bent Connector
-                 // Default Manhattan "Z" or "L" is reasonable for 'bent'.
-                 // Could be enhanced if we knew adjustment values.
+                 const adj1 = cxn.adjustValues?.['adj1'] ?? 50000;
+                 const ratio = adj1 / 100000;
+                 
                  if (Math.abs(y2 - y1) > Math.abs(x2 - x1)) {
-                     const midY = (y1 + y2) / 2;
+                     // Vertical Dominance
+                     const midY = y1 + (y2 - y1) * ratio;
                      d += ` L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`;
                  } else {
-                     const midX = (x1 + x2) / 2;
+                     // Horizontal Dominance
+                     const midX = x1 + (x2 - x1) * ratio;
                      d += ` L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
                  }
              } else {
@@ -477,7 +534,8 @@ export class XlsxRenderer {
     
     // Helper to extract shape rendering logic
     private renderShapeInGroup(shape: OfficeShape, container: SVGElement, rect: { x: number, y: number, w: number, h: number }, ctx: any) {
-            const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        console.log(`Render Shape: [${shape.name}] Geometry: '${shape.geometry}'`, shape.adjustValues);
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
             let transform = `translate(${rect.x}, ${rect.y})`;
             if (shape.rotation) {
                 transform += ` rotate(${shape.rotation}, ${rect.w/2}, ${rect.h/2})`;
@@ -496,40 +554,184 @@ export class XlsxRenderer {
                 vector.setAttribute('d', shape.path);
                 // Custom path is usually in internal coordinates (EMU or abstract).
                 // We need to scale it to fit rect.w/h.
-                // But simplified parser kept raw numbers.
-                // We need 'viewBox' on the 'g' or scale transform?
-                // The 'path' usually fits a 0..coord_size box.
-                // Assuming parser returns raw path, we can either:
-                // 1. Detect bbox of path and scale? (Hard)
-                // 2. Wrap in <svg viewBox="...">? (Easiest)
-                // Let's wrap it in an inner SVG if it's a path.
+                if (shape.pathWidth && shape.pathHeight && shape.pathWidth > 0 && shape.pathHeight > 0) {
+                     // Wrap in an inner SVG to handle scaling via viewBox
+                     const innerSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                     innerSvg.setAttribute('viewBox', `0 0 ${shape.pathWidth} ${shape.pathHeight}`);
+                     innerSvg.setAttribute('width', String(rect.w));
+                     innerSvg.setAttribute('height', String(rect.h));
+                     innerSvg.setAttribute('preserveAspectRatio', 'none'); 
+                     innerSvg.style.overflow = 'visible';
+                     
+                     vector.setAttribute('d', shape.path);
+                     innerSvg.appendChild(vector);
+                     
+                     // We need to append innerSvg to g, but wait, we need to apply fill/stroke to vector?
+                     // Or apply to vector and vector is inside innerSvg? Yes.
+                     // But 'vector' variable is used later for fill/stroke setting.
+                     // So we should repurpose 'vector' to be the innerSvg for appending, 
+                     // OR keep vector as path and handle structure change.
+                     // The logic below sets attributes on 'vector'.
+                     // If I change 'vector' to be 'innerSvg', setAttribute('fill') etc might fail or not work on <svg> root (it does work usually but specificity?)
+                     // Better: Set attributes on the PATH (vector), and append PATH to innerSVG.
+                     // And append innerSVG to G.
+                     // To minimize code change, let's keep 'vector' as the element we modify style on (the path),
+                     // and at the end append the 'wrapper' (innerSvg) to 'g' instead of 'vector' directly.
+                     
+                     // wrapper hack
+                     // @ts-ignore
+                     vector._wrapper = innerSvg; 
+                } else {
+                    // Fallback: Just render path string, maybe it's normalized 0-1 or something?
+                    // Or 0..21600. If it is 0..21600, we could use that as default viewBox.
+                    // Many preset shapes use 21600x21600.
+                     const innerSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                     innerSvg.setAttribute('viewBox', `0 0 21600 21600`); // Educated guess for default
+                     innerSvg.setAttribute('width', String(rect.w));
+                     innerSvg.setAttribute('height', String(rect.h));
+                     innerSvg.setAttribute('preserveAspectRatio', 'none');
+                     innerSvg.style.overflow = 'visible';
+                     vector.setAttribute('d', shape.path);
+                     innerSvg.appendChild(vector);
+                     // @ts-ignore
+                     vector._wrapper = innerSvg;
+                }
+            } else if (shape.geometry === 'roundRect') {
+                vector = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                vector.setAttribute('width', String(rect.w));
+                vector.setAttribute('height', String(rect.h));
                 
-                // For simplicity, let's assume raw path needs scaling.
-                // But without parsing 'w'/'h' from custGeom, we don't know the denominator.
-                // Standard OOXML shapes are usually 0..21600 or similar.
-                // Let's apply a default scale if it looks huge, or assume renderer handles it.
-                // Better approach: wrap in <svg viewBox="0 0 maxX maxY" width="w" height="h">
-                // But we don't know maxX.
-                // TODO: Improve later. For now, use path directly but it might be huge.
-                // If it's custom, let's try to fit it into a viewbox of typical size?
-                // Or just render as path and hope user sees something.
+                // radius = min(w, h) * val / 100000
+                const val = shape.adjustValues?.['val'] ?? 16667;
+                console.log(`Rendering roundRect [${shape.name}] val=${val}`, shape.adjustValues);
+                const minDim = Math.min(rect.w, rect.h);
+                const radius = minDim * (val / 100000);
                 
-                // WORKAROUND: Most custom paths for specific shapes are normalized?
-                // Actually, let's just assume identity scale for now.
-             } else if (shape.geometry === 'ellipse') {
-                vector = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
-                vector.setAttribute('cx', String(rect.w / 2));
-                vector.setAttribute('cy', String(rect.h / 2));
-                vector.setAttribute('rx', String(rect.w / 2));
-                vector.setAttribute('ry', String(rect.h / 2));
+                vector.setAttribute('rx', String(radius));
+                vector.setAttribute('ry', String(radius));
+            } else if (shape.geometry === 'round2SameRect' || shape.geometry === 'round2SameRect ' || shape.geometry === 'round2SameRect\n') {
+                // Top-Left and Top-Right rounded
+                const val = shape.adjustValues?.['adj1'] ?? shape.adjustValues?.['val'] ?? 16667;
+                console.log(`Rendering round2SameRect [${shape.name}] val=${val}`);
+                
+                const minDim = Math.min(rect.w, rect.h);
+                const r = minDim * (val / 100000);
+                
+                // M 0 r A r r 0 0 1 r 0 L w-r 0 A r r 0 0 1 w r L w h L 0 h Z
+                // Ensure r is not > w/2 or h
+                const safeR = Math.min(r, rect.w / 2, rect.h);
+                
+                 const d = `M 0 ${safeR} A ${safeR} ${safeR} 0 0 1 ${safeR} 0 L ${rect.w - safeR} 0 A ${safeR} ${safeR} 0 0 1 ${rect.w} ${safeR} L ${rect.w} ${rect.h} L 0 ${rect.h} Z`;
+                
+                vector = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                vector.setAttribute('d', d);
+            } else if (shape.geometry === 'bentConnector2') {
+                // Elbow Connector
+                // adj1: default 50000 (50%)
+                const adj = shape.adjustValues?.['adj'] ?? 50000;
+                const ratio = adj / 100000;
+                
+                // Standard Elbow: Assume Z/L shape based on dimension or standard
+                // If it connects, start/end points dictate. Here we use bounding box.
+                // Case 1: Horizontal dominance (w > h). 
+                // M 0 0 L w*ratio 0 L w*ratio h L w h. (Z-shape vertical drop)
+                // Case 2: Vertical dominance (h > w).
+                // M 0 0 L 0 h*ratio L w h*ratio L w h. (Z-shape horizontal traverse)
+                
+                let d = '';
+                if (rect.w > rect.h) {
+                     const midX = rect.w * ratio;
+                     d = `M 0 0 L ${midX} 0 L ${midX} ${rect.h} L ${rect.w} ${rect.h}`;
+                } else {
+                     const midY = rect.h * ratio;
+                     d = `M 0 0 L 0 ${midY} L ${rect.w} ${midY} L ${rect.w} ${rect.h}`;
+                }
+                
+                vector = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                vector.setAttribute('d', d);
+                vector.setAttribute('fill', 'none'); 
+            } else if (shape.geometry === 'curvedConnector4') {
+                // Cubic Bezier Connector
+                // adj1, adj2. 
+                // Default: adj1=50000, adj2=50000 (?)
+                const adj1 = shape.adjustValues?.['adj1'] !== undefined ? shape.adjustValues['adj1'] : 50000;
+                const adj2 = shape.adjustValues?.['adj2'] !== undefined ? shape.adjustValues['adj2'] : 50000;
+                
+                // M 0 0 C cp1x cp1y, cp2x cp2y, w h
+                // If vertical dominance (h > w):
+                // cp1y = h * (adj1 / 100000) ??
+                // Actually adj1 is often tangent magnitude?
+                // If we check drawing1.xml, adj1 = -10141, adj2 = 78168.
+                // Negative value implies "backward" or "upward" (if Y).
+                
+                // Heuristic:
+                // CP1 = (w/2, h * adj1/100000) ? 
+                // If adj1 is negative, it goes up? 
+                
+                let cp1x, cp1y, cp2x, cp2y;
+                
+                if (rect.h > rect.w) {
+                    // Vertical
+                    cp1x = rect.w / 2;
+                    cp1y = rect.h * (adj1 / 100000);
+                    cp2x = rect.w / 2;
+                    cp2y = rect.h * (adj2 / 100000);
+                    
+                    // If adj1 < 0, maybe it means from START (0,0), Y is 0 + h*adj?
+                    // 0 + (-10%) = -10%. (0, -10).
+                    // If adj2 is 78%, Y is h*0.78.
+                    // This seems plausible for internal control points.
+                    
+                    // Fallback to minimal separation
+                    if (Math.abs(cp1y) < 1) cp1y = rect.h * 0.25;
+                    if (Math.abs(cp2y) < 1) cp2y = rect.h * 0.75;
+                } else {
+                    // Horizontal
+                     cp1x = rect.w * (adj1 / 100000);
+                     cp1y = rect.h / 2;
+                     cp2x = rect.w * (adj2 / 100000);
+                     cp2y = rect.h / 2;
+                }
+                
+                // For better curve, use X diff for Vertical? 
+                // Actually standard curved connector has CP1x = 0? 
+                // M 0 0 C 0 cp1y, w cp2y, w h ?? (Tangents parallel to Y axis)
+                // This creates a smooth S curve if CPs are vertical.
+                
+                if (rect.h > rect.w) {
+                     // Vertical tangent
+                     const d = `M 0 0 C 0 ${rect.h * (adj1/100000)} ${rect.w} ${rect.w * (adj2/100000)} ${rect.w} ${rect.h}`;
+                     // Wait, second control point X should be w?
+                     // C cp1x cp1y cp2x cp2y endx endy
+                     // Tangent at Start: (0, 1) vector? -> CP1 = (0, y1).
+                     // Tangent at End: (0, -1) vector? -> CP2 = (w, y2).
+                     
+                     // Try:
+                     // M 0 0 C 0 ${rect.h * (Math.abs(adj1)/100000)} ${rect.w} ${rect.h - rect.h * (Math.abs(adj2)/100000)} ${rect.w} ${rect.h}
+                     // But adj values are signed.
+                     // drawing1.xml: adj1=-10141 (up/back?), adj2=78168 (down/forward?)
+                     
+                     // Let's blindly trust the value as coordinate scalar?
+                     // M 0 0 C 0 ${rect.h * (adj1/100000)} ${rect.w} ${rect.h * (adj2/100000)} ${rect.w} ${rect.h}
+                    //  This implies CP1 X=0, CP2 X=w. Vertical tangents.
+                    
+                    vector = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    vector.setAttribute('d', `M 0 0 C 0 ${rect.h * (Math.abs(adj1)/100000)} ${rect.w} ${rect.h * (Math.abs(adj2)/100000)} ${rect.w} ${rect.h}`);
+                } else {
+                    // Horizontal tangent
+                    // M 0 0 C ${w*adj1} 0 ${w*adj2} h w h
+                     vector = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                     const c1 = rect.w * (Math.abs(adj1)/100000);
+                     const c2 = rect.w * (Math.abs(adj2)/100000);
+                     vector.setAttribute('d', `M 0 0 C ${c1} 0 ${c2} ${rect.h} ${rect.w} ${rect.h}`);
+                }
+                
+                vector.setAttribute('fill', 'none');
             } else {
                 // Default to rect
                 vector = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
                 vector.setAttribute('width', String(rect.w));
                 vector.setAttribute('height', String(rect.h));
-                if (shape.geometry === 'roundRect') {
-                    vector.setAttribute('rx', String(Math.min(rect.w, rect.h) * 0.15));
-                }
             }
 
             // Fill
@@ -589,43 +791,49 @@ export class XlsxRenderer {
                 vector.setAttribute('stroke', 'none'); 
             }
             
-            g.appendChild(vector);
-            container.appendChild(g);
-
-            // Text
-            if (shape.textBody && shape.textBody.paragraphs?.length) {
+            // @ts-ignore
+            if (vector._wrapper) {
+                 // @ts-ignore
+                 g.appendChild(vector._wrapper);
+            } else {
+                 g.appendChild(vector);
+            }
+            // Text Rendering
+            if (shape.textBody) {
                 const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+                fo.setAttribute('x', '0');
+                fo.setAttribute('y', '0');
                 fo.setAttribute('width', String(rect.w));
                 fo.setAttribute('height', String(rect.h));
-                fo.style.pointerEvents = 'none'; 
+                fo.style.overflow = 'visible'; 
                 
                 const div = document.createElement('div');
                 div.style.width = '100%';
                 div.style.height = '100%';
                 div.style.display = 'flex';
-                div.style.flexDirection = 'column'; 
-                div.style.justifyContent = 'center'; 
-                div.style.alignItems = 'center'; 
-
-                const p0 = shape.textBody.paragraphs[0];
-                const run0 = p0?.runs?.[0];
+                div.style.flexDirection = 'column';
+                div.style.boxSizing = 'border-box';
                 
-                if (p0?.alignment === 'left') div.style.alignItems = 'flex-start';
-                if (p0?.alignment === 'right') div.style.alignItems = 'flex-end';
+                // Vertical Alignment
+                // Vertical Alignment
+                const va = shape.textBody.verticalAlignment || 'top';
+                if (va === 'top') div.style.justifyContent = 'flex-start';
+                else if (va === 'middle' || va === 'ctr') div.style.justifyContent = 'center';
+                else if (va === 'bottom' || va === 'b') div.style.justifyContent = 'flex-end';
+                else if (va === 'justified' || va === 'distributed') div.style.justifyContent = 'space-between';
+                else div.style.justifyContent = 'flex-start'; // Default
                 
-                div.style.fontFamily = 'Calibri, sans-serif';
-                if (run0?.size) {
-                     div.style.fontSize = `${run0.size}pt`;
-                } else {
-                     div.style.fontSize = '11pt';
+                 // Padding
+                if (shape.textBody.padding) {
+                     const pad = shape.textBody.padding;
+                     div.style.paddingLeft = `${pad.left}pt`;
+                     div.style.paddingTop = `${pad.top}pt`;
+                     div.style.paddingRight = `${pad.right}pt`;
+                     div.style.paddingBottom = `${pad.bottom}pt`;
                 }
                 
-                if (run0?.color) {
-                    div.style.color = this.resolveColor(run0.color);
-                }
-                
-                // Render all paragraphs
-                shape.textBody.paragraphs.forEach((p: any) => {
+                // Render Paragraphs
+                 shape.textBody.paragraphs.forEach((p: any) => {
                     const pDiv = document.createElement('div');
                     if (p.alignment) pDiv.style.textAlign = p.alignment;
                     
@@ -634,39 +842,32 @@ export class XlsxRenderer {
                         span.textContent = run.text;
                         if (run.bold) span.style.fontWeight = 'bold';
                         if (run.size) span.style.fontSize = `${run.size}pt`;
+                        else span.style.fontSize = '11pt'; 
                         
-                        // Text Fill (Gradient?)
-                        if (run.fill && run.fill.type === 'gradient') {
-                             // Use background-clip text
+                        if (run.color) {
+                             span.style.color = this.resolveColor(run.color);
+                        }
+                        
+                         if (run.fill && run.fill.type === 'gradient') {
                              span.style.backgroundImage = this.resolveFill(run.fill, ctx, rect, true);
                              span.style.backgroundClip = 'text';
                              // @ts-ignore
                              span.style.webkitBackgroundClip = 'text';
                              span.style.color = 'transparent';
-                        } else if (run.color) {
-                            span.style.color = this.resolveColor(run.color);
                         }
                         
-                        // Text Effects (Shadow/Glow)
-                        if (run.effects) {
-                            // Simple text-shadow support
-                            const shadow = run.effects.find((e: any) => e.type === 'outerShadow');
-                            if (shadow) {
-                                const color = this.resolveColor(shadow.color || '#000000');
-                                const dist = shadow.dist || 2;
-                                span.style.textShadow = `${dist}px ${dist}px ${shadow.blur || 0}px ${color}`;
-                            }
-                        }
-
                         pDiv.appendChild(span);
                     });
                     div.appendChild(pDiv);
-                });
-                
-                fo.appendChild(div);
-                g.appendChild(fo);
+                 });
+                 
+                 fo.appendChild(div);
+                 g.appendChild(fo);
             }
+
+            container.appendChild(g);
     }
+
     
     private resolveFill(fill: any, ctx: any, rect: any, asCss: boolean = false): string {
         if (!fill) return 'none';
@@ -770,6 +971,28 @@ export class XlsxRenderer {
                  merge.appendChild(n1);
                  merge.appendChild(n2);
                  filter.appendChild(merge);
+                 merge.appendChild(n2);
+                 filter.appendChild(merge);
+            } else if (eff.type === 'reflection') {
+                 hasFilter = true;
+                 // Reflection is hard in SVG 1.1 Filter.
+                 // We can mimic it by duplicating the object, flipping it, and masking it.
+                 // BUT 'filter' applies to the element. We can't easily duplicate it inside a filter.
+                 // Best we can do in filter is maybe offset + blur? No, that's shadow.
+                 // Real reflection requires DOM duplication or -webkit-box-reflect.
+                 // Since we are in browser, we can try CSS on the 'g' element?
+                 // But 'renderShapeInGroup' applies filter via url(#...).
+                 // Let's skip complex reflection in 'filter' and handle it in CSS if possible, 
+                 // OR allow a simplified "drop shadow looking like reflection".
+                 
+                 // However, we can try to use feImage... complex.
+                 // Let's implement Soft Edge here.
+                 
+            } else if (eff.type === 'softEdge') {
+                 hasFilter = true;
+                 const blur = document.createElementNS('http://www.w3.org/2000/svg', 'feGaussianBlur');
+                 blur.setAttribute('stdDeviation', String(eff.radius || 5));
+                 filter.appendChild(blur);
             }
         });
         
