@@ -16,7 +16,7 @@ export interface OfficeShape {
     flipV?: boolean;
     textBody?: any;
     style?: any;
-    anchor: any; 
+    anchor: any;
     adjustValues?: Record<string, number>;
 }
 
@@ -31,6 +31,7 @@ export interface OfficeImage {
     anchor: any;
     stroke?: any;
     effects?: any[];
+    geometry?: string;
 }
 
 export interface OfficeConnector {
@@ -62,8 +63,8 @@ export interface OfficeGroupShape {
     rotation?: number;
     flipH?: boolean;
     flipV?: boolean;
-    anchor: any; 
-    shapes: OfficeShape[]; 
+    anchor: any;
+    shapes: OfficeShape[];
     images: OfficeImage[];
     connectors: OfficeConnector[];
     groups: OfficeGroupShape[];
@@ -92,7 +93,7 @@ export interface XlsxSheet {
     images?: OfficeImage[];
     shapes?: OfficeShape[];
     connectors?: OfficeConnector[];
-    groupShapes?: OfficeGroupShape[]; 
+    groupShapes?: OfficeGroupShape[];
 }
 
 export interface XlsxAnchor {

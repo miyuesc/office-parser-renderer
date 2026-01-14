@@ -9,7 +9,7 @@ export class ThemeParser {
 
         // clrScheme
         //  - dk1, lt1, dk2, lt2, accent1...accent6, hlink, folHlink
-        
+
         const clrScheme = XmlUtils.query(doc, 'a\\:clrScheme');
         if (clrScheme) {
             // Helper to extract RGB from sysClr or srgbClr
@@ -18,12 +18,23 @@ export class ThemeParser {
                 if (node) {
                     const srgbClr = XmlUtils.query(node, 'a\\:srgbClr');
                     const sysClr = XmlUtils.query(node, 'a\\:sysClr');
-                    
+
+                    let colorVal = '000000';
                     if (srgbClr) {
-                        colorScheme[mapTo] = srgbClr.getAttribute('val') || '000000';
+                        colorVal = srgbClr.getAttribute('val') || '000000';
                     } else if (sysClr) {
-                        colorScheme[mapTo] = sysClr.getAttribute('lastClr') || '000000';
+                        colorVal = sysClr.getAttribute('lastClr') || '000000';
                     }
+
+                    // Store by both numeric index and name
+                    colorScheme[mapTo] = colorVal;
+                    colorScheme[nodeName] = colorVal;
+
+                    // Also map aliases
+                    if (nodeName === 'dk1') colorScheme['tx1'] = colorVal;
+                    if (nodeName === 'lt1') colorScheme['bg1'] = colorVal;
+                    if (nodeName === 'dk2') colorScheme['tx2'] = colorVal;
+                    if (nodeName === 'lt2') colorScheme['bg2'] = colorVal;
                 }
             };
 
