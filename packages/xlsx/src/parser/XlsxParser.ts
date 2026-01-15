@@ -1,11 +1,13 @@
 
 import { ZipService, XmlUtils } from '@ai-space/shared';
-import { XlsxWorkbook, XlsxSheet, XlsxStyles } from '../types.ts';
+import { XlsxWorkbook, XlsxSheet, XlsxStyles, OfficeChart } from '../types.ts';
 import { WorkbookParser } from './WorkbookParser';
 import { StyleParser } from './StyleParser';
 import { ThemeParser } from './ThemeParser';
 import { WorksheetParser } from './WorksheetParser';
 import { DrawingParser } from './DrawingParser';
+import { ChartParser } from './ChartParser';
+
 
 export class XlsxParser {
     async parse(buffer: ArrayBuffer): Promise<XlsxWorkbook> {
@@ -44,18 +46,18 @@ export class XlsxParser {
         let sheets: XlsxSheet[] = [];
         const wbXml = getXml('xl/workbook.xml');
         const relsXml = getXml('xl/_rels/workbook.xml.rels');
-        
+
         if (wbXml) {
             const { sheets: parsedSheets, date1904 } = WorkbookParser.parse(wbXml, relsXml);
             sheets = parsedSheets;
-            
+
             // 5. Parse Each Sheet
             for (const sheet of sheets) {
                 if (!sheet.id) continue;
-                
+
                 const relationships = relsXml ? WorkbookParser.parseRels(relsXml) : {};
                 let sheetPath = relationships[sheet.id];
-                
+
                 if (sheetPath) {
                     // Resolve path
                     if (sheetPath.startsWith('/')) sheetPath = sheetPath.substring(1);
@@ -72,88 +74,122 @@ export class XlsxParser {
                             const fileName = pathParts.pop();
                             const folder = pathParts.join('/');
                             const sheetRelsPath = `${folder}/_rels/${fileName}.rels`;
-                            
+
                             const sheetRelsXml = getXml(sheetRelsPath);
                             if (sheetRelsXml) {
                                 const sheetRels = WorkbookParser.parseRels(sheetRelsXml);
                                 const drawingPathRel = sheetRels[sheet.drawingId];
-                                
+
                                 if (drawingPathRel) {
                                     let drawingPath = drawingPathRel;
-                                     if (!drawingPath.startsWith('/')) {
-                                         const parts = folder.split('/');
-                                         const relParts = drawingPath.split('/');
-                                         for (const p of relParts) {
-                                             if (p === '..') parts.pop();
-                                             else parts.push(p);
-                                         }
-                                         drawingPath = parts.join('/');
-                                     } else {
-                                         drawingPath = drawingPath.substring(1);
-                                     }
-                                     // console.log('Resolved Drawing Path:', drawingPath);
+                                    if (!drawingPath.startsWith('/')) {
+                                        const parts = folder.split('/');
+                                        const relParts = drawingPath.split('/');
+                                        for (const p of relParts) {
+                                            if (p === '..') parts.pop();
+                                            else parts.push(p);
+                                        }
+                                        drawingPath = parts.join('/');
+                                    } else {
+                                        drawingPath = drawingPath.substring(1);
+                                    }
+                                    // console.log('Resolved Drawing Path:', drawingPath);
 
-                                     const drawingXml = getXml(drawingPath);
-                                     if (drawingXml) {
-                                         // console.log('Parsing Drawing:', drawingPath);
-                                         const { images, shapes, connectors } = DrawingParser.parse(drawingXml);
-                                         // console.log('Parsed Drawings:', { images, shapes, connectors });
-                                         
-                                         // 7. Resolve Image Embeds (BLIPs)
-                                         const dPathParts = drawingPath.split('/');
-                                         const dFileName = dPathParts.pop();
-                                         const dFolder = dPathParts.join('/');
-                                         const drawingRelsPath = `${dFolder}/_rels/${dFileName}.rels`;
-                                         
-                                         const drawingRelsXml = getXml(drawingRelsPath);
-                                         if (drawingRelsXml) {
-                                             const drawingRels = WorkbookParser.parseRels(drawingRelsXml);
-                                             
+                                    const drawingXml = getXml(drawingPath);
+                                    if (drawingXml) {
+                                        // console.log('Parsing Drawing:', drawingPath);
+                                        const { images, shapes, connectors, chartRefs } = DrawingParser.parse(drawingXml);
+                                        // console.log('Parsed Drawings:', { images, shapes, connectors, chartRefs });
+
+                                        // 7. Resolve Image Embeds (BLIPs) and Chart References
+                                        const dPathParts = drawingPath.split('/');
+                                        const dFileName = dPathParts.pop();
+                                        const dFolder = dPathParts.join('/');
+                                        const drawingRelsPath = `${dFolder}/_rels/${dFileName}.rels`;
+
+                                        const drawingRelsXml = getXml(drawingRelsPath);
+                                        if (drawingRelsXml) {
+                                            const drawingRels = WorkbookParser.parseRels(drawingRelsXml);
+
                                             for (const img of images) {
-                                                 const targetId = img.embedId; // Use embedId for lookup
-                                                 const imgRelPath = drawingRels[targetId];
+                                                const targetId = img.embedId; // Use embedId for lookup
+                                                const imgRelPath = drawingRels[targetId];
 
-                                                 if (imgRelPath) {
-                                                     let imgPath = imgRelPath;
-                                                     if (!imgPath.startsWith('/')) {
-                                                         const dParts = dFolder.split('/');
-                                                         const iParts = imgRelPath.split('/');
-                                                         for (const p of iParts) {
-                                                             if (p === '..') dParts.pop();
-                                                             else dParts.push(p);
-                                                         }
-                                                         imgPath = dParts.join('/');
-                                                     } else {
-                                                         imgPath = imgPath.substring(1);
-                                                     }
-                                                     
-                                                     const imgData = files[imgPath];
-                                                     if (imgData) {
-                                                         img.data = imgData;
-                                                         if (imgPath.endsWith('.png')) img.mimeType = 'image/png';
-                                                         else if (imgPath.endsWith('.jpeg') || imgPath.endsWith('.jpg')) img.mimeType = 'image/jpeg';
-                                                         else if (imgPath.endsWith('.gif')) img.mimeType = 'image/gif';
-                                                         else if (imgPath.endsWith('.bmp')) img.mimeType = 'image/bmp';
-                                                         
-                                                         // Generate Blob URL for browser rendering
-                                                         if (typeof URL !== 'undefined' && typeof Blob !== 'undefined' && img.mimeType) {
-                                                             try {
-                                                                 const blob = new Blob([img.data], { type: img.mimeType });
-                                                                 img.src = URL.createObjectURL(blob);
-                                                             } catch (e) {
-                                                                 console.warn('Failed to create object URL for image', e);
-                                                             }
-                                                         }
-                                                     }
-                                                 }
-                                             }
-                                             sheet.images = images;
-                                         }
-                                         
-                                         // Assign shapes (no external rels usually for basic shapes)
-                                         sheet.shapes = shapes;
-                                         sheet.connectors = connectors;
-                                     }
+                                                if (imgRelPath) {
+                                                    let imgPath = imgRelPath;
+                                                    if (!imgPath.startsWith('/')) {
+                                                        const dParts = dFolder.split('/');
+                                                        const iParts = imgRelPath.split('/');
+                                                        for (const p of iParts) {
+                                                            if (p === '..') dParts.pop();
+                                                            else dParts.push(p);
+                                                        }
+                                                        imgPath = dParts.join('/');
+                                                    } else {
+                                                        imgPath = imgPath.substring(1);
+                                                    }
+
+                                                    const imgData = files[imgPath];
+                                                    if (imgData) {
+                                                        img.data = imgData;
+                                                        if (imgPath.endsWith('.png')) img.mimeType = 'image/png';
+                                                        else if (imgPath.endsWith('.jpeg') || imgPath.endsWith('.jpg')) img.mimeType = 'image/jpeg';
+                                                        else if (imgPath.endsWith('.gif')) img.mimeType = 'image/gif';
+                                                        else if (imgPath.endsWith('.bmp')) img.mimeType = 'image/bmp';
+
+                                                        // Generate Blob URL for browser rendering
+                                                        if (typeof URL !== 'undefined' && typeof Blob !== 'undefined' && img.mimeType) {
+                                                            try {
+                                                                const blob = new Blob([img.data], { type: img.mimeType });
+                                                                img.src = URL.createObjectURL(blob);
+                                                            } catch (e) {
+                                                                console.warn('Failed to create object URL for image', e);
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            sheet.images = images;
+
+                                            // 8. Parse Charts
+                                            if (chartRefs.length > 0) {
+                                                const charts: OfficeChart[] = [];
+                                                for (const chartRef of chartRefs) {
+                                                    const chartRelPath = drawingRels[chartRef.chartId];
+                                                    if (chartRelPath) {
+                                                        let chartPath = chartRelPath;
+                                                        if (!chartPath.startsWith('/')) {
+                                                            const cParts = dFolder.split('/');
+                                                            const rParts = chartRelPath.split('/');
+                                                            for (const p of rParts) {
+                                                                if (p === '..') cParts.pop();
+                                                                else cParts.push(p);
+                                                            }
+                                                            chartPath = cParts.join('/');
+                                                        } else {
+                                                            chartPath = chartPath.substring(1);
+                                                        }
+
+                                                        const chartXml = getXml(chartPath);
+                                                        if (chartXml) {
+                                                            const parsedChart = ChartParser.parse(chartXml);
+                                                            charts.push({
+                                                                ...parsedChart,
+                                                                id: chartRef.id,
+                                                                anchor: chartRef.anchor
+                                                            });
+                                                            console.log(`Parsed Chart: ${chartRef.name}`, parsedChart);
+                                                        }
+                                                    }
+                                                }
+                                                sheet.charts = charts;
+                                            }
+                                        }
+
+                                        // Assign shapes (no external rels usually for basic shapes)
+                                        sheet.shapes = shapes;
+                                        sheet.connectors = connectors;
+                                    }
                                 }
                             }
                         }
@@ -170,7 +206,7 @@ export class XlsxParser {
             styles,
             sharedStrings,
             theme,
-            date1904: (wbXml && WorkbookParser.parse(wbXml, relsXml).date1904) || false 
+            date1904: (wbXml && WorkbookParser.parse(wbXml, relsXml).date1904) || false
         };
     }
 }

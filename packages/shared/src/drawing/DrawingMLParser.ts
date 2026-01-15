@@ -1,6 +1,7 @@
 
 import { XmlUtils } from '../xml';
 import { OfficeShape, OfficeFill, OfficeStroke, OfficeTextBody, OfficeParagraph, OfficeRun, OfficeEffect, OfficeStyle } from './types';
+import { PresetColorMap } from '../utils/PresetColorMap';
 
 
 export class DrawingMLParser {
@@ -66,11 +67,24 @@ export class DrawingMLParser {
                 dashStyle: XmlUtils.query(ln, 'a\\:prstDash')?.getAttribute('val') || 'solid',
                 join: XmlUtils.query(ln, 'a\\:round') ? 'round' : (XmlUtils.query(ln, 'a\\:bevel') ? 'bevel' : 'miter'),
                 cap: XmlUtils.query(ln, 'a\\:rnd') ? 'rnd' : (XmlUtils.query(ln, 'a\\:sq') ? 'sq' : 'flat'),
+                compound: (ln.getAttribute('cmpd') as any) || undefined
             };
             const headEnd = XmlUtils.query(ln, 'a\\:headEnd');
-            if (headEnd) result.stroke.headEnd = { type: headEnd.getAttribute('type') || 'none' };
+            if (headEnd) {
+                result.stroke.headEnd = {
+                    type: headEnd.getAttribute('type') || 'none',
+                    w: headEnd.getAttribute('w') || 'med',
+                    len: headEnd.getAttribute('len') || 'med'
+                };
+            }
             const tailEnd = XmlUtils.query(ln, 'a\\:tailEnd');
-            if (tailEnd) result.stroke.tailEnd = { type: tailEnd.getAttribute('type') || 'none' };
+            if (tailEnd) {
+                result.stroke.tailEnd = {
+                    type: tailEnd.getAttribute('type') || 'none',
+                    w: tailEnd.getAttribute('w') || 'med',
+                    len: tailEnd.getAttribute('len') || 'med'
+                };
+            }
         }
 
         // Effects (shadows, glow, etc.)
@@ -222,12 +236,18 @@ export class DrawingMLParser {
     }
 
     private static parseFill(node: Element): OfficeFill | undefined {
-        // Solid Fill
-        const solidFill = XmlUtils.query(node, 'a\\:solidFill');
-        if (solidFill) {
+        // Pattern Fill (Highest Priority)
+        const pattFill = XmlUtils.query(node, 'a\\:pattFill');
+        if (pattFill) {
+            const fgClr = XmlUtils.query(pattFill, 'a\\:fgClr');
+            const bgClr = XmlUtils.query(pattFill, 'a\\:bgClr');
             return {
-                type: 'solid',
-                color: this.parseColor(solidFill)
+                type: 'pattern',
+                pattern: {
+                    patternType: pattFill.getAttribute('prst') || 'pct5',
+                    fgColor: fgClr ? this.parseColor(fgClr) || '#000000' : '#000000',
+                    bgColor: bgClr ? this.parseColor(bgClr) || '#ffffff' : '#ffffff'
+                }
             };
         }
 
@@ -265,18 +285,12 @@ export class DrawingMLParser {
             };
         }
 
-        // Pattern Fill
-        const pattFill = XmlUtils.query(node, 'a\\:pattFill');
-        if (pattFill) {
-            const fgClr = XmlUtils.query(pattFill, 'a\\:fgClr');
-            const bgClr = XmlUtils.query(pattFill, 'a\\:bgClr');
+        // Solid Fill
+        const solidFill = XmlUtils.query(node, 'a\\:solidFill');
+        if (solidFill) {
             return {
-                type: 'pattern',
-                pattern: {
-                    patternType: pattFill.getAttribute('prst') || 'pct5',
-                    fgColor: fgClr ? this.parseColor(fgClr) || '#000000' : '#000000',
-                    bgColor: bgClr ? this.parseColor(bgClr) || '#ffffff' : '#ffffff'
-                }
+                type: 'solid',
+                color: this.parseColor(solidFill)
             };
         }
 
@@ -483,8 +497,7 @@ export class DrawingMLParser {
         const srgb = XmlUtils.query(node, 'a\\:srgbClr');
         if (srgb) {
             let val = srgb.getAttribute('val')!;
-            // Handle alpha if present (alpha is usually child)
-            return '#' + val;
+            return this.applyModifiers('#' + val, srgb);
         }
 
         // schemeClr - with possible luminance modifications
@@ -494,15 +507,23 @@ export class DrawingMLParser {
             // Check for luminance modifications
             const lumMod = XmlUtils.query(scheme, 'a\\:lumMod');
             const lumOff = XmlUtils.query(scheme, 'a\\:lumOff');
+            const tint = XmlUtils.query(scheme, 'a\\:tint');
+            const shade = XmlUtils.query(scheme, 'a\\:shade');
+            const alpha = XmlUtils.query(scheme, 'a\\:alpha');
 
             let colorStr = `theme:${val}`;
-            if (lumMod || lumOff) {
+            if (lumMod || lumOff || tint || shade || alpha) {
                 const modVal = lumMod ? lumMod.getAttribute('val') : null;
                 const offVal = lumOff ? lumOff.getAttribute('val') : null;
-                // Encode modifications in the color string for later processing
-                // Format: theme:accent1:lumMod=75000:lumOff=25000
+                const tintVal = tint ? tint.getAttribute('val') : null;
+                const shadeVal = shade ? shade.getAttribute('val') : null;
+                const alphaVal = alpha ? alpha.getAttribute('val') : null;
+
                 if (modVal) colorStr += `:lumMod=${modVal}`;
                 if (offVal) colorStr += `:lumOff=${offVal}`;
+                if (tintVal) colorStr += `:tint=${tintVal}`;
+                if (shadeVal) colorStr += `:shade=${shadeVal}`;
+                if (alphaVal) colorStr += `:alpha=${alphaVal}`;
             }
             return colorStr;
         }
@@ -513,11 +534,64 @@ export class DrawingMLParser {
             return '#' + (sys.getAttribute('lastClr') || '000000');
         }
 
+        // prstClr
+        const prst = XmlUtils.query(node, 'a\\:prstClr');
+        if (prst) {
+            const hex = PresetColorMap[prst.getAttribute('val') as keyof typeof PresetColorMap] || '#000000';
+            return this.applyModifiers(hex, prst);
+        }
+
         // Check for color node directly if passed node IS the color node (like in gradient stops)
-        if (node.tagName.endsWith('srgbClr')) return '#' + node.getAttribute('val');
+        if (node.tagName.endsWith('srgbClr')) return this.applyModifiers('#' + node.getAttribute('val'), node);
+        if (node.tagName.endsWith('prstClr')) {
+            const hex = PresetColorMap[node.getAttribute('val') as keyof typeof PresetColorMap] || '#000000';
+            return this.applyModifiers(hex, node);
+        }
         if (node.tagName.endsWith('schemeClr')) return `theme:${node.getAttribute('val')}`;
 
         return undefined;
     }
-}
 
+    private static applyModifiers(hex: string, node: Element): string {
+        let r = parseInt(hex.substring(1, 3), 16);
+        let g = parseInt(hex.substring(3, 5), 16);
+        let b = parseInt(hex.substring(5, 7), 16);
+
+        const tint = XmlUtils.query(node, 'a\\:tint');
+        if (tint) {
+            const val = parseInt(tint.getAttribute('val') || '0', 10) / 100000;
+            // Tint: Mix with White
+            r = Math.round(r * val + 255 * (1 - val));
+            g = Math.round(g * val + 255 * (1 - val));
+            b = Math.round(b * val + 255 * (1 - val));
+            // Actually OOXML Tint formula is: C_new = C_old * tint + (1-tint) * 255?
+            // "The tint value is a percentage... 60% tint = 60% of original color?"
+            // Wait, usually tint 40% means getting LIGHTER.
+            // If tint="40000" (40%), color is lighter.
+            // Formula above: if val=0.4, result = 0.4*C + 0.6*255.
+            // If C=0, result=153 (Gray). This makes sense (mix with white).
+        }
+
+        const shade = XmlUtils.query(node, 'a\\:shade');
+        if (shade) {
+            const val = parseInt(shade.getAttribute('val') || '0', 10) / 100000;
+            // Shade: Mix with Black
+            r = Math.round(r * val);
+            g = Math.round(g * val);
+            b = Math.round(b * val);
+        }
+
+        const alpha = XmlUtils.query(node, 'a\\:alpha');
+        if (alpha) {
+            const a = parseInt(alpha.getAttribute('val') || '100000', 10) / 100000;
+            return `rgba(${r}, ${g}, ${b}, ${a})`;
+        }
+
+        const toHex = (n: number) => {
+            const s = Math.max(0, Math.min(255, n)).toString(16);
+            return s.length === 1 ? '0' + s : s;
+        };
+
+        return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    }
+}

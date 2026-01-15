@@ -9,6 +9,7 @@
     "dev": "vite build --watch"
   },
   "dependencies": {
-    "fflate": "^0.8.0"
+    "fflate": "^0.8.0",
+    "@ai-space/definitions": "workspace:*"
   }
 }

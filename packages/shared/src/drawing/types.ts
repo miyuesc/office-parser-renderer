@@ -41,7 +41,7 @@ export interface OfficeShape {
 export interface OfficeConnector {
     id: string;
     name?: string;
-    type: string; 
+    type: string;
     startConnection?: { id: string; idx: number };
     endConnection?: { id: string; idx: number };
     stroke?: OfficeStroke;
@@ -54,11 +54,11 @@ export interface OfficeConnector {
 }
 
 export interface OfficeImage {
-    id: string; 
-    embedId: string; 
+    id: string;
+    embedId: string;
     name?: string;
     mimeType?: string;
-    data?: Uint8Array; 
+    data?: Uint8Array;
     anchor: OfficeAnchor;
     rotation?: number;
     flipH?: boolean;
@@ -122,12 +122,14 @@ export interface OfficePattern {
 
 export interface OfficeStroke {
     width?: number; // pt
-    color?: string; // Hex
+    color?: string; // Hex (solid)
+    gradient?: OfficeGradient; // Gradient stroke
     dashStyle?: string; // 'solid', 'dash', 'dot', etc.
-    headEnd?: { type: string; };
-    tailEnd?: { type: string; };
+    headEnd?: { type: string; w?: string; len?: string; };
+    tailEnd?: { type: string; w?: string; len?: string; };
     join?: 'round' | 'bevel' | 'miter';
     cap?: 'rnd' | 'sq' | 'flat';
+    compound?: 'sng' | 'dbl' | 'thickThin' | 'thinThick' | 'tri';
 }
 
 export interface OfficeEffect {

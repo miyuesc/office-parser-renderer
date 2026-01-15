@@ -32,6 +32,9 @@ export interface OfficeImage {
     stroke?: any;
     effects?: any[];
     geometry?: string;
+    adjustValues?: Record<string, number>;
+    flipH?: boolean;
+    flipV?: boolean;
 }
 
 export interface OfficeConnector {
@@ -70,6 +73,42 @@ export interface OfficeGroupShape {
     groups: OfficeGroupShape[];
 }
 
+/**
+ * 图表系列数据
+ */
+export interface ChartSeries {
+    /** 系列索引 */
+    index: number;
+    /** 系列名称 */
+    name?: string;
+    /** 分类数据 (X轴标签) */
+    categories: string[];
+    /** 数值数据 (Y轴值) */
+    values: number[];
+    /** 填充颜色 */
+    fillColor?: string;
+}
+
+/**
+ * 图表数据
+ */
+export interface OfficeChart {
+    /** 图表 ID */
+    id: string;
+    /** 图表类型 */
+    type: 'barChart' | 'pieChart' | 'lineChart' | 'areaChart' | 'scatterChart' | 'other';
+    /** 图表标题 */
+    title?: string;
+    /** 数据系列 */
+    series: ChartSeries[];
+    /** 柱状图方向 (barChart only) */
+    barDirection?: 'col' | 'bar';
+    /** 柱状图分组方式 */
+    grouping?: 'clustered' | 'stacked' | 'percentStacked';
+    /** 锚点信息 */
+    anchor: any;
+}
+
 export interface XlsxWorkbook {
     sheets: XlsxSheet[];
     styles: XlsxStyles;
@@ -94,6 +133,7 @@ export interface XlsxSheet {
     shapes?: OfficeShape[];
     connectors?: OfficeConnector[];
     groupShapes?: OfficeGroupShape[];
+    charts?: OfficeChart[];
 }
 
 export interface XlsxAnchor {

@@ -2,8 +2,18 @@
 import { XmlUtils, DrawingMLParser } from '@ai-space/shared';
 import { OfficeImage, OfficeShape, OfficeConnector, OfficeGroupShape } from '../types';
 
+/**
+ * 图表引用信息
+ */
+export interface ChartReference {
+    id: string;
+    name?: string;
+    chartId: string; // r:id 指向 chart XML
+    anchor: any;
+}
+
 export class DrawingParser {
-    static parse(drawingXml: string): { images: OfficeImage[], shapes: OfficeShape[], connectors: OfficeConnector[], groupShapes: OfficeGroupShape[] } {
+    static parse(drawingXml: string): { images: OfficeImage[], shapes: OfficeShape[], connectors: OfficeConnector[], groupShapes: OfficeGroupShape[], chartRefs: ChartReference[] } {
         console.group('DrawingParser.parse');
         console.log('XML Length:', drawingXml.length);
         // console.log('XML Content:', drawingXml); 
@@ -13,6 +23,8 @@ export class DrawingParser {
         const shapes: OfficeShape[] = [];
         const connectors: OfficeConnector[] = [];
         const groupShapes: OfficeGroupShape[] = [];
+        const chartRefs: ChartReference[] = [];
+
 
         // Recursive processor for elements
         const processElement = (node: Element, anchor: any, target: {
@@ -82,6 +94,15 @@ export class DrawingParser {
                         stroke = style.stroke;
                         effects = style.effects;
                         geometry = style.geometry;
+
+                        // 如果 adjustValues 包含圆角相关值，设置 geometry 为 roundRect
+                        if (!geometry || geometry === 'rect') {
+                            const adj = style.adjustValues;
+                            if (adj && (adj['adj'] || adj['adj1'] || adj['val'])) {
+                                geometry = 'roundRect';
+                                console.log(`Image [${name}] inferred roundRect from adjustValues`);
+                            }
+                        }
                     }
 
                     target.images.push({
@@ -93,7 +114,10 @@ export class DrawingParser {
                         anchor: anchor,
                         stroke,
                         effects,
-                        geometry
+                        geometry,
+                        flipH: (spPr && DrawingMLParser.parseShapeProperties(spPr).flipH) || undefined,
+                        flipV: (spPr && DrawingMLParser.parseShapeProperties(spPr).flipV) || undefined,
+                        adjustValues: (spPr && DrawingMLParser.parseShapeProperties(spPr).adjustValues) || undefined
                     });
                 }
                 return;
@@ -173,6 +197,31 @@ export class DrawingParser {
                 }
                 return;
             }
+
+            // 5. Graphic Frame (xdr:graphicFrame) - 用于图表
+            const graphicFrame = XmlUtils.query(node, 'xdr\\:graphicFrame') || (node.tagName === 'xdr:graphicFrame' ? node : null);
+            if (graphicFrame) {
+                console.log('Found GraphicFrame (Chart)', graphicFrame);
+                const cNvPr = XmlUtils.query(graphicFrame, 'xdr\\:nvGraphicFramePr xdr\\:cNvPr');
+                const id = cNvPr?.getAttribute('id') || '0';
+                const name = cNvPr?.getAttribute('name');
+
+                // 查找图表引用
+                const chart = XmlUtils.query(graphicFrame, 'a\\:graphic a\\:graphicData c\\:chart');
+                if (chart) {
+                    const chartId = chart.getAttribute('r:id');
+                    if (chartId) {
+                        chartRefs.push({
+                            id,
+                            name,
+                            chartId,
+                            anchor
+                        });
+                        console.log(`Found Chart Reference: ${name} -> ${chartId}`);
+                    }
+                }
+                return;
+            }
         };
 
         // Main Anchor Processor
@@ -200,10 +249,10 @@ export class DrawingParser {
         console.log('oneCellAnchors:', oneCellAnchors.length);
         oneCellAnchors.forEach((anchor: Element) => processAnchor(anchor));
 
-        console.log('Parsed Results:', { images, shapes, connectors, groupShapes });
+        console.log('Parsed Results:', { images, shapes, connectors, groupShapes, chartRefs });
         console.groupEnd();
 
-        return { images, shapes, connectors, groupShapes };
+        return { images, shapes, connectors, groupShapes, chartRefs };
     }
 
     private static parseAnchor(node: Element | null): { col: number, colOff: number, row: number, rowOff: number } | null {

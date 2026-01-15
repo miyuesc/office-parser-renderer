@@ -1,6 +1,8 @@
-import { XlsxWorkbook, XlsxSheet, XlsxRow, XlsxCell, OfficeImage, OfficeShape, OfficeConnector, OfficeGroupShape } from '../types';
+import { XlsxWorkbook, XlsxSheet, XlsxRow, XlsxCell, OfficeImage, OfficeShape, OfficeConnector, OfficeGroupShape, OfficeChart } from '../types';
 import { CellStyleUtils } from './CellStyleUtils';
 import { NumberFormatUtils } from '../utils/NumberFormatUtils';
+import { Units, PresetColorMap, generatePresetPath, DefaultThemeColors, mapThemeColor } from '@ai-space/shared';
+import { PrstGeom, LineEndType, LineEndWidth, LineEndLength, PatternType } from '../utils/Enums';
 
 export class XlsxRenderer {
     private container: HTMLElement;
@@ -41,11 +43,13 @@ export class XlsxRenderer {
         this.container.style.display = 'flex';
         this.container.style.flexDirection = 'column';
         this.container.style.height = '100%';
+        this.container.style.overflow = 'hidden'; // 防止容器本身滚动
         this.container.style.backgroundColor = '#f3f2f1'; // Excel-like gray bg
 
-        // 1. Sheet Content Area
+        // 1. Sheet Content Area - 内容区域，内部滚动
         const contentArea = document.createElement('div');
         contentArea.style.flex = '1';
+        contentArea.style.minHeight = '0'; // 关键：允许 flex 子元素收缩
         contentArea.style.overflow = 'auto';
         contentArea.style.position = 'relative';
         contentArea.style.backgroundColor = '#ffffff';
@@ -255,7 +259,7 @@ export class XlsxRenderer {
 
 
     private renderDrawings(sheet: XlsxSheet, container: HTMLElement) {
-        if (!sheet.images?.length && !sheet.shapes?.length && !sheet.connectors?.length) return;
+        if (!sheet.images?.length && !sheet.shapes?.length && !sheet.connectors?.length && !sheet.charts?.length) return;
 
         // Shared Layout Calculation
         const { colWidths, rowHeights } = this.calculateLayoutMetrics(sheet);
@@ -303,44 +307,9 @@ export class XlsxRenderer {
         svg.style.overflow = 'visible';
         svg.style.zIndex = '10';
 
+
         // Defs for Markers, Gradients, Filters
         const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-
-        // Generic Arrow Marker (Standard Triangle) - End
-        const markerEnd = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
-        markerEnd.setAttribute('id', 'arrow-end');
-        markerEnd.setAttribute('viewBox', '0 0 10 10');
-        markerEnd.setAttribute('refX', '9');
-        markerEnd.setAttribute('refY', '5');
-        markerEnd.setAttribute('markerWidth', '6');
-        markerEnd.setAttribute('markerHeight', '6');
-        markerEnd.setAttribute('orient', 'auto');
-        markerEnd.setAttribute('markerUnits', 'strokeWidth'); // Scale with line
-        const pathEnd = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        pathEnd.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
-        pathEnd.style.fill = 'context-stroke'; // SVG 2
-        pathEnd.setAttribute('fill', 'black'); // Fallback
-
-        markerEnd.appendChild(pathEnd);
-        defs.appendChild(markerEnd);
-
-        // Generic Arrow Marker - Start
-        const markerStart = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
-        markerStart.setAttribute('id', 'arrow-start');
-        markerStart.setAttribute('viewBox', '0 0 10 10');
-        markerStart.setAttribute('refX', '1');
-        markerStart.setAttribute('refY', '5');
-        markerStart.setAttribute('markerWidth', '6');
-        markerStart.setAttribute('markerHeight', '6');
-        markerStart.setAttribute('orient', 'auto');
-        markerStart.setAttribute('markerUnits', 'strokeWidth');
-        const pathStart = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        pathStart.setAttribute('d', 'M 10 0 L 0 5 L 10 10 z');
-        pathStart.style.fill = 'context-stroke';
-        pathStart.setAttribute('fill', 'black');
-        markerStart.appendChild(pathStart);
-        defs.appendChild(markerStart);
-
         svg.appendChild(defs);
 
         // Helper to resolve fills/filters into defs
@@ -363,14 +332,24 @@ export class XlsxRenderer {
             const cx = rect.x + rect.w / 2;
             const cy = rect.y + rect.h / 2;
 
-            if (img.rotation) {
-                g.setAttribute('transform', `rotate(${img.rotation}, ${cx}, ${cy})`);
-                // Wait, rotation from parser is already normalized? 
-                // Parser: if (style.rotation) rotation = style.rotation.
-                // In parseShapeProperties: result.rotation = rot / 60000.
-                // So img.rotation is in degrees.
-                g.setAttribute('transform', `rotate(${img.rotation}, ${cx}, ${cy})`);
+            // 构建 transform：先翻转后旋转（Office 的处理顺序）
+            // 注意：SVG transform 从右往左应用，所以要反过来写
+            let transforms: string[] = [];
+
+            // 1. 翻转（先应用 = 后写入）
+            if (img.flipH || img.flipV) {
+                const sx = img.flipH ? -1 : 1;
+                const sy = img.flipV ? -1 : 1;
+                transforms.push(`translate(${cx}, ${cy}) scale(${sx}, ${sy}) translate(${-cx}, ${-cy})`);
             }
+
+            // 2. 旋转（后应用 = 先写入）
+            // OOXML: 正值为顺时针，SVG rotate 也是正值顺时针，无需取反
+            if (img.rotation) {
+                transforms.unshift(`rotate(${img.rotation}, ${cx}, ${cy})`);
+            }
+
+            if (transforms.length > 0) g.setAttribute('transform', transforms.join(' '));
 
             // Filters (Effects)
             if (img.effects?.length) {
@@ -380,10 +359,21 @@ export class XlsxRenderer {
 
             const image = document.createElementNS('http://www.w3.org/2000/svg', 'image');
             image.setAttribute('href', img.src);
-            image.setAttribute('x', String(rect.x));
-            image.setAttribute('y', String(rect.y));
-            image.setAttribute('width', String(rect.w));
-            image.setAttribute('height', String(rect.h));
+
+            // 检查是否需要交换宽高（旋转 90° 或 270° 时）
+            // OOXML 存储的 ext (cx, cy) 是原始尺寸，旋转后视觉尺寸需要交换
+            const rot = img.rotation || 0;
+            const needSwap = (rot > 45 && rot < 135) || (rot > 225 && rot < 315);
+            const renderW = needSwap ? rect.h : rect.w;
+            const renderH = needSwap ? rect.w : rect.h;
+            // 如果需要交换，调整位置使中心保持不变
+            const renderX = needSwap ? rect.x + (rect.w - renderW) / 2 : rect.x;
+            const renderY = needSwap ? rect.y + (rect.h - renderH) / 2 : rect.y;
+
+            image.setAttribute('x', String(renderX));
+            image.setAttribute('y', String(renderY));
+            image.setAttribute('width', String(renderW));
+            image.setAttribute('height', String(renderH));
             image.setAttribute('preserveAspectRatio', 'none'); // Scale to fill
 
             // Clip Path for Rounded Corners (if geometry implies it)
@@ -393,18 +383,21 @@ export class XlsxRenderer {
             // But OfficeImage interface might not have it.
             // If we assume standard "soft edge" or "round" style is applied via effects or we just want to support it if we can find it.
             // Let's add support if `img['geometry']` exists.
-            if ((img as any).geometry === 'roundRect') {
+            if (img.geometry === 'roundRect') {
                 const clipId = `clip-${++ctx.counter}`;
                 const clip = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
                 clip.setAttribute('id', clipId);
                 const clipRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                clipRect.setAttribute('x', String(rect.x));
-                clipRect.setAttribute('y', String(rect.y));
-                clipRect.setAttribute('width', String(rect.w));
-                clipRect.setAttribute('height', String(rect.h));
-                // Default roundness ~10% if not specified? Or use adjustValues.
-                // This is a guess since we don't have adjustValues on OfficeImage type explicitly shown in view.
-                const radius = Math.min(rect.w, rect.h) * 0.15;
+                clipRect.setAttribute('x', String(renderX));
+                clipRect.setAttribute('y', String(renderY));
+                clipRect.setAttribute('width', String(renderW));
+                clipRect.setAttribute('height', String(renderH));
+
+                // 获取圆角值，支持多种键名：val, adj, adj1（不同 Excel 版本可能不同）
+                const val = img.adjustValues?.['adj'] ?? img.adjustValues?.['adj1'] ?? img.adjustValues?.['val'] ?? 16667;
+                const radius = Math.min(renderW, renderH) * (val / 100000);
+                console.log(`[Image Border Radius] ${img.name}: val=${val}, radius=${radius}px`);
+
                 clipRect.setAttribute('rx', String(radius));
                 clipRect.setAttribute('ry', String(radius));
                 clip.appendChild(clipRect);
@@ -422,14 +415,23 @@ export class XlsxRenderer {
                 // Offset border to be OUTSIDE the image
                 // x = x - strokeWidth/2, y = y - strokeWidth/2
                 // w = w + strokeWidth, h = h + strokeWidth
-                border.setAttribute('x', String(rect.x - strokeWidth / 2));
-                border.setAttribute('y', String(rect.y - strokeWidth / 2));
-                border.setAttribute('width', String(rect.w + strokeWidth));
-                border.setAttribute('height', String(rect.h + strokeWidth));
+                border.setAttribute('x', String(renderX - strokeWidth / 2));
+                border.setAttribute('y', String(renderY - strokeWidth / 2));
+                border.setAttribute('width', String(renderW + strokeWidth));
+                border.setAttribute('height', String(renderH + strokeWidth));
 
                 border.setAttribute('fill', 'none');
                 border.setAttribute('stroke', this.resolveColor(img.stroke.color));
                 border.setAttribute('stroke-width', String(strokeWidth));
+
+                // Match Corner Radius if Image has one
+                if (img.geometry === 'roundRect') {
+                    // 与 clipPath 使用相同的键名检查逻辑
+                    const val = img.adjustValues?.['adj'] ?? img.adjustValues?.['adj1'] ?? img.adjustValues?.['val'] ?? 16667;
+                    const radius = Math.min(renderW, renderH) * (val / 100000);
+                    border.setAttribute('rx', String(radius));
+                    border.setAttribute('ry', String(radius));
+                }
 
                 if (img.stroke.dashStyle && img.stroke.dashStyle !== 'solid') {
                     // Simple dash mapping
@@ -440,6 +442,40 @@ export class XlsxRenderer {
                 // Line Join/Cap
                 if (img.stroke.join) border.setAttribute('stroke-linejoin', img.stroke.join);
                 if (img.stroke.cap) border.setAttribute('stroke-linecap', img.stroke.cap);
+
+                // Compound Line (Double/Tri/ThickThin)
+                // Using Mask to cut out the gap
+                if (img.stroke.compound && img.stroke.compound !== 'sng') {
+                    const maskId = `mask-cmpd-${++ctx.counter}`;
+                    const mask = document.createElementNS('http://www.w3.org/2000/svg', 'mask');
+                    mask.setAttribute('id', maskId);
+
+                    // 1. White base (Visible part)
+                    const base = border.cloneNode() as Element;
+                    base.setAttribute('stroke', 'white');
+                    base.setAttribute('stroke-width', String(strokeWidth));
+                    mask.appendChild(base);
+
+                    // 2. Black cut-out (Gap)
+                    // Simplified: Assume 'dbl' (1:1:1) or similar.
+                    // Cut out the middle 1/3 (or appropriate ratio)
+                    const gap = border.cloneNode() as Element;
+                    gap.setAttribute('stroke', 'black');
+
+                    let gapWidth = strokeWidth / 3;
+                    if (img.stroke.compound === 'thickThin') {
+                        // Thick (60) Gap (20) Thin (20)? No, usually offset.
+                        // Simple approximation: Cut hole at 20% width?
+                        // For now, treat all as 'dbl' for visibility.
+                        gapWidth = strokeWidth / 3;
+                    }
+
+                    gap.setAttribute('stroke-width', String(gapWidth));
+                    mask.appendChild(gap);
+                    ctx.defs.appendChild(mask);
+
+                    border.setAttribute('mask', `url(#${maskId})`);
+                }
 
                 g.appendChild(border);
             }
@@ -471,52 +507,65 @@ export class XlsxRenderer {
             // Determine Path
             let d = `M ${x1} ${y1}`;
 
-            if (cxn.type?.includes('curved') || cxn.geometry?.includes('curved')) {
-                // Cubic Bezier
-                // Use adjust values if available
-                const adj1 = cxn.adjustValues?.['adj1'] ?? 50000;
-                const adj2 = cxn.adjustValues?.['adj2'] ?? 50000;
+            // Normalize geometry type
+            const geom = cxn.geometry || cxn.type || 'line';
 
-                // If vertical dominance, we assume standard S-curve
+            if (geom.includes('curved') || geom === 'curvedConnector3') {
+                // Quadratic Bezier (curvedConnector3 default)
+                // Use adj1 to determine control point offset? 
+                // Default heuristic: Control point at corner of bounding box or mid-curve.
+                // Simple Quad: M Start Q Control End
+
+                // Identify Control Point
+                // Heuristic: Intersection of horizontal from Start and vertical from End (or vice versa)
+                // adj1 (50000) determines how close to that corner?
+
+                // Standard Logic for curvedConnector3 (simple arc):
+                // M x1 y1 Q (x2, y1) x2 y2 ? Or Q (x1, y2) x2 y2?
+                // Depends on direction.
+
+                // If |dx| > |dy|, move Horizontal first?
+                let cpx = x2;
+                let cpy = y1;
+
                 if (Math.abs(y2 - y1) > Math.abs(x2 - x1)) {
-                    // Internal logic for CurvedConnector4 often implies tangents at start/end
-                    // For vertical flow:
-                    // CP1 is (x1, y1 + h*adj1%)
-                    // CP2 is (x2, y2 - h*adj2%) ? OR based on direction.
-                    // Heuristic:
-                    const h = y2 - y1;
-                    const cp1x = x1;
-                    const cp1y = y1 + h * (adj1 / 100000);
-                    const cp2x = x2;
-                    const cp2y = y2 - h * (adj2 / 100000); // Usually adj2 is distance from end?
-
-                    // Try to match "standard" visualization where it curves out then in.
-                    // If adj1/adj2 are 50000 (0.5), it puts CPs at midpoint Y but kept at X1/X2 x-coords.
-                    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
-                } else {
-                    const w = x2 - x1;
-                    const cp1x = x1 + w * (adj1 / 100000);
-                    const cp1y = y1;
-                    const cp2x = x2 - w * (adj2 / 100000);
-                    const cp2y = y2;
-                    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
+                    // Vertical major
+                    cpx = x1;
+                    cpy = y2;
                 }
-            } else if (cxn.type?.includes('bent') || cxn.geometry?.includes('bent')) {
-                // Bent Connector
+
+                d += ` Q ${cpx} ${cpy} ${x2} ${y2}`;
+
+            } else if (geom.includes('bent') || geom === 'bentConnector2' || geom === 'bentConnector3') {
+                // Elbow Connector
                 const adj1 = cxn.adjustValues?.['adj1'] ?? 50000;
                 const ratio = adj1 / 100000;
 
-                if (Math.abs(y2 - y1) > Math.abs(x2 - x1)) {
-                    // Vertical Dominance
-                    const midY = y1 + (y2 - y1) * ratio;
-                    d += ` L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`;
+                if (geom === 'bentConnector2') {
+                    // 2 Segments (1 Corner) - L Shape
+                    // Logic: M x1 y1 L x2 y1 L x2 y2 (OR L x1 y2 L x2 y2)
+                    // Which one? Depends on direction or adj?
+                    // Usually determined by start/end direction (not available here easily without cNvPr)
+                    // Heuristic: If |dx| > |dy|, Horizontal first.
+                    if (Math.abs(x2 - x1) > Math.abs(y2 - y1)) {
+                        d += ` L ${x2} ${y1} L ${x2} ${y2}`;
+                    } else {
+                        d += ` L ${x1} ${y2} L ${x2} ${y2}`;
+                    }
                 } else {
-                    // Horizontal Dominance
-                    const midX = x1 + (x2 - x1) * ratio;
-                    d += ` L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
+                    // bentConnector3 (Standard 3 segments)
+                    if (Math.abs(y2 - y1) > Math.abs(x2 - x1)) {
+                        // Vertical Dominance: Down -> Accross -> Down
+                        const midY = y1 + (y2 - y1) * ratio;
+                        d += ` L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`;
+                    } else {
+                        // Horizontal Dominance: Across -> Down -> Across
+                        const midX = x1 + (x2 - x1) * ratio;
+                        d += ` L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
+                    }
                 }
             } else {
-                // Straight Line or fallback
+                // Straight Line (line, straightConnector1)
                 d += ` L ${x2} ${y2}`;
             }
 
@@ -524,25 +573,274 @@ export class XlsxRenderer {
             path.setAttribute('d', d);
             path.setAttribute('fill', 'none');
 
-            const color = cxn.stroke?.color ? this.resolveColor(cxn.stroke.color) : '#000000';
+            let color = '#000000';
+            if (cxn.stroke?.gradient) {
+                // Gradient Stroke
+                // We need a rect for the connector to resolve gradient coordinates if they are relative?
+                // resolveFill uses 'rect' for gradient bounds.
+                // We calculated getLeft/Top but didn't make a formal rect object for the whole path.
+                // Let's approximate rect or use bounding box of x1/y1/x2/y2.
+                const minX = Math.min(x1, x2, ...((cxn.adjustValues ? [/*TODO curve control points*/] : []) as any));
+                // Simplified: use x1/x2/y1/y2
+                // Actually the path d generation knows bounds.
+                const bounds = { x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) };
+                // If width/height is 0 (straight line), gradient might fail if using percentages?
+                // SVG gradients on strokes usually work along the vector if userSpaceOnUse.
+                // But resolveFill uses 0-100% (BoundingBox).
+                // If w=0, gradient horizontal is degenerate.
+                if (bounds.w === 0) bounds.w = 1;
+                if (bounds.h === 0) bounds.h = 1;
+
+                color = this.resolveFill({ type: 'gradient', gradient: cxn.stroke.gradient }, ctx, bounds);
+            } else {
+                color = cxn.stroke?.color ? this.resolveColor(cxn.stroke.color) : undefined;
+            }
+
+            // Fallback to Style if no explicit color
+            if (!color && cxn.style?.lnRef?.color) {
+                color = this.resolveColor(cxn.style.lnRef.color);
+            }
+            if (!color) color = '#000000'; // Final Default
+
             const w = cxn.stroke?.width || 0;
             const widthPt = w > 20 ? w / 12700 : (w || 1.5);
 
             path.setAttribute('stroke', color);
             path.setAttribute('stroke-width', String(widthPt));
 
+
             // Markers
-            if (cxn.startArrow && cxn.startArrow !== 'none') {
-                path.setAttribute('marker-start', 'url(#arrow-start)');
+            if (cxn.stroke?.headEnd && cxn.stroke.headEnd.type !== 'none') {
+                const mStart = this.resolveMarker(cxn.stroke.headEnd, 'start', ctx, color);
+                if (mStart) path.setAttribute('marker-start', `url(#${mStart})`);
+            } else if (cxn.startArrow && cxn.startArrow !== 'none') {
+                // Fallback for legacy prop using resolveMarker with defaults
+                const mStart = this.resolveMarker({ type: cxn.startArrow, w: 'med', len: 'med' }, 'start', ctx, color);
+                if (mStart) path.setAttribute('marker-start', `url(#${mStart})`);
             }
-            if (cxn.endArrow && cxn.endArrow !== 'none') {
-                path.setAttribute('marker-end', 'url(#arrow-end)');
+
+            if (cxn.stroke?.tailEnd && cxn.stroke.tailEnd.type !== 'none') {
+                const mEnd = this.resolveMarker(cxn.stroke.tailEnd, 'end', ctx, color);
+                if (mEnd) path.setAttribute('marker-end', `url(#${mEnd})`);
+            } else if (cxn.endArrow && cxn.endArrow !== 'none') {
+                // Fallback
+                const mEnd = this.resolveMarker({ type: cxn.endArrow, w: 'med', len: 'med' }, 'end', ctx, color);
+                if (mEnd) path.setAttribute('marker-end', `url(#${mEnd})`);
             }
 
             svg.appendChild(path);
         });
 
+        // 5. Charts
+        sheet.charts?.forEach((chart: OfficeChart) => {
+            const rect = getRect(chart.anchor);
+            if (rect.w <= 0 || rect.h <= 0) return;
+
+            this.renderChart(chart, svg, rect, ctx);
+        });
+
         container.appendChild(svg);
+    }
+
+    /**
+     * 渲染图表
+     */
+    private renderChart(chart: OfficeChart, container: SVGElement, rect: { x: number, y: number, w: number, h: number }, ctx: any) {
+        console.log('Rendering Chart:', chart.title, chart.type);
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('transform', `translate(${rect.x}, ${rect.y})`);
+
+        // 图表背景
+        const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        bg.setAttribute('width', String(rect.w));
+        bg.setAttribute('height', String(rect.h));
+        bg.setAttribute('fill', '#ffffff');
+        bg.setAttribute('stroke', '#e0e0e0');
+        bg.setAttribute('stroke-width', '1');
+        g.appendChild(bg);
+
+        // 根据类型渲染
+        if (chart.type === 'barChart') {
+            this.renderBarChart(chart, g, rect, ctx);
+        } else {
+            // 占位符
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', String(rect.w / 2));
+            text.setAttribute('y', String(rect.h / 2));
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('dominant-baseline', 'middle');
+            text.setAttribute('fill', '#666');
+            text.setAttribute('font-size', '14');
+            text.textContent = `${chart.title || 'Chart'} (${chart.type})`;
+            g.appendChild(text);
+        }
+
+        container.appendChild(g);
+    }
+
+    /**
+     * 渲染柱状图
+     */
+    private renderBarChart(chart: OfficeChart, container: SVGElement, rect: { x: number, y: number, w: number, h: number }, ctx: any) {
+        if (!chart.series.length) return;
+
+        const padding = { top: 40, right: 20, bottom: 50, left: 50 };
+        const plotW = rect.w - padding.left - padding.right;
+        const plotH = rect.h - padding.top - padding.bottom;
+
+        if (plotW <= 0 || plotH <= 0) return;
+
+        // 绘制标题
+        if (chart.title) {
+            const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            title.setAttribute('x', String(rect.w / 2));
+            title.setAttribute('y', '25');
+            title.setAttribute('text-anchor', 'middle');
+            title.setAttribute('font-size', '14');
+            title.setAttribute('font-weight', 'bold');
+            title.setAttribute('fill', '#333');
+            title.textContent = chart.title;
+            container.appendChild(title);
+        }
+
+        // 计算数据范围
+        let maxVal = 0;
+        chart.series.forEach(s => {
+            s.values.forEach(v => {
+                if (!isNaN(v) && v > maxVal) maxVal = v;
+            });
+        });
+
+        if (maxVal === 0) maxVal = 100;
+        else maxVal = Math.ceil(maxVal * 1.1); // 留 10% 余量
+
+        // 绘制 Y 轴网格线和标签
+        const numTicks = 5;
+        for (let i = 0; i <= numTicks; i++) {
+            const val = (maxVal / numTicks) * i;
+            const y = padding.top + plotH - (plotH * (i / numTicks));
+
+            // 网格线
+            const tick = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            tick.setAttribute('x1', String(padding.left));
+            tick.setAttribute('y1', String(y));
+            tick.setAttribute('x2', String(padding.left + plotW));
+            tick.setAttribute('y2', String(y));
+            tick.setAttribute('stroke', '#d9d9d9'); // Light gray
+            tick.setAttribute('stroke-width', '1');
+            container.appendChild(tick);
+
+            // 标签
+            const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            label.setAttribute('x', String(padding.left - 8));
+            label.setAttribute('y', String(y));
+            label.setAttribute('text-anchor', 'end');
+            label.setAttribute('dominant-baseline', 'middle');
+            label.setAttribute('font-size', '10');
+            label.setAttribute('fill', '#595959');
+            label.textContent = Math.round(val).toString();
+            container.appendChild(label);
+        }
+
+        const categories = chart.series[0]?.categories || [];
+        const numCats = categories.length;
+        const numSeries = chart.series.length;
+        if (numCats === 0) return;
+
+        // 柱宽计算 - Office 风格
+        const catW = plotW / numCats;
+        // 组间距占分类宽度的 40% (Gap Width = 150% in Office implies distinct separation)
+        const groupGap = catW * 0.4;
+        const groupW = catW - groupGap;
+        // 组内各系列无间距
+        const barW = groupW / numSeries;
+        const startOffset = groupGap / 2;
+
+        // 主色系 (Office 2007-2010 风格 - Blue, Red, Green, Purple, Aqua, Orange)
+        // 匹配截图颜色 (Blue, Red, Green...)
+        const colors = ['#4F81BD', '#C0504D', '#9BBB59', '#8064A2', '#4BACC6', '#F79646'];
+
+        // 绘制柱子
+        chart.series.forEach((series, si) => {
+            const color = series.fillColor ? this.resolveColor(series.fillColor) : colors[si % colors.length];
+
+            series.values.forEach((val, ci) => {
+                const safeVal = isNaN(val) ? 0 : val;
+                const barH = (safeVal / maxVal) * plotH;
+                const x = padding.left + ci * catW + startOffset + si * barW;
+                const y = padding.top + (plotH - barH);
+
+                if (barH > 0) {
+                    const bar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    bar.setAttribute('x', String(x));
+                    bar.setAttribute('y', String(y));
+                    bar.setAttribute('width', String(barW));
+                    bar.setAttribute('height', String(barH));
+                    bar.setAttribute('fill', color);
+                    // 为柱状图添加淡淡的边框，以增强对比度
+                    bar.setAttribute('stroke', '#ffffff');
+                    bar.setAttribute('stroke-width', '0.5');
+                    container.appendChild(bar);
+                }
+            });
+        });
+
+        // 绘制 X 轴线
+        const xAxisLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        xAxisLine.setAttribute('x1', String(padding.left));
+        xAxisLine.setAttribute('y1', String(padding.top + plotH));
+        xAxisLine.setAttribute('x2', String(padding.left + plotW));
+        xAxisLine.setAttribute('y2', String(padding.top + plotH));
+        xAxisLine.setAttribute('stroke', '#8c8c8c');
+        xAxisLine.setAttribute('stroke-width', '1');
+        container.appendChild(xAxisLine);
+
+        // 绘制 X 轴标签
+        categories.forEach((cat, ci) => {
+            const x = padding.left + ci * catW + catW / 2;
+            const y = padding.top + plotH + 15;
+
+            const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            label.setAttribute('x', String(x));
+            label.setAttribute('y', String(y));
+            label.setAttribute('text-anchor', 'middle');
+            label.setAttribute('font-size', '10');
+            label.setAttribute('fill', '#595959');
+
+            // 简单截断处理防止重叠
+            const maxChars = Math.floor(catW / 6);
+            label.textContent = cat.length > maxChars ? cat.substring(0, maxChars) + '...' : cat;
+
+            container.appendChild(label);
+        });
+
+        // 绘制图例
+        const legendY = rect.h - 15;
+        const seriesW = 80;
+        const totalLegendW = numSeries * seriesW;
+        const legendStartX = padding.left + (plotW - totalLegendW) / 2;
+
+        chart.series.forEach((series, si) => {
+            const color = series.fillColor ? this.resolveColor(series.fillColor) : colors[si % colors.length];
+            const x = legendStartX + si * seriesW;
+
+            const legendRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            legendRect.setAttribute('x', String(x));
+            legendRect.setAttribute('y', String(legendY - 8));
+            legendRect.setAttribute('width', '10');
+            legendRect.setAttribute('height', '10');
+            legendRect.setAttribute('fill', color);
+            container.appendChild(legendRect);
+
+            const legendText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            legendText.setAttribute('x', String(x + 14));
+            legendText.setAttribute('y', String(legendY));
+            legendText.setAttribute('font-size', '10');
+            legendText.setAttribute('fill', '#595959');
+            legendText.textContent = series.name || `Series ${si + 1}`;
+            container.appendChild(legendText);
+        });
     }
 
     private renderGroup(group: OfficeGroupShape, container: SVGElement, rect: { x: number, y: number, w: number, h: number }, ctx: any) {
@@ -586,6 +884,17 @@ export class XlsxRenderer {
             if (filterId) g.setAttribute('filter', `url(#${filterId})`);
         }
 
+        // Add extensive logging for specific inserted elements
+        if (shape.name?.includes('矩形 5') || shape.name?.includes('图片')) {
+            console.log(`[Detailed Log] Element: ${shape.name}`, {
+                geometry: shape.geometry,
+                fill: shape.fill,
+                stroke: shape.stroke,
+                styles: shape.style,
+                textBody: shape.textBody
+            });
+        }
+
         let vector: SVGElement;
         if (shape.geometry === 'custom' && shape.path) {
             vector = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -625,130 +934,11 @@ export class XlsxRenderer {
 
             // radius = min(w, h) * val / 100000
             const val = shape.adjustValues?.['val'] ?? 16667;
-            console.log(`Rendering roundRect [${shape.name}] val=${val}`, shape.adjustValues);
             const minDim = Math.min(rect.w, rect.h);
             const radius = minDim * (val / 100000);
 
             vector.setAttribute('rx', String(radius));
             vector.setAttribute('ry', String(radius));
-        } else if (shape.geometry === 'round2SameRect' || shape.geometry === 'round2SameRect ' || shape.geometry === 'round2SameRect\n') {
-            // Top-Left and Top-Right rounded
-            const val = shape.adjustValues?.['adj1'] ?? shape.adjustValues?.['val'] ?? 16667;
-            console.log(`Rendering round2SameRect [${shape.name}] val=${val}`);
-
-            const minDim = Math.min(rect.w, rect.h);
-            const r = minDim * (val / 100000);
-
-            // M 0 r A r r 0 0 1 r 0 L w-r 0 A r r 0 0 1 w r L w h L 0 h Z
-            // Ensure r is not > w/2 or h
-            const safeR = Math.min(r, rect.w / 2, rect.h);
-
-            const d = `M 0 ${safeR} A ${safeR} ${safeR} 0 0 1 ${safeR} 0 L ${rect.w - safeR} 0 A ${safeR} ${safeR} 0 0 1 ${rect.w} ${safeR} L ${rect.w} ${rect.h} L 0 ${rect.h} Z`;
-
-            vector = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            vector.setAttribute('d', d);
-        } else if (shape.geometry === 'bentConnector2') {
-            // Elbow Connector
-            // adj1: default 50000 (50%)
-            const adj = shape.adjustValues?.['adj'] ?? 50000;
-            const ratio = adj / 100000;
-
-            // Standard Elbow: Assume Z/L shape based on dimension or standard
-            // If it connects, start/end points dictate. Here we use bounding box.
-            // Case 1: Horizontal dominance (w > h). 
-            // M 0 0 L w*ratio 0 L w*ratio h L w h. (Z-shape vertical drop)
-            // Case 2: Vertical dominance (h > w).
-            // M 0 0 L 0 h*ratio L w h*ratio L w h. (Z-shape horizontal traverse)
-
-            let d = '';
-            if (rect.w > rect.h) {
-                const midX = rect.w * ratio;
-                d = `M 0 0 L ${midX} 0 L ${midX} ${rect.h} L ${rect.w} ${rect.h}`;
-            } else {
-                const midY = rect.h * ratio;
-                d = `M 0 0 L 0 ${midY} L ${rect.w} ${midY} L ${rect.w} ${rect.h}`;
-            }
-
-            vector = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            vector.setAttribute('d', d);
-            vector.setAttribute('fill', 'none');
-        } else if (shape.geometry === 'curvedConnector4') {
-            // Cubic Bezier Connector
-            // adj1, adj2. 
-            // Default: adj1=50000, adj2=50000 (?)
-            const adj1 = shape.adjustValues?.['adj1'] !== undefined ? shape.adjustValues['adj1'] : 50000;
-            const adj2 = shape.adjustValues?.['adj2'] !== undefined ? shape.adjustValues['adj2'] : 50000;
-
-            // M 0 0 C cp1x cp1y, cp2x cp2y, w h
-            // If vertical dominance (h > w):
-            // cp1y = h * (adj1 / 100000) ??
-            // Actually adj1 is often tangent magnitude?
-            // If we check drawing1.xml, adj1 = -10141, adj2 = 78168.
-            // Negative value implies "backward" or "upward" (if Y).
-
-            // Heuristic:
-            // CP1 = (w/2, h * adj1/100000) ? 
-            // If adj1 is negative, it goes up? 
-
-            let cp1x, cp1y, cp2x, cp2y;
-
-            if (rect.h > rect.w) {
-                // Vertical
-                cp1x = rect.w / 2;
-                cp1y = rect.h * (adj1 / 100000);
-                cp2x = rect.w / 2;
-                cp2y = rect.h * (adj2 / 100000);
-
-                // If adj1 < 0, maybe it means from START (0,0), Y is 0 + h*adj?
-                // 0 + (-10%) = -10%. (0, -10).
-                // If adj2 is 78%, Y is h*0.78.
-                // This seems plausible for internal control points.
-
-                // Fallback to minimal separation
-                if (Math.abs(cp1y) < 1) cp1y = rect.h * 0.25;
-                if (Math.abs(cp2y) < 1) cp2y = rect.h * 0.75;
-            } else {
-                // Horizontal
-                cp1x = rect.w * (adj1 / 100000);
-                cp1y = rect.h / 2;
-                cp2x = rect.w * (adj2 / 100000);
-                cp2y = rect.h / 2;
-            }
-
-            // For better curve, use X diff for Vertical? 
-            // Actually standard curved connector has CP1x = 0? 
-            // M 0 0 C 0 cp1y, w cp2y, w h ?? (Tangents parallel to Y axis)
-            // This creates a smooth S curve if CPs are vertical.
-
-            if (rect.h > rect.w) {
-                // Vertical tangent
-                const d = `M 0 0 C 0 ${rect.h * (adj1 / 100000)} ${rect.w} ${rect.w * (adj2 / 100000)} ${rect.w} ${rect.h}`;
-                // Wait, second control point X should be w?
-                // C cp1x cp1y cp2x cp2y endx endy
-                // Tangent at Start: (0, 1) vector? -> CP1 = (0, y1).
-                // Tangent at End: (0, -1) vector? -> CP2 = (w, y2).
-
-                // Try:
-                // M 0 0 C 0 ${rect.h * (Math.abs(adj1)/100000)} ${rect.w} ${rect.h - rect.h * (Math.abs(adj2)/100000)} ${rect.w} ${rect.h}
-                // But adj values are signed.
-                // drawing1.xml: adj1=-10141 (up/back?), adj2=78168 (down/forward?)
-
-                // Let's blindly trust the value as coordinate scalar?
-                // M 0 0 C 0 ${rect.h * (adj1/100000)} ${rect.w} ${rect.h * (adj2/100000)} ${rect.w} ${rect.h}
-                //  This implies CP1 X=0, CP2 X=w. Vertical tangents.
-
-                vector = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                vector.setAttribute('d', `M 0 0 C 0 ${rect.h * (Math.abs(adj1) / 100000)} ${rect.w} ${rect.h * (Math.abs(adj2) / 100000)} ${rect.w} ${rect.h}`);
-            } else {
-                // Horizontal tangent
-                // M 0 0 C ${w*adj1} 0 ${w*adj2} h w h
-                vector = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                const c1 = rect.w * (Math.abs(adj1) / 100000);
-                const c2 = rect.w * (Math.abs(adj2) / 100000);
-                vector.setAttribute('d', `M 0 0 C ${c1} 0 ${c2} ${rect.h} ${rect.w} ${rect.h}`);
-            }
-
-            vector.setAttribute('fill', 'none');
         } else if (shape.geometry === 'ellipse') {
             // Ellipse geometry
             vector = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
@@ -756,12 +946,29 @@ export class XlsxRenderer {
             vector.setAttribute('cy', String(rect.h / 2));
             vector.setAttribute('rx', String(rect.w / 2));
             vector.setAttribute('ry', String(rect.h / 2));
+        } else if (shape.geometry) {
+            // 尝试使用预设路径生成器
+            const presetPath = generatePresetPath(shape.geometry, rect.w, rect.h, shape.adjustValues);
+            if (presetPath) {
+                vector = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                vector.setAttribute('d', presetPath);
+                // 确保 stroke 不会覆盖 fill 的核心区域
+                vector.style.paintOrder = 'stroke fill';
+            } else {
+                // Default to rect if no preset found
+                vector = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                vector.setAttribute('width', String(rect.w));
+                vector.setAttribute('height', String(rect.h));
+            }
         } else {
             // Default to rect
             vector = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
             vector.setAttribute('width', String(rect.w));
             vector.setAttribute('height', String(rect.h));
         }
+
+        // Ensure stroke does not cover fill
+        if (vector) vector.style.paintOrder = 'stroke fill';
 
         // Fill
         let fill = this.resolveFill(shape.fill, ctx, rect);
@@ -812,6 +1019,9 @@ export class XlsxRenderer {
             vector.setAttribute('stroke', strokeColor);
             const widthPt = strokeWidth > 20 ? strokeWidth / 12700 : strokeWidth;
             vector.setAttribute('stroke-width', String(widthPt || 1));
+            // Default line join to round for better quality, especially for arbitrary polygons
+            vector.setAttribute('stroke-linejoin', 'round');
+            vector.setAttribute('stroke-linecap', 'round');
             if (strokeDash !== 'solid') {
                 if (strokeDash === 'dash') vector.setAttribute('stroke-dasharray', '4 2');
                 if (strokeDash === 'dot') vector.setAttribute('stroke-dasharray', '1 1');
@@ -902,6 +1112,9 @@ export class XlsxRenderer {
                         span.style.backgroundClip = 'text';
                         // @ts-ignore
                         span.style.webkitBackgroundClip = 'text';
+                        span.style.backgroundClip = 'text';
+                        span.style.display = 'inline-block'; // Required for transform/gradient sometimes?
+                        // span.style.color = 'transparent'; // Handled by inline style usually, but strict check needed
                         span.style.color = 'transparent';
                     }
 
@@ -922,6 +1135,11 @@ export class XlsxRenderer {
 
                                 const shadowColor = eff.color ? this.resolveColor(eff.color) : 'rgba(0,0,0,0.4)';
                                 shadows.push(`${offsetX}px ${offsetY}px ${blurRad}px ${shadowColor}`);
+                            } else if (eff.type === 'glow') {
+                                // Glow is essentially a shadow with 0 offset and specific color/radius
+                                const rad = (eff.radius || 0) * 1.33;
+                                const color = eff.color ? this.resolveColor(eff.color) : 'gold';
+                                shadows.push(`0px 0px ${rad}px ${color}`);
                             }
                         });
                         if (shadows.length > 0) {
@@ -966,13 +1184,22 @@ export class XlsxRenderer {
 
             const lg = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
             lg.setAttribute('id', id);
-            // Approximate angle to x1,y1,x2,y2 is complex.
-            // Simplification: vertical default
-            lg.setAttribute('x1', '0%');
-            lg.setAttribute('y1', '0%');
-            lg.setAttribute('x2', '0%');
-            lg.setAttribute('y2', '100%');
-            // TODO: Handle rotation/angle properly
+
+            // Convert OOXML angle to SVG gradient coordinates
+            // OOXML: 0° = left-to-right, 90° = top-to-bottom
+            // SVG: x1,y1 = start, x2,y2 = end (in percentage)
+            const angleRad = (angle * Math.PI) / 180;
+            // For a 0° horizontal gradient (L→R): x1=0, y1=50, x2=100, y2=50
+            // For 90° vertical (T→B): x1=50, y1=0, x2=50, y2=100
+            const x1 = 50 - 50 * Math.cos(angleRad);
+            const y1 = 50 - 50 * Math.sin(angleRad);
+            const x2 = 50 + 50 * Math.cos(angleRad);
+            const y2 = 50 + 50 * Math.sin(angleRad);
+
+            lg.setAttribute('x1', `${x1}%`);
+            lg.setAttribute('y1', `${y1}%`);
+            lg.setAttribute('x2', `${x2}%`);
+            lg.setAttribute('y2', `${y2}%`);
 
             stops.forEach((s: any) => {
                 const stop = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
@@ -982,9 +1209,8 @@ export class XlsxRenderer {
             });
             ctx.defs.appendChild(lg);
             return `url(#${id})`;
-        } else if (fill.type === 'pattern') {
-            // Pattern not fully supported yet, fallback solid
-            return this.resolveColor(fill.pattern?.fgColor || '#cccccc');
+        } else if (fill.type === 'pattern' && fill.pattern) {
+            return this.resolvePattern(fill.pattern, ctx);
         } else if (fill.type === 'noFill' || fill.type === 'none') {
             return 'none';
         }
@@ -1008,22 +1234,28 @@ export class XlsxRenderer {
         effects.forEach((eff: any) => {
             if (eff.type === 'outerShadow') {
                 hasFilter = true;
+
+                // 详细日志输出阴影参数
+                console.log(`[Shadow Effect] blur=${eff.blur}pt, dist=${eff.dist}pt, dir=${eff.dir}°, color=${eff.color}`);
+
                 const blur = document.createElementNS('http://www.w3.org/2000/svg', 'feGaussianBlur');
                 blur.setAttribute('in', 'SourceAlpha');
-                // blurRad is in PT (from parser). 1pt ~= 1.33px
+                // blurRad 在解析器中已转换为 PT，1pt ≈ 1.33px
                 const stdDev = (eff.blur || 0) * 1.33;
                 blur.setAttribute('stdDeviation', String(stdDev > 0 ? stdDev : 2));
                 blur.setAttribute('result', 'blurOut');
                 filter.appendChild(blur);
 
                 const offset = document.createElementNS('http://www.w3.org/2000/svg', 'feOffset');
-                // Calculate dx/dy from dist (PT) and dir (Degrees)
+                // 计算 dx/dy：dist (PT) 和 dir (Degrees)
                 const distPx = (eff.dist || 0) * 1.33; // PT to Px
+                // OOXML dir: 0° = 右 (East), 90° = 下 (South)
+                // 这与 CSS/数学标准一致，无需转换
                 const angleRad = (eff.dir || 0) * (Math.PI / 180);
                 const dx = distPx * Math.cos(angleRad);
                 const dy = distPx * Math.sin(angleRad);
 
-                // console.log(`Shadow Offset: dist=${eff.dist}, dir=${eff.dir} -> dx=${dx}, dy=${dy}`);
+                console.log(`[Shadow Offset] distPx=${distPx.toFixed(2)}, angle=${eff.dir}° -> dx=${dx.toFixed(2)}, dy=${dy.toFixed(2)}`);
 
                 offset.setAttribute('dx', String(dx));
                 offset.setAttribute('dy', String(dy));
@@ -1033,7 +1265,7 @@ export class XlsxRenderer {
 
                 const flood = document.createElementNS('http://www.w3.org/2000/svg', 'feFlood');
                 flood.setAttribute('flood-color', this.resolveColor(eff.color || '#000000'));
-                flood.setAttribute('flood-opacity', '0.5'); // Default shadow opacity
+                flood.setAttribute('flood-opacity', '0.5'); // 默认阴影透明度
                 flood.setAttribute('result', 'floodOut');
                 filter.appendChild(flood);
 
@@ -1131,21 +1363,25 @@ export class XlsxRenderer {
             // Format: theme:accent1 or theme:accent1:lumMod=75000:lumOff=25000
             const parts = color.split(':');
             const themeColor = parts[1];
-
-            // Parse luminance modifiers
             let lumMod: number | undefined;
             let lumOff: number | undefined;
+            let tint: number | undefined;
+            let shade: number | undefined;
+            let alpha: number | undefined;
+
+            // Parse modifiers
             for (let i = 2; i < parts.length; i++) {
-                if (parts[i].startsWith('lumMod=')) {
-                    lumMod = parseInt(parts[i].replace('lumMod=', ''), 10);
-                } else if (parts[i].startsWith('lumOff=')) {
-                    lumOff = parseInt(parts[i].replace('lumOff=', ''), 10);
-                }
+                const p = parts[i];
+                if (p.startsWith('lumMod=')) lumMod = parseInt(p.split('=')[1], 10);
+                if (p.startsWith('lumOff=')) lumOff = parseInt(p.split('=')[1], 10);
+                if (p.startsWith('tint=')) tint = parseInt(p.split('=')[1], 10);
+                if (p.startsWith('shade=')) shade = parseInt(p.split('=')[1], 10);
+                if (p.startsWith('alpha=')) alpha = parseInt(p.split('=')[1], 10);
             }
 
-            const theme = this.workbook?.theme;
             let baseColor: string | undefined;
 
+            const theme = this.workbook?.theme;
             if (theme?.colorScheme) {
                 const resolved = theme.colorScheme[themeColor];
                 if (resolved) {
@@ -1153,52 +1389,28 @@ export class XlsxRenderer {
                 }
             }
 
-            // OOXML Standard Office Theme Color Fallbacks
             // Based on ECMA-376 and Office default theme
             if (!baseColor) {
-                const officeTheme: Record<string, string> = {
-                    // Dark/Light pairs
-                    'dk1': '#000000',      // Dark 1 (usually black)
-                    'dk2': '#44546A',      // Dark 2 (dark blue-gray)
-                    'lt1': '#FFFFFF',      // Light 1 (white)
-                    'lt2': '#E7E6E6',      // Light 2 (light gray)
-                    // Text/Background aliases
-                    'tx1': '#000000',      // Text 1 = dk1
-                    'tx2': '#44546A',      // Text 2 = dk2
-                    'bg1': '#FFFFFF',      // Background 1 = lt1
-                    'bg2': '#E7E6E6',      // Background 2 = lt2
-                    'text1': '#000000',    // Alias
-                    'text2': '#44546A',    // Alias
-                    'background1': '#FFFFFF', // Alias
-                    'background2': '#E7E6E6', // Alias
-                    // Accent colors (Office 2016+ default theme)
-                    'accent1': '#4472C4',  // Blue
-                    'accent2': '#ED7D31',  // Orange
-                    'accent3': '#A5A5A5',  // Gray
-                    'accent4': '#FFC000',  // Gold
-                    'accent5': '#5B9BD5',  // Light Blue
-                    'accent6': '#70AD47',  // Green
-                    // Hyperlinks
-                    'hlink': '#0563C1',    // Hyperlink blue
-                    'folHlink': '#954F72', // Followed hyperlink purple
-                };
-                baseColor = officeTheme[themeColor];
+                const mappedKey = mapThemeColor(themeColor);
+                if (mappedKey && DefaultThemeColors[mappedKey]) {
+                    baseColor = DefaultThemeColors[mappedKey];
+                } else {
+                    // Fallback for unmapped or raw keys
+                    baseColor = '#000000';
+                }
             }
 
             if (baseColor) {
-                // Apply luminance modifications if present
-                if (lumMod !== undefined || lumOff !== undefined) {
-                    return this.applyLuminanceModification(baseColor, lumMod, lumOff);
-                }
-                return baseColor;
+                return this.applyColorModifiers(baseColor, { lumMod, lumOff, tint, shade, alpha });
             }
         }
         return color;
     }
 
-    // Apply luminance modifications to a color
-    private applyLuminanceModification(baseColor: string, lumMod?: number, lumOff?: number): string {
-        if (!lumMod && !lumOff) return baseColor;
+    // Apply color modifiers (lum, tint, shade, alpha)
+    private applyColorModifiers(baseColor: string, mods: { lumMod?: number, lumOff?: number, tint?: number, shade?: number, alpha?: number }): string {
+        const { lumMod, lumOff, tint, shade, alpha } = mods;
+        if (!lumMod && !lumOff && !tint && !shade && !alpha) return baseColor;
 
         // Parse hex color
         let hex = baseColor.replace('#', '');
@@ -1206,58 +1418,84 @@ export class XlsxRenderer {
             hex = hex.split('').map(c => c + c).join('');
         }
 
-        const r = parseInt(hex.substring(0, 2), 16);
-        const g = parseInt(hex.substring(2, 4), 16);
-        const b = parseInt(hex.substring(4, 6), 16);
+        let r = parseInt(hex.substring(0, 2), 16);
+        let g = parseInt(hex.substring(2, 4), 16);
+        let b = parseInt(hex.substring(4, 6), 16);
 
-        // Convert to HSL
-        const max = Math.max(r, g, b) / 255;
-        const min = Math.min(r, g, b) / 255;
-        let h = 0, s = 0, l = (max + min) / 2;
+        // Apply Luminance (HSL)
+        if (lumMod !== undefined || lumOff !== undefined) {
+            // Convert to HSL
+            const max = Math.max(r, g, b) / 255;
+            const min = Math.min(r, g, b) / 255;
+            let h = 0, s = 0, l = (max + min) / 2;
 
-        if (max !== min) {
-            const d = max - min;
-            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-            switch (Math.max(r, g, b)) {
-                case r: h = ((g - b) / 255 / d + (g < b ? 6 : 0)) / 6; break;
-                case g: h = ((b - r) / 255 / d + 2) / 6; break;
-                case b: h = ((r - g) / 255 / d + 4) / 6; break;
+            if (max !== min) {
+                const d = max - min;
+                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                switch (Math.max(r, g, b)) {
+                    case r: h = ((g - b) / 255 / d + (g < b ? 6 : 0)) / 6; break;
+                    case g: h = ((b - r) / 255 / d + 2) / 6; break;
+                    case b: h = ((r - g) / 255 / d + 4) / 6; break;
+                }
             }
+
+            if (lumMod !== undefined) l = l * (lumMod / 100000);
+            if (lumOff !== undefined) l = l + (lumOff / 100000);
+            l = Math.max(0, Math.min(1, l));
+
+            // Back to RGB
+            let r2, g2, b2;
+            if (s === 0) {
+                r2 = g2 = b2 = l;
+            } else {
+                const hue2rgb = (p: number, q: number, t: number) => {
+                    if (t < 0) t += 1;
+                    if (t > 1) t -= 1;
+                    if (t < 1 / 6) return p + (q - p) * 6 * t;
+                    if (t < 1 / 2) return q;
+                    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+                    return p;
+                };
+                const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                const p = 2 * l - q;
+                r2 = hue2rgb(p, q, h + 1 / 3);
+                g2 = hue2rgb(p, q, h);
+                b2 = hue2rgb(p, q, h - 1 / 3);
+            }
+            r = Math.round(r2 * 255);
+            g = Math.round(g2 * 255);
+            b = Math.round(b2 * 255);
         }
 
-        // Apply modifications
-        // lumMod: percentage of luminance (100000 = 100%)
-        // lumOff: percentage offset to add (50000 = 50%)
-        if (lumMod !== undefined) {
-            l = l * (lumMod / 100000);
-        }
-        if (lumOff !== undefined) {
-            l = l + (lumOff / 100000);
-        }
-        l = Math.max(0, Math.min(1, l));
-
-        // Convert back to RGB
-        let r2, g2, b2;
-        if (s === 0) {
-            r2 = g2 = b2 = l;
-        } else {
-            const hue2rgb = (p: number, q: number, t: number) => {
-                if (t < 0) t += 1;
-                if (t > 1) t -= 1;
-                if (t < 1 / 6) return p + (q - p) * 6 * t;
-                if (t < 1 / 2) return q;
-                if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-                return p;
-            };
-            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-            const p = 2 * l - q;
-            r2 = hue2rgb(p, q, h + 1 / 3);
-            g2 = hue2rgb(p, q, h);
-            b2 = hue2rgb(p, q, h - 1 / 3);
+        // Apply Tint/Shade (RGB mixing)
+        if (tint !== undefined) {
+            const val = tint / 100000;
+            // Tint: Mix with White
+            r = Math.round(r * val + 255 * (1 - val));
+            g = Math.round(g * val + 255 * (1 - val));
+            b = Math.round(b * val + 255 * (1 - val));
         }
 
-        const toHex = (n: number) => Math.round(n * 255).toString(16).padStart(2, '0');
-        return `#${toHex(r2)}${toHex(g2)}${toHex(b2)}`;
+        if (shade !== undefined) {
+            const val = shade / 100000;
+            // Shade: Mix with Black
+            r = Math.round(r * val);
+            g = Math.round(g * val);
+            b = Math.round(b * val);
+        }
+
+        // Clamp
+        r = Math.max(0, Math.min(255, r));
+        g = Math.max(0, Math.min(255, g));
+        b = Math.max(0, Math.min(255, b));
+
+        // Alpha
+        if (alpha !== undefined) {
+            return `rgba(${r}, ${g}, ${b}, ${alpha / 100000})`;
+        }
+
+        const toHex = (n: number) => Math.round(n).toString(16).padStart(2, '0'); // Round to integer first
+        return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
     }
 
     private calculateLayoutMetrics(sheet: XlsxSheet) {
@@ -1322,5 +1560,149 @@ export class XlsxRenderer {
             if (r === m.s.r && c === m.s.c) return m;
         }
         return null;
+    }
+
+    private resolvePattern(pattern: any, ctx: any): string {
+        const id = `patt-${pattern.patternType}-${++ctx.counter}`;
+        const patt = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
+        patt.setAttribute('id', id);
+        patt.setAttribute('patternUnits', 'userSpaceOnUse');
+        patt.setAttribute('width', '10');
+        patt.setAttribute('height', '10');
+
+        // Background
+        const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        bg.setAttribute('width', '10');
+        bg.setAttribute('height', '10');
+        bg.setAttribute('fill', this.resolveColor(pattern.bgColor || '#ffffff'));
+        patt.appendChild(bg);
+
+        // Foreground Path
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        let d = '';
+
+        switch (pattern.patternType) {
+            case PatternType.DkUpDiag: // Dark Upward Diagonal
+            case 'dkUpDiag':
+                d = 'M -2,8 L 2,-2 M 0,10 L 10,0 M 8,12 L 12,8';
+                break;
+            case PatternType.DkDnDiag: // Dark Downward Diagonal
+            case 'dkDnDiag':
+                d = 'M -2,2 L 2,-2 M 0,0 L 10,10 M 8,8 L 12,12';
+                break;
+            case PatternType.DkHorz:
+            case 'dkHorz':
+                d = 'M 0,5 L 10,5';
+                break;
+            case PatternType.DkVert:
+            case 'dkVert':
+                d = 'M 5,0 L 5,10';
+                break;
+            case 'pct50':
+                d = 'M 0,0 L 2,0 L 2,2 L 0,2 Z M 5,5 L 7,5 L 7,7 L 5,7 Z';
+                break;
+            default:
+                d = 'M 0,10 L 10,0';
+                break;
+        }
+
+        path.setAttribute('d', d);
+        path.setAttribute('stroke', this.resolveColor(pattern.fgColor || '#000000'));
+        path.setAttribute('stroke-width', '2');
+        path.setAttribute('stroke-linecap', 'square');
+        patt.appendChild(path);
+
+        ctx.defs.appendChild(patt);
+        return `url(#${id})`;
+    }
+
+    private resolveMarker(end: any, pos: 'start' | 'end', ctx: any, color: string): string | null {
+        if (!end || end.type === 'none') return null;
+
+        const type = end.type || 'arrow';
+        const w = end.w || 'med';
+        const len = end.len || 'med';
+        // Sanitize color for ID (remove # and :)
+        const colorId = color.replace(/[^a-zA-Z0-9]/g, '');
+        const id = `marker-${type}-${w}-${len}-${pos}-${colorId}`;
+
+        if (ctx.defs.querySelector(`#${id}`)) {
+            return id;
+        }
+
+        const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+        marker.setAttribute('id', id);
+
+        // Scale factors logic
+        let scaleW = 1;
+        if (w === 'sm') scaleW = 0.7; // 0.7
+        if (w === 'lg') scaleW = 1.4; // 1.4
+
+        let scaleL = 1;
+        if (len === 'sm') scaleL = 0.7; // 0.7
+        if (len === 'lg') scaleL = 1.4; // 1.4
+
+        // Use userSpaceOnUse for predictable sizing (independent of stroke width)
+        // Standard Arrow size is approx 6px for better proportionality
+        const baseSize = 6;
+        const mWidth = baseSize * scaleL;
+        const mHeight = baseSize * scaleW;
+
+        // ViewBox matches geometry (-10 to 0 in X, -5 to 5 in Y)
+        marker.setAttribute('viewBox', '-10 -5 10 10');
+
+        marker.setAttribute('markerWidth', String(mWidth));
+        marker.setAttribute('markerHeight', String(mHeight));
+        marker.setAttribute('markerUnits', 'userSpaceOnUse');
+        marker.setAttribute('orient', 'auto'); // Auto orientation
+
+        // Path Gen
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        let d = '';
+        let refX = 0;
+
+        // Base Sizes (matches viewBox/baseSize)
+        const lx = 10;
+        const wy = 5;
+
+        if (pos === 'start') {
+            // For start marker, points Left (Backwards). Base at 0, Tip at -lx.
+            if (type === 'triangle' || type === 'arrow') {
+                d = `M 0 0 L ${-lx} ${wy} L ${-lx} ${-wy} Z`;
+            } else if (type === 'stealth') {
+                d = `M 0 0 L ${-lx} ${wy} L ${-lx + lx * 0.3} 0 L ${-lx} ${-wy} Z`;
+            } else if (type === 'diamond') {
+                d = `M ${lx / 2} 0 L 0 ${-wy} L ${-lx / 2} 0 L 0 ${wy} Z`;
+            } else if (type === 'oval') {
+                d = `M 0 0 A 5 5 0 1 1 0 0.1`;
+            } else {
+                d = `M 0 0 L ${-lx} ${wy} L ${-lx} ${-wy} Z`;
+            }
+            refX = 0; // Attach at base
+        } else {
+            // End Marker. Point Right (Forward). Base at 0. Tip at lx.
+            if (type === 'triangle' || type === 'arrow') {
+                d = `M ${-lx} ${-wy} L 0 0 L ${-lx} ${wy} Z`; // Tip at 0, Base at -lx
+            } else if (type === 'stealth') {
+                d = `M ${-lx} ${-wy} L 0 0 L ${-lx} ${wy} L ${-lx + lx * 0.3} 0 Z`;
+            } else if (type === 'diamond') {
+                d = `M ${-lx} 0 L ${-lx / 2} ${-wy} L 0 0 L ${-lx / 2} ${wy} Z`;
+            } else {
+                d = `M ${-lx} ${-wy} L 0 0 L ${-lx} ${wy} Z`;
+            }
+            refX = 0; // Attach at tip (0,0)
+        }
+
+        path.setAttribute('d', d);
+        // Explicit fill color
+        path.setAttribute('fill', color);
+        path.setAttribute('stroke', 'none');
+
+        marker.setAttribute('refX', String(refX));
+        marker.setAttribute('refY', '0');
+        marker.appendChild(path);
+
+        ctx.defs.appendChild(marker);
+        return id;
     }
 }
