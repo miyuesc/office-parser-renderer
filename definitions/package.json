@@ -1,0 +1,12 @@
+{
+  "name": "@ai-space/definitions",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OOXML Definitions",
+  "exports": {
+    "./autogen/*": "./autogen/*.ts"
+  },
+  "files": [
+    "autogen"
+  ]
+}
