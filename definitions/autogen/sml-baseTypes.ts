@@ -31,15 +31,14 @@ export type ST_Guid = string;
 
 /** Value */
 export interface CT_XStringElement {
-    v: ST_Xstring;
+  v: ST_Xstring;
 }
 
 /** URI */
 export interface CT_Extension {
-    uri?: string;
+  uri?: string;
 }
 
 export interface CT_ExtensionList {
-    ext?: CT_Extension[];
+  ext?: CT_Extension[];
 }
-

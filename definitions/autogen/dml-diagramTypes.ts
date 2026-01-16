@@ -16,4 +16,3 @@ export type ST_UnsignedInts = string;
 
 /** Boolean List. */
 export type ST_Booleans = string;
-

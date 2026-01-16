@@ -4,11 +4,10 @@
 
 /** Uniform Resource Identifier */
 export interface CT_GraphicalObjectData {
-    uri?: string;
+  uri?: string;
 }
 
 /** Graphic Object Data */
 export interface CT_GraphicalObject {
-    graphicData: CT_GraphicalObjectData;
+  graphicData: CT_GraphicalObjectData;
 }
-

@@ -6,6 +6,5 @@ import { ST_ShapeID } from './dml-shapeMiscellaneous';
 
 /** Shape ID */
 export interface CT_Compat {
-    spid: ST_ShapeID;
+  spid: ST_ShapeID;
 }
-

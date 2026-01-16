@@ -8,26 +8,25 @@ import { ST_Guid } from './wml';
 
 /** Authors */
 export interface CT_Comments {
-    authors: CT_Authors;
-    commentList: CT_CommentList;
-    extLst?: any;
+  authors: CT_Authors;
+  commentList: CT_CommentList;
+  extLst?: any;
 }
 
 /** Author */
 export interface CT_Authors {
-    author?: ST_Xstring[];
+  author?: ST_Xstring[];
 }
 
 /** Comment */
 export interface CT_CommentList {
-    comment?: CT_Comment[];
+  comment?: CT_Comment[];
 }
 
 /** Comment Text */
 export interface CT_Comment {
-    ref: ST_Ref;
-    authorId: number;
-    guid?: ST_Guid;
-    text: CT_Rst;
+  ref: ST_Ref;
+  authorId: number;
+  guid?: ST_Guid;
+  text: CT_Rst;
 }
-

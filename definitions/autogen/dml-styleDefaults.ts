@@ -9,18 +9,17 @@ import { CT_TextBodyProperties, CT_TextListStyle } from './dml-text';
 
 /** Visual Properties */
 export interface CT_DefaultShapeDefinition {
-    spPr: CT_ShapeProperties;
-    bodyPr: CT_TextBodyProperties;
-    lstStyle: CT_TextListStyle;
-    style?: CT_ShapeStyle;
-    extLst?: CT_OfficeArtExtensionList;
+  spPr: CT_ShapeProperties;
+  bodyPr: CT_TextBodyProperties;
+  lstStyle: CT_TextListStyle;
+  style?: CT_ShapeStyle;
+  extLst?: CT_OfficeArtExtensionList;
 }
 
 /** Shape Default */
 export interface CT_ObjectStyleDefaults {
-    spDef?: CT_DefaultShapeDefinition;
-    lnDef?: CT_DefaultShapeDefinition;
-    txDef?: CT_DefaultShapeDefinition;
-    extLst?: CT_OfficeArtExtensionList;
+  spDef?: CT_DefaultShapeDefinition;
+  lnDef?: CT_DefaultShapeDefinition;
+  txDef?: CT_DefaultShapeDefinition;
+  extLst?: CT_OfficeArtExtensionList;
 }
-

@@ -8,14 +8,13 @@ import { CT_ShapeProperties } from './dml-shapeProperties';
 
 /** Non-Visual Drawing Properties */
 export interface CT_PictureNonVisual {
-    cNvPr: CT_NonVisualDrawingProps;
-    cNvPicPr: CT_NonVisualPictureProperties;
+  cNvPr: CT_NonVisualDrawingProps;
+  cNvPicPr: CT_NonVisualPictureProperties;
 }
 
 /** Non-Visual Picture Properties */
 export interface CT_Picture {
-    nvPicPr: CT_PictureNonVisual;
-    blipFill: CT_BlipFillProperties;
-    spPr: CT_ShapeProperties;
+  nvPicPr: CT_PictureNonVisual;
+  blipFill: CT_BlipFillProperties;
+  spPr: CT_ShapeProperties;
 }
-

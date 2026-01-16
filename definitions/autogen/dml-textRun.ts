@@ -6,7 +6,6 @@ import { CT_TextCharacterProperties } from './dml-textCharacter';
 
 /** Text Character Properties */
 export interface CT_RegularTextRun {
-    rPr?: CT_TextCharacterProperties;
-    t: string;
+  rPr?: CT_TextCharacterProperties;
+  t: string;
 }
-

@@ -9,9 +9,8 @@ import { CT_Backdrop } from './dml-shape3DScenePlane';
 
 /** Camera */
 export interface CT_Scene3D {
-    camera: CT_Camera;
-    lightRig: CT_LightRig;
-    backdrop?: CT_Backdrop;
-    extLst?: CT_OfficeArtExtensionList;
+  camera: CT_Camera;
+  lightRig: CT_LightRig;
+  backdrop?: CT_Backdrop;
+  extLst?: CT_OfficeArtExtensionList;
 }
-

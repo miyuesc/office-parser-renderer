@@ -6,9 +6,8 @@ import { CT_ExtensionList } from './sml-baseTypes';
 
 /** Server's Slide File ID */
 export interface CT_SlideSyncProperties {
-    serverSldId: string;
-    serverSldModifiedTime: any;
-    clientInsertedTime: any;
-    extLst?: CT_ExtensionList;
+  serverSldId: string;
+  serverSldModifiedTime: any;
+  clientInsertedTime: any;
+  extLst?: CT_ExtensionList;
 }
-

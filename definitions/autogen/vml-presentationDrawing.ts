@@ -4,6 +4,5 @@
 
 /** Text Reference */
 export interface CT_Rel {
-    id?: string;
+  id?: string;
 }
-
