@@ -152,6 +152,7 @@ export const ArrowShapes: Record<string, ShapeGenerator> = {
   /**
    * 弯曲箭头 (L形)
    * OOXML 规范: 从底部开始，向右弯曲后向上指向
+   * 使用贝塞尔曲线 (C 命令) 实现圆角弯曲效果
    * adj1: 箭头头部宽度比例 (默认 25000)
    * adj2: 箭头茎宽度比例 (默认 25000)
    * adj3: 箭头头部高度比例 (默认 25000)
@@ -166,123 +167,148 @@ export const ArrowShapes: Record<string, ShapeGenerator> = {
     const arrowW = w * (adj1 / 100000); // 箭头头部宽度
     const stemW = h * (adj2 / 100000); // 茎宽度
     const arrowH = h * (adj3 / 100000); // 箭头头部高度
-    const bendY = h * (adj4 / 100000); // 弯曲 Y 位置
+    const bendPos = w * (adj4 / 100000); // 弯曲 X 位置
 
-    const cx = w - arrowW / 2; // 箭头中心 X
+    // 圆角半径 - 基于茎宽度
+    const cornerR = stemW * 0.8;
 
-    // 从左下开始，顺时针绘制
+    // 箭头中心 X 位置
+    const arrowCenterX = w - arrowW / 2;
+
+    // 内外轨道的 X 坐标
+    const outerBendX = bendPos;
+    const innerBendX = bendPos + stemW;
+
+    // 从左下开始，顺时针绘制，使用贝塞尔曲线实现圆角
     return (
       `M 0 ${h} ` + // 左下角
-      `L 0 ${h - stemW} ` + // 向上到茎顶部
-      `L ${cx - stemW / 2} ${h - stemW} ` + // 向右到弯曲处
-      `L ${cx - stemW / 2} ${arrowH} ` + // 向上到箭头底部
-      `L ${cx - arrowW / 2} ${arrowH} ` + // 向左到箭头左翼
+      `V ${h - stemW + cornerR} ` + // 向上到外弧起点
+      `C 0 ${h - stemW} ${cornerR} ${h - stemW} ${cornerR} ${h - stemW} ` + // 外圆角
+      `H ${arrowCenterX - stemW / 2} ` + // 水平到箭头茎左边
+      `V ${arrowH} ` + // 向上到箭头底部
+      `H ${arrowCenterX - arrowW / 2} ` + // 箭头左翼
       `L ${w} 0 ` + // 箭头尖端
-      `L ${cx + arrowW / 2} ${arrowH} ` + // 箭头右翼
-      `L ${cx + stemW / 2} ${arrowH} ` + // 向左到茎右边
-      `L ${cx + stemW / 2} ${h} Z` // 向下闭合
+      `L ${arrowCenterX + arrowW / 2} ${arrowH} ` + // 箭头右翼
+      `H ${arrowCenterX + stemW / 2} ` + // 回到茎右边
+      `V ${h} Z` // 向下闭合
     );
   },
 
   /**
    * 曲线右箭头
    * OOXML 规范: 弧形曲线箭头，从左侧弧形弯曲指向右侧
+   * 使用标准椭圆弧命令 (A) 实现平滑弧线
    * adj1: 箭头头部高度比例
    * adj2: 箭头茎宽度比例
    * adj3: 弧形比例
    */
   [ST_ShapeType.curvedRightArrow]: (w, h, adj) => {
     const adj1 = adj?.['adj1'] ?? 25000; // 箭头头部高度
-    const adj2 = adj?.['adj2'] ?? 50000; // 箭头茎宽度/箭头宽度
+    const adj2 = adj?.['adj2'] ?? 50000; // 茎宽度比例
     const adj3 = adj?.['adj3'] ?? 25000; // 弧形曲率
 
-    const arrowH = h * (adj1 / 100000); // 箭头头部半高度
-    const arrowW = w * (adj2 / 100000) * 0.5; // 箭头头部宽度
-    const stemH = h * 0.15; // 茎半高度
+    // 箭头参数计算
+    const arrowHeadH = h * (adj1 / 100000); // 箭头头部半高度
+    const stemThick = h * (adj2 / 100000) * 0.3; // 茎厚度
     const cy = h / 2;
 
-    // 外弧半径和内弧半径
-    const outerR = h * 0.5;
-    const innerR = h * 0.35;
+    // 弧线半径 - 外弧和内弧
+    const rx = w * 0.85; // 椭圆 X 半径
+    const ryOuter = h * 0.5; // 外椭圆 Y 半径
+    const ryInner = h * 0.35; // 内椭圆 Y 半径
+
+    // 箭头位置
+    const arrowX = w * 0.85;
+    const arrowTop = cy - arrowHeadH;
+    const arrowBot = cy + arrowHeadH;
+    const stemTop = cy - stemThick / 2;
+    const stemBot = cy + stemThick / 2;
 
     return (
-      `M 0 ${h} ` + // 起点：左下
-      `A ${w * 0.8} ${outerR} 0 0 1 ${w - arrowW} ${cy - stemH} ` + // 外弧到箭头茎上方
-      `L ${w - arrowW} ${cy - arrowH} ` + // 箭头上翼起点
+      `M 0 ${h} ` + // 左下起点
+      `A ${rx} ${ryOuter} 0 0 1 ${arrowX} ${stemTop} ` + // 外弧到箭头茎上方
+      `V ${arrowTop} ` + // 箭头上翼
       `L ${w} ${cy} ` + // 箭头尖端
-      `L ${w - arrowW} ${cy + arrowH} ` + // 箭头下翼
-      `L ${w - arrowW} ${cy + stemH} ` + // 箭头茎下方
-      `A ${w * 0.6} ${innerR} 0 0 0 ${w * 0.15} ${h} Z` // 内弧闭合
+      `L ${arrowX} ${arrowBot} ` + // 箭头下翼
+      `V ${stemBot} ` + // 箭头茎下方
+      `A ${rx * 0.7} ${ryInner} 0 0 0 ${w * 0.12} ${h} Z` // 内弧闭合
     );
   },
 
   /**
    * 曲线左箭头
    * OOXML 规范: 弧形曲线箭头，从右侧弧形弯曲指向左侧
+   * curvedRightArrow 的镜像版本
    */
   [ST_ShapeType.curvedLeftArrow]: (w, h, adj) => {
     const adj1 = adj?.['adj1'] ?? 25000;
     const adj2 = adj?.['adj2'] ?? 50000;
     const adj3 = adj?.['adj3'] ?? 25000;
 
-    const arrowH = h * (adj1 / 100000);
-    const arrowW = w * (adj2 / 100000) * 0.5;
-    const stemH = h * 0.15;
+    // 箭头参数计算
+    const arrowHeadH = h * (adj1 / 100000);
+    const stemThick = h * (adj2 / 100000) * 0.3;
     const cy = h / 2;
 
-    const outerR = h * 0.5;
-    const innerR = h * 0.35;
+    // 弧线半径
+    const rx = w * 0.85;
+    const ryOuter = h * 0.5;
+    const ryInner = h * 0.35;
+
+    // 箭头位置 (镜像)
+    const arrowX = w * 0.15;
+    const arrowTop = cy - arrowHeadH;
+    const arrowBot = cy + arrowHeadH;
+    const stemTop = cy - stemThick / 2;
+    const stemBot = cy + stemThick / 2;
 
     return (
-      `M ${w} ${h} ` +
-      `A ${w * 0.8} ${outerR} 0 0 0 ${arrowW} ${cy - stemH} ` +
-      `L ${arrowW} ${cy - arrowH} ` +
-      `L 0 ${cy} ` +
-      `L ${arrowW} ${cy + arrowH} ` +
-      `L ${arrowW} ${cy + stemH} ` +
-      `A ${w * 0.6} ${innerR} 0 0 1 ${w * 0.85} ${h} Z`
+      `M ${w} ${h} ` + // 右下起点
+      `A ${rx} ${ryOuter} 0 0 0 ${arrowX} ${stemTop} ` + // 外弧到箭头茎上方
+      `V ${arrowTop} ` + // 箭头上翼
+      `L 0 ${cy} ` + // 箭头尖端
+      `L ${arrowX} ${arrowBot} ` + // 箭头下翼
+      `V ${stemBot} ` + // 箭头茎下方
+      `A ${rx * 0.7} ${ryInner} 0 0 1 ${w * 0.88} ${h} Z` // 内弧闭合
     );
   },
 
   /**
    * 曲线上箭头
    * OOXML 规范: 弧形曲线箭头，从底部弧形弯曲向上指向
+   * 使用横向弧线 + 箭头结构
    */
   [ST_ShapeType.curvedUpArrow]: (w, h, adj) => {
-    const adj1 = adj?.['adj1'] ?? 25000;
-    const adj2 = adj?.['adj2'] ?? 50000;
+    const adj1 = adj?.['adj1'] ?? 25000; // 箭头宽度比例
+    const adj2 = adj?.['adj2'] ?? 50000; // 茎宽度比例
 
     // 箭头头部参数
-    const arrowHeadW = w * (adj1 / 100000) * 1.5;
-    const arrowHeadH = h * 0.15;
-    // 茄部宽度
-    const stemW = w * (adj2 / 100000) * 0.3;
+    const arrowHeadW = w * (adj1 / 100000) * 1.2; // 箭头宽度
+    const arrowHeadH = h * 0.18; // 箭头高度
+    // 茎厚度
+    const stemThick = w * (adj2 / 100000) * 0.25;
     const cx = w / 2;
 
-    // 弧形箭头主体：从底部两侧开始，弧形向上的条带
-    // 外弧半径
-    const outerRx = w * 0.45;
-    const outerRy = h * 0.45;
-    // 内弧半径
-    const innerRx = outerRx - stemW;
-    const innerRy = outerRy - stemW;
+    // 弧线半径 - 较大以创建明显的弧形
+    const rxOuter = w * 0.48;
+    const ryOuter = h * 0.42;
+    const rxInner = rxOuter - stemThick;
+    const ryInner = ryOuter - stemThick;
+
+    // 箭头位置
+    const arrowLeft = cx - arrowHeadW / 2;
+    const arrowRight = cx + arrowHeadW / 2;
+    const stemLeft = cx - stemThick / 2;
+    const stemRight = cx + stemThick / 2;
 
     return (
-      // 从右下角开始
-      `M ${w * 0.95} ${h} ` +
-      // 外弧 - 从右下到箭头茄右侧
-      `A ${outerRx} ${outerRy} 0 0 0 ${cx + stemW / 2} ${arrowHeadH} ` +
-      // 箭头右翼
-      `L ${cx + arrowHeadW / 2} ${arrowHeadH} ` +
-      // 箭头尖端
-      `L ${cx} 0 ` +
-      // 箭头左翼
-      `L ${cx - arrowHeadW / 2} ${arrowHeadH} ` +
-      // 箭头茄左侧
-      `L ${cx - stemW / 2} ${arrowHeadH} ` +
-      // 内弧 - 从箭头茄左侧到左下角
-      `A ${innerRx} ${innerRy} 0 0 1 ${w * 0.05} ${h} ` +
-      // 底部连接
+      `M ${w * 0.95} ${h} ` + // 右下起点
+      `A ${rxOuter} ${ryOuter} 0 0 0 ${stemRight} ${arrowHeadH} ` + // 外弧到箭头茎右侧
+      `H ${arrowRight} ` + // 箭头右翼
+      `L ${cx} 0 ` + // 箭头尖端
+      `L ${arrowLeft} ${arrowHeadH} ` + // 箭头左翼
+      `H ${stemLeft} ` + // 箭头茎左侧
+      `A ${rxInner} ${ryInner} 0 0 1 ${w * 0.05} ${h} ` + // 内弧闭合
       `Z`
     );
   },
@@ -290,41 +316,39 @@ export const ArrowShapes: Record<string, ShapeGenerator> = {
   /**
    * 曲线下箭头
    * OOXML 规范: 弧形曲线箭头，从顶部弧形弯曲向下指向
+   * curvedUpArrow 的镜像版本
    */
   [ST_ShapeType.curvedDownArrow]: (w, h, adj) => {
     const adj1 = adj?.['adj1'] ?? 25000;
     const adj2 = adj?.['adj2'] ?? 50000;
 
     // 箭头头部参数
-    const arrowHeadW = w * (adj1 / 100000) * 1.5;
-    const arrowHeadH = h * 0.15;
-    // 茄部宽度
-    const stemW = w * (adj2 / 100000) * 0.3;
+    const arrowHeadW = w * (adj1 / 100000) * 1.2;
+    const arrowHeadH = h * 0.18;
+    const stemThick = w * (adj2 / 100000) * 0.25;
     const cx = w / 2;
     const arrowY = h - arrowHeadH;
 
-    // 弧形箭头主体
-    const outerRx = w * 0.45;
-    const outerRy = h * 0.45;
-    const innerRx = outerRx - stemW;
-    const innerRy = outerRy - stemW;
+    // 弧线半径
+    const rxOuter = w * 0.48;
+    const ryOuter = h * 0.42;
+    const rxInner = rxOuter - stemThick;
+    const ryInner = ryOuter - stemThick;
+
+    // 箭头位置
+    const arrowLeft = cx - arrowHeadW / 2;
+    const arrowRight = cx + arrowHeadW / 2;
+    const stemLeft = cx - stemThick / 2;
+    const stemRight = cx + stemThick / 2;
 
     return (
-      // 从左上角开始
-      `M ${w * 0.05} 0 ` +
-      // 外弧 - 从左上到箭头茄左侧
-      `A ${outerRx} ${outerRy} 0 0 1 ${cx - stemW / 2} ${arrowY} ` +
-      // 箭头左翼
-      `L ${cx - arrowHeadW / 2} ${arrowY} ` +
-      // 箭头尖端
-      `L ${cx} ${h} ` +
-      // 箭头右翼
-      `L ${cx + arrowHeadW / 2} ${arrowY} ` +
-      // 箭头茄右侧
-      `L ${cx + stemW / 2} ${arrowY} ` +
-      // 内弧 - 从箭头茄右侧到右上角
-      `A ${innerRx} ${innerRy} 0 0 0 ${w * 0.95} 0 ` +
-      // 顶部连接
+      `M ${w * 0.05} 0 ` + // 左上起点
+      `A ${rxOuter} ${ryOuter} 0 0 1 ${stemLeft} ${arrowY} ` + // 外弧到箭头茎左侧
+      `H ${arrowLeft} ` + // 箭头左翼
+      `L ${cx} ${h} ` + // 箭头尖端
+      `L ${arrowRight} ${arrowY} ` + // 箭头右翼
+      `H ${stemRight} ` + // 箭头茎右侧
+      `A ${rxInner} ${ryInner} 0 0 0 ${w * 0.95} 0 ` + // 内弧闭合
       `Z`
     );
   },
@@ -503,82 +527,82 @@ export const ArrowShapes: Record<string, ShapeGenerator> = {
   /**
    * 圆形箭头
    * OOXML 规范: 顺时针弧形箭头
-   * adj1: 箭头头部角度
-   * adj2: 弧线起始角度
-   * adj3: 弧线结束角度
-   * adj4: 弧线厚度
-   * adj5: 箭头头部宽度
+   * 简化实现，使用标准椭圆弧命令
+   * adj1-adj5: 各类调整参数
    */
   [ST_ShapeType.circularArrow]: (w, h, adj) => {
-    const adj1 = adj?.['adj1'] ?? 12500; // 箭头头部角度占比
-    const adj2 = adj?.['adj2'] ?? 1142319; // 起始角度 (约65度)
-    const adj3 = adj?.['adj3'] ?? 20457681; // 结束角度 (约-31度)
-    const adj4 = adj?.['adj4'] ?? 11796480; // 弧线厚度
-    const adj5 = adj?.['adj5'] ?? 12500; // 箭头头部宽度
-
     const cx = w / 2;
     const cy = h / 2;
-    const r = (Math.min(w, h) / 2) * 0.95;
-    const thick = r * 0.28;
+    const r = (Math.min(w, h) / 2) * 0.92;
+    const thick = r * 0.26;
     const ir = r - thick;
-    const arrowW = thick * 1.5; // 箭头宽度
-    const arrowL = r * 0.2; // 箭头长度
+    const arrowW = thick * 1.4; // 箭头宽度
+    const arrowL = r * 0.18; // 箭头长度
 
-    // 简化版本：大约270度的弧
     // 从顶部开始，顺时针画到左侧，然后是箭头
-    const startAngle = -Math.PI / 2; // 顶部
-    const endAngle = Math.PI; // 左侧
+    const startAngle = -Math.PI / 2; // 顶部 (-90°)
+    const endAngle = Math.PI; // 左侧 (180°)
 
-    const outerStartX = cx + r * Math.cos(startAngle);
-    const outerStartY = cy + r * Math.sin(startAngle);
-    const outerEndX = cx + r * Math.cos(endAngle);
-    const outerEndY = cy + r * Math.sin(endAngle);
-    const innerEndX = cx + ir * Math.cos(endAngle);
-    const innerEndY = cy + ir * Math.sin(endAngle);
-    const innerStartX = cx + ir * Math.cos(startAngle);
-    const innerStartY = cy + ir * Math.sin(startAngle);
+    // 外弧的起点和终点
+    const osX = cx + r * Math.cos(startAngle);
+    const osY = cy + r * Math.sin(startAngle);
+    const oeX = cx + r * Math.cos(endAngle);
+    const oeY = cy + r * Math.sin(endAngle);
+
+    // 内弧的终点和起点
+    const ieX = cx + ir * Math.cos(endAngle);
+    const ieY = cy + ir * Math.sin(endAngle);
+    const isX = cx + ir * Math.cos(startAngle);
+    const isY = cy + ir * Math.sin(startAngle);
+
+    // 箭头尖端位置 (向下)
+    const arrowTipY = oeY + arrowL;
+    const arrowCenterX = cx - ir + thick / 2;
 
     return (
-      `M ${outerStartX} ${outerStartY} ` +
-      `A ${r} ${r} 0 1 1 ${outerEndX} ${outerEndY} ` + // 外弧
-      `L ${outerEndX - arrowW / 2} ${outerEndY} ` + // 箭头外侧
-      `L ${cx - ir + thick / 2} ${outerEndY + arrowL} ` + // 箭头尖端
-      `L ${innerEndX} ${innerEndY} ` + // 箭头内侧
-      `A ${ir} ${ir} 0 1 0 ${innerStartX} ${innerStartY} Z` // 内弧
+      `M ${osX} ${osY} ` + // 外弧起点 (顶部)
+      `A ${r} ${r} 0 1 1 ${oeX} ${oeY} ` + // 外弧 (270°)
+      `L ${oeX - arrowW / 2} ${oeY} ` + // 箭头外侧
+      `L ${arrowCenterX} ${arrowTipY} ` + // 箭头尖端
+      `L ${ieX} ${ieY} ` + // 箭头内侧
+      `A ${ir} ${ir} 0 1 0 ${isX} ${isY} Z` // 内弧闭合
     );
   },
 
   /**
    * 流线型箭头
    * OOXML 规范: 平滑流线型曲线箭头，从左下向右上
+   * 使用 S (光滑贝塞尔) 和 Q (二次贝塞尔) 命令实现更平滑的曲线
    */
   [ST_ShapeType.swooshArrow]: (w, h, adj) => {
-    const adj1 = adj?.['adj1'] ?? 25000;
-    const adj2 = adj?.['adj2'] ?? 16667;
+    const adj1 = adj?.['adj1'] ?? 25000; // 尾部宽度
+    const adj2 = adj?.['adj2'] ?? 16667; // 箭头高度
 
-    // 箭头尖端位置和大小
+    // 箭头参数
     const tailW = w * (adj1 / 100000);
-    const arrowH = h * (adj2 / 100000);
+    const arrowSize = h * (adj2 / 100000);
+
+    // 关键控制点
+    const ctrlX1 = w * 0.35;
+    const ctrlY1 = h * 0.6;
+    const ctrlX2 = w * 0.65;
+    const ctrlY2 = h * 0.2;
 
     return (
-      `M 0 ${h} ` + // 起点：左下
-      `C ${w * 0.2} ${h * 0.85} ${w * 0.4} ${h * 0.5} ${w * 0.6} ${h * 0.3} ` + // 曲线上升
-      `C ${w * 0.75} ${h * 0.15} ${w * 0.9} ${h * 0.05} ${w} 0 ` + // 到达箭头尖端
-      `L ${w - arrowH * 0.8} ${arrowH * 0.6} ` + // 箭头右边缘
-      `L ${w - arrowH * 0.3} 0 ` + // 箭头内角
-      `C ${w * 0.85} ${h * 0.1} ${w * 0.65} ${h * 0.25} ${w * 0.5} ${h * 0.4} ` + // 内曲线
-      `C ${w * 0.3} ${h * 0.6} ${w * 0.15} ${h * 0.8} ${tailW} ${h} Z` // 回到底部
+      `M 0 ${h} ` + // 左下起点
+      `Q ${ctrlX1} ${h} ${ctrlX1} ${ctrlY1} ` + // 第一段二次贝塞尔
+      `S ${ctrlX2} ${ctrlY2} ${w} 0 ` + // 光滑贝塞尔到箭头尖端
+      `L ${w - arrowSize * 0.7} ${arrowSize * 0.5} ` + // 箭头右边缘
+      `L ${w - arrowSize * 0.25} 0 ` + // 箭头内角
+      `Q ${ctrlX2 * 0.9} ${ctrlY2 * 1.2} ${ctrlX1 * 1.1} ${ctrlY1 * 1.05} ` + // 内曲线
+      `Q ${tailW * 1.5} ${h * 0.9} ${tailW} ${h} Z` // 回到底部闭合
     );
   },
 
   /**
    * U形转弯箭头
    * OOXML 规范: 从底部左侧向上，180度转弯，向下指向底部右侧
-   * adj1: 箭头头部宽度
-   * adj2: 茎宽度
-   * adj3: 弧形半径
-   * adj4: 箭头头部高度
-   * adj5: 弧到底部的距离
+   * 使用多个小弧段实现平滑 U 形转弯
    */
   [ST_ShapeType.uturnArrow]: (w, h, adj) => {
     const adj1 = adj?.['adj1'] ?? 25000;
@@ -590,25 +614,25 @@ export const ArrowShapes: Record<string, ShapeGenerator> = {
     const arrowW = w * (adj1 / 100000); // 箭头头部宽度
     const stemW = w * (adj2 / 100000); // 茎宽度
     const arcR = w * (adj3 / 100000); // 外弧半径
-    const arcInnerR = arcR - stemW; // 内弧半径
+    const arcInnerR = Math.max(arcR - stemW, stemW * 0.5); // 内弧半径 (确保最小值)
     const arrowH = h * 0.15; // 箭头高度
-    const arcCenterY = arcR + h * 0.1; // 弧心 Y 位置
+    const arcCenterY = arcR * 1.1; // 弧心 Y 位置
 
-    const leftStemX = stemW; // 左侧茎X位置
-    const rightArrowX = w - arrowW / 2; // 箭头中心X位置
+    // 箭头中心 X 位置
+    const rightCenterX = stemW + arcR + stemW / 2;
 
     return (
       `M 0 ${h} ` + // 左下角
-      `L 0 ${arcCenterY} ` + // 向上到弧底部
-      `A ${arcR} ${arcR} 0 0 1 ${arcR * 2} ${arcCenterY} ` + // 外弧（180度）
-      `L ${arcR * 2} ${h - arrowH} ` + // 向下到箭头位置
-      `L ${arcR * 2 - (arrowW - stemW) / 2} ${h - arrowH} ` + // 箭头左外边
-      `L ${arcR * 2 + stemW / 2} ${h} ` + // 箭头尖端
+      `V ${arcCenterY} ` + // 向上到弧底部
+      `A ${arcR} ${arcR} 0 0 1 ${arcR * 2} ${arcCenterY} ` + // 外弧 (180度)
+      `V ${h - arrowH} ` + // 向下到箭头位置
+      `H ${arcR * 2 - (arrowW - stemW) / 2} ` + // 箭头左外边
+      `L ${rightCenterX} ${h} ` + // 箭头尖端
       `L ${arcR * 2 + stemW + (arrowW - stemW) / 2} ${h - arrowH} ` + // 箭头右外边
-      `L ${arcR * 2 + stemW} ${h - arrowH} ` + // 右侧茎顶部
-      `L ${arcR * 2 + stemW} ${arcCenterY} ` + // 向上到内弧
+      `H ${arcR * 2 + stemW} ` + // 右侧茎顶部
+      `V ${arcCenterY} ` + // 向上到内弧
       `A ${arcInnerR} ${arcInnerR} 0 0 0 ${stemW} ${arcCenterY} ` + // 内弧
-      `L ${stemW} ${h} Z` // 闭合
+      `V ${h} Z` // 闭合
     );
   },
 
@@ -676,37 +700,44 @@ export const ArrowShapes: Record<string, ShapeGenerator> = {
 
   /**
    * 左向圆形箭头
-   * 逆时针弧形箭头
+   * 逆时针弧形箭头 - circularArrow 的镜像版本
    */
   [ST_ShapeType.leftCircularArrow]: (w, h, adj) => {
     const cx = w / 2;
     const cy = h / 2;
-    const r = (Math.min(w, h) / 2) * 0.95;
-    const thick = r * 0.28;
+    const r = (Math.min(w, h) / 2) * 0.92;
+    const thick = r * 0.26;
     const ir = r - thick;
-    const arrowW = thick * 1.5;
-    const arrowL = r * 0.2;
+    const arrowW = thick * 1.4;
+    const arrowL = r * 0.18;
 
-    // 逆时针版本：从顶部开始，逆时针画到右侧
+    // 逆时针: 从顶部开始，逆时针画到右侧
     const startAngle = -Math.PI / 2; // 顶部
     const endAngle = 0; // 右侧
 
-    const outerStartX = cx + r * Math.cos(startAngle);
-    const outerStartY = cy + r * Math.sin(startAngle);
-    const outerEndX = cx + r * Math.cos(endAngle);
-    const outerEndY = cy + r * Math.sin(endAngle);
-    const innerEndX = cx + ir * Math.cos(endAngle);
-    const innerEndY = cy + ir * Math.sin(endAngle);
-    const innerStartX = cx + ir * Math.cos(startAngle);
-    const innerStartY = cy + ir * Math.sin(startAngle);
+    // 外弧坐标
+    const osX = cx + r * Math.cos(startAngle);
+    const osY = cy + r * Math.sin(startAngle);
+    const oeX = cx + r * Math.cos(endAngle);
+    const oeY = cy + r * Math.sin(endAngle);
+
+    // 内弧坐标
+    const ieX = cx + ir * Math.cos(endAngle);
+    const ieY = cy + ir * Math.sin(endAngle);
+    const isX = cx + ir * Math.cos(startAngle);
+    const isY = cy + ir * Math.sin(startAngle);
+
+    // 箭头尖端 (向右)
+    const arrowTipX = oeX + arrowL;
+    const arrowCenterY = cy + ir - thick / 2;
 
     return (
-      `M ${outerStartX} ${outerStartY} ` +
-      `A ${r} ${r} 0 1 0 ${outerEndX} ${outerEndY} ` + // 外弧（逆时针）
-      `L ${outerEndX} ${outerEndY + arrowW / 2} ` + // 箭头外侧
-      `L ${outerEndX + arrowL} ${cy + ir - thick / 2} ` + // 箭头尖端
-      `L ${innerEndX} ${innerEndY} ` + // 箭头内侧
-      `A ${ir} ${ir} 0 1 1 ${innerStartX} ${innerStartY} Z` // 内弧
+      `M ${osX} ${osY} ` + // 外弧起点 (顶部)
+      `A ${r} ${r} 0 1 0 ${oeX} ${oeY} ` + // 外弧 (逆时针 270°)
+      `L ${oeX} ${oeY + arrowW / 2} ` + // 箭头外侧
+      `L ${arrowTipX} ${arrowCenterY} ` + // 箭头尖端
+      `L ${ieX} ${ieY} ` + // 箭头内侧
+      `A ${ir} ${ir} 0 1 1 ${isX} ${isY} Z` // 内弧闭合
     );
   },
 
@@ -717,24 +748,27 @@ export const ArrowShapes: Record<string, ShapeGenerator> = {
   [ST_ShapeType.leftRightCircularArrow]: (w, h, adj) => {
     const cx = w / 2;
     const cy = h / 2;
-    const r = (Math.min(w, h) / 2) * 0.95;
+    const r = (Math.min(w, h) / 2) * 0.92;
     const thick = r * 0.22;
     const ir = r - thick;
-    const arrowL = r * 0.15;
-    const arrowW = thick * 1.3;
+    const arrowL = r * 0.14;
+    const arrowW = thick * 1.2;
 
-    // 两端都有箭头的弧，大约270度
-    // 左侧箭头和右侧箭头
+    // 左右两个箭头的弧
     return (
+      // 右侧箭头
       `M ${cx + r} ${cy - arrowW / 2} ` + // 右侧箭头外
       `L ${cx + r + arrowL} ${cy} ` + // 右侧箭头尖端
       `L ${cx + r} ${cy + arrowW / 2} ` + // 右侧箭头内
       `L ${cx + ir} ${cy} ` + // 内弧右端
-      `A ${ir} ${ir} 0 1 1 ${cx - ir} ${cy} ` + // 内弧（顺时针上半部）
+      // 上半内弧
+      `A ${ir} ${ir} 0 1 1 ${cx - ir} ${cy} ` +
+      // 左侧箭头
       `L ${cx - r} ${cy + arrowW / 2} ` + // 左侧箭头内
       `L ${cx - r - arrowL} ${cy} ` + // 左侧箭头尖端
       `L ${cx - r} ${cy - arrowW / 2} ` + // 左侧箭头外
-      `A ${r} ${r} 0 1 1 ${cx + r} ${cy - arrowW / 2} Z` // 外弧
+      // 上半外弧闭合
+      `A ${r} ${r} 0 1 1 ${cx + r} ${cy - arrowW / 2} Z`
     );
   },
 
