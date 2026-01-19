@@ -10,10 +10,12 @@ export type PresetGeomType = keyof typeof ST_ShapeType | string;
  * 可以是单个路径字符串，或包含路径和元数据的对象
  */
 export interface ShapeResult {
-  /** SVG 路径数据 (d 属性) */
+  /** SVG 路径数据 (d 属性) - 主路径，通常需要填充 */
   path: string;
-  /** 是否禁止填充 (用于连接线、标注线等) */
+  /** 是否禁止填充 (用于连接线、标注线等开放路径) */
   noFill?: boolean;
+  /** 辅助描边路径 (用于 callout 指示线等只需描边的部分) */
+  strokePath?: string;
 }
 
 /**

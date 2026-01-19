@@ -1,3 +1,8 @@
+/**
+ * 基础形状
+ *
+ * 基于 OOXML 规范实现，包含椭圆、三角形、多边形、弧形等基础几何图形
+ */
 import { ST_ShapeType } from '@ai-space/definitions/autogen/dml-shapeGeometry';
 import { ShapeGenerator, ShapeResult } from './types';
 import { GeoUtils } from './GeoUtils';
@@ -142,27 +147,25 @@ export const BasicShapes: Record<string, ShapeGenerator> = {
     // 四分之一圆，从右侧边缘到底部边缘
     return `M ${w} ${h} L ${w} 0 A ${w} ${h} 0 0 1 0 ${h} Z`;
   },
-
   /**
    * 圆柱体
    * OOXML 规范: 3D 圆柱体效果
-   * adj: 顶部椭圆高度比例
+   * adj: 顶部椭圆高度比例（默认 25000 = 25%）
    */
   [ST_ShapeType.can]: (w, h, adj) => {
     const adjVal = adj?.['adj'] ?? 25000;
-    const ry = h * (adjVal / 100000); // 顶部椭圆垂直半径
+    // 顶部椭圆的垂直半径
+    const ry = h * (adjVal / 100000);
     const rx = w / 2;
+    const cx = w / 2;
 
-    // 顶部完整椭圆 + 侧面 + 底部半椭圆
+    // 使用 GeoUtils.ellipse 绘制完整的顶部椭圆
+    // 然后绘制侧面矩形区域（不闭合）和底部半椭圆
     return (
-      // 顶部椭圆
-      `M 0 ${ry} A ${rx} ${ry} 0 1 1 ${w} ${ry} A ${rx} ${ry} 0 1 1 0 ${ry} ` +
-      // 侧面
-      `M 0 ${ry} L 0 ${h - ry} ` +
-      // 底部半椭圆（可见部分）
-      `A ${rx} ${ry} 0 0 0 ${w} ${h - ry} ` +
-      // 回到右上
-      `L ${w} ${ry}`
+      // 顶部完整椭圆 - 使用两个半弧
+      `M ${cx - rx} ${ry} A ${rx} ${ry} 0 1 0 ${cx + rx} ${ry} A ${rx} ${ry} 0 1 0 ${cx - rx} ${ry} Z ` +
+      // 侧面 + 底部半椭圆作为一个填充区域
+      `M 0 ${ry} L 0 ${h - ry} A ${rx} ${ry} 0 0 0 ${w} ${h - ry} L ${w} ${ry} Z`
     );
   },
 

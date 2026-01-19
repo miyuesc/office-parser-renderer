@@ -251,24 +251,39 @@ export const ArrowShapes: Record<string, ShapeGenerator> = {
   [ST_ShapeType.curvedUpArrow]: (w, h, adj) => {
     const adj1 = adj?.['adj1'] ?? 25000;
     const adj2 = adj?.['adj2'] ?? 50000;
-    const adj3 = adj?.['adj3'] ?? 25000;
 
-    const arrowW = w * (adj1 / 100000);
-    const arrowH = h * (adj2 / 100000) * 0.5;
-    const stemW = w * 0.15;
+    // 箭头头部参数
+    const arrowHeadW = w * (adj1 / 100000) * 1.5;
+    const arrowHeadH = h * 0.15;
+    // 茄部宽度
+    const stemW = w * (adj2 / 100000) * 0.3;
     const cx = w / 2;
 
-    const outerR = w * 0.5;
-    const innerR = w * 0.35;
+    // 弧形箭头主体：从底部两侧开始，弧形向上的条带
+    // 外弧半径
+    const outerRx = w * 0.45;
+    const outerRy = h * 0.45;
+    // 内弧半径
+    const innerRx = outerRx - stemW;
+    const innerRy = outerRy - stemW;
 
     return (
-      `M ${w} ${h} ` +
-      `A ${outerR} ${h * 0.8} 0 0 0 ${cx + stemW} ${arrowH} ` +
-      `L ${cx + arrowW / 2} ${arrowH} ` +
+      // 从右下角开始
+      `M ${w * 0.95} ${h} ` +
+      // 外弧 - 从右下到箭头茄右侧
+      `A ${outerRx} ${outerRy} 0 0 0 ${cx + stemW / 2} ${arrowHeadH} ` +
+      // 箭头右翼
+      `L ${cx + arrowHeadW / 2} ${arrowHeadH} ` +
+      // 箭头尖端
       `L ${cx} 0 ` +
-      `L ${cx - arrowW / 2} ${arrowH} ` +
-      `L ${cx - stemW} ${arrowH} ` +
-      `A ${innerR} ${h * 0.6} 0 0 1 0 ${h} Z`
+      // 箭头左翼
+      `L ${cx - arrowHeadW / 2} ${arrowHeadH} ` +
+      // 箭头茄左侧
+      `L ${cx - stemW / 2} ${arrowHeadH} ` +
+      // 内弧 - 从箭头茄左侧到左下角
+      `A ${innerRx} ${innerRy} 0 0 1 ${w * 0.05} ${h} ` +
+      // 底部连接
+      `Z`
     );
   },
 
@@ -279,24 +294,38 @@ export const ArrowShapes: Record<string, ShapeGenerator> = {
   [ST_ShapeType.curvedDownArrow]: (w, h, adj) => {
     const adj1 = adj?.['adj1'] ?? 25000;
     const adj2 = adj?.['adj2'] ?? 50000;
-    const adj3 = adj?.['adj3'] ?? 25000;
 
-    const arrowW = w * (adj1 / 100000);
-    const arrowH = h * (adj2 / 100000) * 0.5;
-    const stemW = w * 0.15;
+    // 箭头头部参数
+    const arrowHeadW = w * (adj1 / 100000) * 1.5;
+    const arrowHeadH = h * 0.15;
+    // 茄部宽度
+    const stemW = w * (adj2 / 100000) * 0.3;
     const cx = w / 2;
+    const arrowY = h - arrowHeadH;
 
-    const outerR = w * 0.5;
-    const innerR = w * 0.35;
+    // 弧形箭头主体
+    const outerRx = w * 0.45;
+    const outerRy = h * 0.45;
+    const innerRx = outerRx - stemW;
+    const innerRy = outerRy - stemW;
 
     return (
-      `M 0 0 ` +
-      `A ${outerR} ${h * 0.8} 0 0 1 ${cx - stemW} ${h - arrowH} ` +
-      `L ${cx - arrowW / 2} ${h - arrowH} ` +
+      // 从左上角开始
+      `M ${w * 0.05} 0 ` +
+      // 外弧 - 从左上到箭头茄左侧
+      `A ${outerRx} ${outerRy} 0 0 1 ${cx - stemW / 2} ${arrowY} ` +
+      // 箭头左翼
+      `L ${cx - arrowHeadW / 2} ${arrowY} ` +
+      // 箭头尖端
       `L ${cx} ${h} ` +
-      `L ${cx + arrowW / 2} ${h - arrowH} ` +
-      `L ${cx + stemW} ${h - arrowH} ` +
-      `A ${innerR} ${h * 0.6} 0 0 0 ${w} 0 Z`
+      // 箭头右翼
+      `L ${cx + arrowHeadW / 2} ${arrowY} ` +
+      // 箭头茄右侧
+      `L ${cx + stemW / 2} ${arrowY} ` +
+      // 内弧 - 从箭头茄右侧到右上角
+      `A ${innerRx} ${innerRy} 0 0 0 ${w * 0.95} 0 ` +
+      // 顶部连接
+      `Z`
     );
   },
 

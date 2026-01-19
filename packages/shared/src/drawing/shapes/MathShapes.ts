@@ -3,42 +3,62 @@ import { ShapeGenerator } from './types';
 import { GeoUtils } from './GeoUtils';
 
 export const MathShapes: Record<string, ShapeGenerator> = {
-  // Not Equal (≠)
+  /**
+   * 不等号 (≠)
+   * OOXML 规范: 两条横线 + 一条斜线穿过
+   * adj1: 横线粗细比例 (默认 23520 / 100000)
+   * adj2: 斜线角度 (通常为角度值的60000倍，如6600000 = 110度)
+   * adj3: 横线间距比例 (默认 11760 / 100000)
+   */
   [ST_ShapeType.mathNotEqual]: (w, h, adj) => {
     const adj1 = adj?.['adj1'] ?? 23520;
-    const lineW = h * (adj1 / 100000);
-    const gap = h * 0.12;
+    const adj3 = adj?.['adj3'] ?? 11760;
+
+    // 线条粗细（以形状较小边为基准）
+    const lineW = Math.min(w, h) * (adj1 / 100000);
+    // 两条横线之间的间距
+    const gap = Math.min(w, h) * (adj3 / 100000);
+
     const cy = h / 2;
-    const hMargin = w * 0.05;
+    // 左右边距
+    const margin = w * 0.1;
 
-    // Top Bar
-    const y1Top = cy - gap / 2 - lineW;
-    const y1Bot = cy - gap / 2;
-    let d = `M ${hMargin} ${y1Top} L ${w - hMargin} ${y1Top} L ${w - hMargin} ${y1Bot} L ${hMargin} ${y1Bot} Z`;
+    // 计算横线位置
+    const bar1Top = cy - gap / 2 - lineW;
+    const bar1Bot = cy - gap / 2;
+    const bar2Top = cy + gap / 2;
+    const bar2Bot = cy + gap / 2 + lineW;
 
-    // Bottom Bar
-    const y2Top = cy + gap / 2;
-    const y2Bot = cy + gap / 2 + lineW;
-    d += ` M ${hMargin} ${y2Top} L ${w - hMargin} ${y2Top} L ${w - hMargin} ${y2Bot} L ${hMargin} ${y2Bot} Z`;
+    // 斜线参数 - 从左下到右上穿过两条横线
+    // OOXML 规范：斜线宽度与横线宽度一致
+    const slashW = lineW;
+    const slashMargin = w * 0.2; // 斜线距离边缘的距离
+    const slashStartX = slashMargin;
+    const slashEndX = w - slashMargin;
+    // 修正斜线方向：从下方到上方（Y 坐标从大到小）
+    const slashStartY = bar2Bot + lineW * 0.3;
+    const slashEndY = bar1Top - lineW * 0.3;
 
-    // Diagonal Slash - Single bar
-    // Standard ≠ slash often extends beyond the equals sign vertically.
-    const slW = lineW * 0.8;
-    const sx = w * 0.3,
-      ex = w * 0.7;
-    const sy = h * 0.85,
-      ey = h * 0.15;
-
-    // Normal vector for thickness
-    const dx = ex - sx;
-    const dy = ey - sy;
+    // 计算斜线的四个角点（矩形的四个角沿斜线方向）
+    const dx = slashEndX - slashStartX;
+    const dy = slashEndY - slashStartY;
     const len = Math.sqrt(dx * dx + dy * dy);
-    const nx = ((-dy / len) * slW) / 2;
-    const ny = ((dx / len) * slW) / 2;
+    // 法向量：垂直于斜线方向，用于计算矩形宽度
+    const nx = ((-dy / len) * slashW) / 2;
+    const ny = ((dx / len) * slashW) / 2;
 
-    d += ` M ${sx + nx} ${sy + ny} L ${ex + nx} ${ey + ny} L ${ex - nx} ${ey - ny} L ${sx - nx} ${sy - ny} Z`;
-
-    return d;
+    // 使用三个独立的闭合子路径
+    return (
+      // 上横线
+      `M ${margin} ${bar1Top} L ${w - margin} ${bar1Top} L ${w - margin} ${bar1Bot} L ${margin} ${bar1Bot} Z ` +
+      // 下横线
+      `M ${margin} ${bar2Top} L ${w - margin} ${bar2Top} L ${w - margin} ${bar2Bot} L ${margin} ${bar2Bot} Z ` +
+      // 斜线 - 确保坐标正确闭合
+      `M ${slashStartX + nx} ${slashStartY + ny} ` +
+      `L ${slashStartX - nx} ${slashStartY - ny} ` +
+      `L ${slashEndX - nx} ${slashEndY - ny} ` +
+      `L ${slashEndX + nx} ${slashEndY + ny} Z`
+    );
   },
 
   // Plus (+)
@@ -253,21 +273,47 @@ export const MathShapes: Record<string, ShapeGenerator> = {
     );
   },
 
-  // Divide (÷)
+  /**
+   * 除号 (÷)
+   * OOXML 规范: 一条横线 + 上下两个圆点
+   * adj1: 线条粗细比例
+   */
   [ST_ShapeType.mathDivide]: (w, h, adj) => {
     const adj1 = adj?.['adj1'] ?? 23520;
     const thick = Math.min(w, h) * (adj1 / 100000);
     const cy = h / 2;
+    // 左右边距
+    const hMargin = w * 0.15;
 
-    // Bar
-    let d = `M ${w * 0.1} ${cy - thick / 2} L ${w * 0.9} ${cy - thick / 2} L ${w * 0.9} ${cy + thick / 2} L ${
-      w * 0.1
-    } ${cy + thick / 2} Z`;
+    // 圆点半径
+    const dotR = thick * 0.6;
+    // 圆点与中线的间距（确保不与横线重叠）
+    const dotGap = thick * 0.8;
+    // 上圆点中心 Y
+    const dotTopY = cy - dotGap - dotR;
+    // 下圆点中心 Y
+    const dotBotY = cy + dotGap + dotR;
+    const dotCx = w / 2;
 
-    // Dots
-    const r = thick;
-    d += ` ${GeoUtils.ellipse(w / 2, h * 0.25, r, r)}`;
-    d += ` ${GeoUtils.ellipse(w / 2, h * 0.75, r, r)}`;
+    // 使用单独的完整椭圆路径（两个半弧）
+    // 上圆点
+    let d =
+      `M ${dotCx - dotR} ${dotTopY} ` +
+      `A ${dotR} ${dotR} 0 1 0 ${dotCx + dotR} ${dotTopY} ` +
+      `A ${dotR} ${dotR} 0 1 0 ${dotCx - dotR} ${dotTopY} Z`;
+
+    // 横线
+    d +=
+      ` M ${hMargin} ${cy - thick / 2} ` +
+      `L ${w - hMargin} ${cy - thick / 2} ` +
+      `L ${w - hMargin} ${cy + thick / 2} ` +
+      `L ${hMargin} ${cy + thick / 2} Z`;
+
+    // 下圆点
+    d +=
+      ` M ${dotCx - dotR} ${dotBotY} ` +
+      `A ${dotR} ${dotR} 0 1 0 ${dotCx + dotR} ${dotBotY} ` +
+      `A ${dotR} ${dotR} 0 1 0 ${dotCx - dotR} ${dotBotY} Z`;
 
     return d;
   },

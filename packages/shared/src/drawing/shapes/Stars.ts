@@ -1,3 +1,8 @@
+/**
+ * 星形形状
+ *
+ * 基于 OOXML 规范实现，支持 4-32 角星形
+ */
 import { ST_ShapeType } from '@ai-space/definitions/autogen/dml-shapeGeometry';
 import { ShapeGenerator } from './types';
 import { GeoUtils } from './GeoUtils';

@@ -1,3 +1,8 @@
+/**
+ * 形状生成器模块
+ *
+ * 导出所有预设形状生成器和工具
+ */
 export * from './types';
 export * from './GeoUtils';
 export * from './Rectangles';

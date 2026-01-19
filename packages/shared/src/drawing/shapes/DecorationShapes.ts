@@ -123,32 +123,49 @@ export const DecorationShapes: Record<string, ShapeGenerator> = {
 
   /**
    * 垂直卷轴形状
-   * OOXML 规范: 纸卷外观，顶部和底部有卷曲效果
-   * adj: 卷曲部分比例
+   * OOXML 规范: 纸卷外观，顶部和底部有明显的卷曲效果
+   * adj: 卷曲部分比例（默认12500 = 12.5%）
    */
   [ST_ShapeType.verticalScroll]: (w, h, adj) => {
     const adjVal = adj?.['adj'] ?? 12500;
-    const rollR = Math.min(w, h) * (adjVal / 100000);
+    // 卷曲半径基于宽度计算更合理
+    const rollR = w * (adjVal / 100000);
     const rollD = rollR * 2;
 
-    // 卷轴主体 + 卷曲效果
+    // 主体左边距（给顶部卷曲留空间）
+    const bodyLeft = rollR;
+    // 主体上边距
+    const bodyTop = rollD;
+    // 主体右边距（给底部卷曲留空间）
+    const bodyRight = w - rollR;
+    // 主体下边距
+    const bodyBottom = h - rollD;
+
     return (
-      // 主体矩形
-      `M ${rollR} ${rollD} ` + // 主体左上
-      `L ${rollR} ${h - rollD} ` + // 主体左下
-      // 底部卷曲
-      `A ${rollR} ${rollR} 0 0 0 ${rollD} ${h - rollR} ` + // 底部左弧
-      `L ${w - rollR} ${h - rollR} ` + // 底部横线
-      `A ${rollR} ${rollR} 0 0 0 ${w} ${h - rollD} ` + // 底部右弧
-      `L ${w} ${rollD} ` + // 右边
-      // 顶部卷曲
-      `A ${rollR} ${rollR} 0 0 0 ${w - rollD} ${rollR} ` + // 顶部右弧
-      `L ${rollD} ${rollR} ` + // 顶部横线
-      `A ${rollR} ${rollR} 0 0 0 ${rollR} ${rollD} Z ` + // 顶部左弧
-      // 顶部卷纹
-      `M ${rollD} ${rollR} A ${rollR} ${rollR} 0 0 1 ${rollD} ${rollD} ` +
-      // 底部卷纹
-      `M ${w - rollD} ${h - rollD} A ${rollR} ${rollR} 0 0 1 ${w - rollR} ${h - rollD}`
+      // 主体轮廓 - 从左上角开始
+      `M ${bodyLeft} ${bodyTop} ` +
+      // 顶部边缘
+      `L ${bodyRight} ${bodyTop} ` +
+      // 右侧边缘
+      `L ${bodyRight} ${bodyBottom} ` +
+      // 底部卷曲 - 完整的卷起效果
+      `C ${bodyRight} ${h - rollR} ${w - rollR} ${h - rollR} ${w} ${h - rollD} ` +
+      `A ${rollR} ${rollR} 0 0 1 ${w - rollD} ${h - rollR} ` +
+      `L ${rollD} ${h - rollR} ` +
+      `A ${rollR} ${rollR} 0 0 1 ${0} ${h - rollD} ` +
+      `C ${rollR} ${h - rollR} ${bodyLeft} ${h - rollR} ${bodyLeft} ${bodyBottom} ` +
+      // 左侧边缘
+      `L ${bodyLeft} ${bodyTop} Z ` +
+      // 顶部卷曲装饰 - 完整的卷轴头
+      `M ${rollD} ${rollR} ` +
+      `A ${rollR} ${rollR} 0 0 1 ${rollD} ${rollD} ` +
+      `L ${bodyRight - rollR} ${rollD} ` +
+      `A ${rollR} ${rollR} 0 0 1 ${bodyRight - rollR} ${rollR} ` +
+      `L ${rollD} ${rollR} Z ` +
+      // 顶部卷曲圆形
+      `M 0 ${rollR} ` +
+      `A ${rollR} ${rollR} 0 1 1 ${rollD} ${rollR} ` +
+      `A ${rollR} ${rollR} 0 1 1 0 ${rollR} Z`
     );
   },
 
@@ -158,27 +175,41 @@ export const DecorationShapes: Record<string, ShapeGenerator> = {
    */
   [ST_ShapeType.horizontalScroll]: (w, h, adj) => {
     const adjVal = adj?.['adj'] ?? 12500;
-    const rollR = Math.min(w, h) * (adjVal / 100000);
+    // 卷曲半径基于高度计算
+    const rollR = h * (adjVal / 100000);
     const rollD = rollR * 2;
 
+    // 主体边界
+    const bodyLeft = rollD;
+    const bodyTop = rollR;
+    const bodyRight = w - rollD;
+    const bodyBottom = h - rollR;
+
     return (
-      // 主体
-      `M ${rollD} ${rollR} ` + // 主体左上
-      `L ${w - rollD} ${rollR} ` + // 主体右上
-      // 右侧卷曲
+      // 主体轮廓 - 从左上角开始
+      `M ${bodyLeft} ${bodyTop} ` +
+      // 顶部边缘
+      `L ${bodyRight} ${bodyTop} ` +
+      // 右侧卷曲 - 完整的卷起效果
+      `C ${w - rollR} ${bodyTop} ${w - rollR} ${rollR} ${w - rollD} 0 ` +
       `A ${rollR} ${rollR} 0 0 1 ${w - rollR} ${rollD} ` +
-      `L ${w - rollR} ${h - rollD} ` +
-      `A ${rollR} ${rollR} 0 0 1 ${w - rollD} ${h - rollR} ` +
-      // 下边
-      `L ${rollD} ${h - rollR} ` +
-      // 左侧卷曲
-      `A ${rollR} ${rollR} 0 0 1 ${rollR} ${h - rollD} ` +
-      `L ${rollR} ${rollD} ` +
-      `A ${rollR} ${rollR} 0 0 1 ${rollD} ${rollR} Z ` +
-      // 左侧卷纹
-      `M ${rollR} ${rollD} A ${rollR} ${rollR} 0 0 1 ${rollD} ${rollD} ` +
-      // 右侧卷纹
-      `M ${w - rollR} ${h - rollD} A ${rollR} ${rollR} 0 0 1 ${w - rollD} ${h - rollD}`
+      `L ${w - rollR} ${bodyBottom - rollR} ` +
+      `A ${rollR} ${rollR} 0 0 1 ${w - rollD} ${h} ` +
+      `C ${w - rollR} ${h - rollR} ${w - rollR} ${bodyBottom} ${bodyRight} ${bodyBottom} ` +
+      // 底部边缘
+      `L ${bodyLeft} ${bodyBottom} ` +
+      // 左侧边缘回到起点
+      `L ${bodyLeft} ${bodyTop} Z ` +
+      // 左侧卷曲装饰 - 完整的卷轴头
+      `M ${rollR} ${rollD} ` +
+      `A ${rollR} ${rollR} 0 0 1 ${rollD} ${rollD} ` +
+      `L ${rollD} ${bodyBottom - rollR} ` +
+      `A ${rollR} ${rollR} 0 0 1 ${rollR} ${bodyBottom - rollR} ` +
+      `L ${rollR} ${rollD} Z ` +
+      // 左侧卷曲圆形
+      `M ${rollR} 0 ` +
+      `A ${rollR} ${rollR} 0 1 1 ${rollR} ${rollD} ` +
+      `A ${rollR} ${rollR} 0 1 1 ${rollR} 0 Z`
     );
   },
 

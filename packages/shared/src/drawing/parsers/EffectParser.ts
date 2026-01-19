@@ -1,34 +1,50 @@
+/**
+ * 效果解析器
+ *
+ * 解析 DrawingML 中的视觉效果定义：
+ * - outerShdw: 外阴影
+ * - innerShdw: 内阴影
+ * - glow: 发光
+ * - reflection: 反射
+ * - softEdge: 柔化边缘
+ */
 import { XmlUtils } from '../../xml';
 import { OfficeEffect } from '../types';
 import { ColorParser } from './ColorParser';
 
 export class EffectParser {
+  /**
+   * 解析效果列表
+   *
+   * @param effectLst - effectLst 元素节点
+   * @returns 效果对象数组
+   */
   static parseEffects(effectLst: Element): OfficeEffect[] {
     const effects: OfficeEffect[] = [];
 
-    // Outer Shadow
+    // 外阴影
     const outerShdw = XmlUtils.query(effectLst, 'a\\:outerShdw');
     if (outerShdw) {
       effects.push({
         type: 'outerShadow',
-        blur: parseInt(outerShdw.getAttribute('blurRad') || '0', 10) / 12700,
-        dist: parseInt(outerShdw.getAttribute('dist') || '0', 10) / 12700,
-        dir: parseInt(outerShdw.getAttribute('dir') || '0', 10) / 60000,
+        blur: parseInt(outerShdw.getAttribute('blurRad') || '0', 10) / 12700, // EMU 转 pt
+        dist: parseInt(outerShdw.getAttribute('dist') || '0', 10) / 12700, // EMU 转 pt
+        dir: parseInt(outerShdw.getAttribute('dir') || '0', 10) / 60000, // 60000 分之一度转度
         color: ColorParser.parseColor(outerShdw)
       });
     }
 
-    // Glow
+    // 发光
     const glow = XmlUtils.query(effectLst, 'a\\:glow');
     if (glow) {
       effects.push({
         type: 'glow',
-        radius: parseInt(glow.getAttribute('rad') || '0', 10) / 12700,
+        radius: parseInt(glow.getAttribute('rad') || '0', 10) / 12700, // EMU 转 pt
         color: ColorParser.parseColor(glow)
       });
     }
 
-    // Inner Shadow (basic support)
+    // 内阴影（基础支持）
     const innerShdw = XmlUtils.query(effectLst, 'a\\:innerShdw');
     if (innerShdw) {
       effects.push({
@@ -40,7 +56,7 @@ export class EffectParser {
       });
     }
 
-    // Reflection
+    // 反射
     const reflection = XmlUtils.query(effectLst, 'a\\:reflection');
     if (reflection) {
       effects.push({
@@ -57,7 +73,7 @@ export class EffectParser {
       });
     }
 
-    // Soft Edge
+    // 柔化边缘
     const softEdge = XmlUtils.query(effectLst, 'a\\:softEdge');
     if (softEdge) {
       effects.push({

@@ -51,6 +51,8 @@ export function renderShapeGallery(container: HTMLElement) {
       if (result) {
         const path = document.createElementNS(svgNS, 'path');
         path.setAttribute('d', result.path);
+        // 使用 nonzero 填充规则确保多子路径正确填充
+        path.setAttribute('fill-rule', 'nonzero');
 
         // 根据 noFill 标志设置填充
         if (result.noFill) {
@@ -64,6 +66,16 @@ export function renderShapeGallery(container: HTMLElement) {
         }
 
         svg.appendChild(path);
+
+        // 如果有辅助描边路径（如 callout 指示线），单独渲染
+        if (result.strokePath) {
+          const strokePathEl = document.createElementNS(svgNS, 'path');
+          strokePathEl.setAttribute('d', result.strokePath);
+          strokePathEl.setAttribute('fill', 'none');
+          strokePathEl.setAttribute('stroke', '#333');
+          strokePathEl.setAttribute('stroke-width', '1');
+          svg.appendChild(strokePathEl);
+        }
       }
 
       card.appendChild(svg);

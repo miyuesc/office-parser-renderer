@@ -1,7 +1,18 @@
+/**
+ * 样式解析器
+ *
+ * 解析 XLSX 样式定义 (xl/styles.xml)
+ */
 import { XmlUtils } from '@ai-space/shared';
 import { XlsxStyles, XlsxFont, XlsxFill, XlsxBorder, XlsxCellXf, XlsxColor, XlsxBorderSide } from '../types';
 
 export class StyleParser {
+  /**
+   * 解析样式 XML
+   *
+   * @param stylesXml - 样式 XML 内容
+   * @returns 样式集对象
+   */
   static parse(stylesXml: string): XlsxStyles {
     const doc = XmlUtils.parse(stylesXml);
 
@@ -14,9 +25,15 @@ export class StyleParser {
     };
   }
 
+  /**
+   * 解析数字格式
+   *
+   * @param doc - 文档对象
+   * @returns 数字格式映射（ID -> 格式代码）
+   */
   private static parseNumFmts(doc: Document): Record<number, string> {
     const numFmts: Record<number, string> = {
-      // Standard Excel formats (partial list)
+      // 标准 Excel 格式（部分列表）
       0: 'General',
       1: '0',
       2: '0.00',
@@ -51,6 +68,12 @@ export class StyleParser {
     return numFmts;
   }
 
+  /**
+   * 解析字体
+   *
+   * @param doc - 文档对象
+   * @returns 字体数组
+   */
   private static parseFonts(doc: Document): XlsxFont[] {
     const fonts: XlsxFont[] = [];
     const nodes = XmlUtils.queryAll(doc, 'fonts font');
@@ -68,6 +91,12 @@ export class StyleParser {
     return fonts;
   }
 
+  /**
+   * 解析填充
+   *
+   * @param doc - 文档对象
+   * @returns 填充数组
+   */
   private static parseFills(doc: Document): XlsxFill[] {
     const fills: XlsxFill[] = [];
     const nodes = XmlUtils.queryAll(doc, 'fills fill');
@@ -80,12 +109,18 @@ export class StyleParser {
           bgColor: this.parseColor(XmlUtils.query(patternFill, 'bgColor'))
         });
       } else {
-        fills.push({}); // gradientFill placeholders etc
+        fills.push({}); // gradientFill 占位符等
       }
     });
     return fills;
   }
 
+  /**
+   * 解析边框
+   *
+   * @param doc - 文档对象
+   * @returns 边框数组
+   */
   private static parseBorders(doc: Document): XlsxBorder[] {
     const borders: XlsxBorder[] = [];
     const nodes = XmlUtils.queryAll(doc, 'borders border');
@@ -101,6 +136,12 @@ export class StyleParser {
     return borders;
   }
 
+  /**
+   * 解析边框边
+   *
+   * @param node - 边框边节点
+   * @returns 边框边对象
+   */
   private static parseBorderSide(node: Element | null): XlsxBorderSide | undefined {
     if (!node) return undefined;
     const style = node.getAttribute('style');
@@ -111,6 +152,12 @@ export class StyleParser {
     };
   }
 
+  /**
+   * 解析单元格格式
+   *
+   * @param doc - 文档对象
+   * @returns 单元格格式数组
+   */
   private static parseCellXfs(doc: Document): XlsxCellXf[] {
     const cellXfs: XlsxCellXf[] = [];
     const nodes = XmlUtils.queryAll(doc, 'cellXfs xf');
@@ -137,12 +184,18 @@ export class StyleParser {
     return cellXfs;
   }
 
+  /**
+   * 解析颜色
+   *
+   * @param node - 颜色节点
+   * @returns 颜色对象
+   */
   private static parseColor(node: Element | null): XlsxColor | undefined {
     if (!node) return undefined;
     const auto = node.getAttribute('auto');
     if (auto) return { auto: true };
 
-    const rgb = node.getAttribute('rgb'); // ARGB Hex
+    const rgb = node.getAttribute('rgb'); // ARGB 十六进制
     const theme = node.getAttribute('theme');
     const tint = node.getAttribute('tint');
     const indexed = node.getAttribute('indexed');

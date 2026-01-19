@@ -1,3 +1,8 @@
+/**
+ * XLSX 主解析器
+ *
+ * 解析完整的 XLSX 文件，协调各个子解析器
+ */
 import { ZipService, XmlUtils } from '@ai-space/shared';
 import { XlsxWorkbook, XlsxSheet, XlsxStyles, OfficeChart } from '../types';
 import { WorkbookParser } from './WorkbookParser';
@@ -8,12 +13,18 @@ import { DrawingParser } from './DrawingParser';
 import { ChartParser } from './ChartParser';
 
 export class XlsxParser {
+  /**
+   * 解析 XLSX 文件
+   *
+   * @param buffer - XLSX 文件的 ArrayBuffer
+   * @returns 解析后的工作簿对象
+   */
   async parse(buffer: ArrayBuffer): Promise<XlsxWorkbook> {
     const files = await ZipService.load(buffer);
     const decoder = new TextDecoder();
     const getXml = (path: string) => (files[path] ? decoder.decode(files[path]) : null);
 
-    // 1. Parse Shared Strings
+    // 1. 解析共享字符串
     const sharedStrings: string[] = [];
     const ssXml = getXml('xl/sharedStrings.xml');
     if (ssXml) {
@@ -21,26 +32,26 @@ export class XlsxParser {
       const siNodes = XmlUtils.queryAll(ssDoc, 'si');
       siNodes.forEach((si: Element) => {
         const t = XmlUtils.query(si, 't');
-        // Basic implementation: just get text. Rich text runs (r) are ignored for now.
+        // 基础实现：仅获取文本，暂时忽略富文本片段 (r)
         sharedStrings.push(t?.textContent || '');
       });
     }
 
-    // 2. Parse Styles
+    // 2. 解析样式
     let styles: XlsxStyles = { fonts: [], fills: [], borders: [], cellXfs: [], numFmts: {} };
     const stylesXml = getXml('xl/styles.xml');
     if (stylesXml) {
       styles = StyleParser.parse(stylesXml);
     }
 
-    // 3. Parse Theme
+    // 3. 解析主题
     let theme;
-    const themeXml = getXml('xl/theme/theme1.xml'); // Standard path
+    const themeXml = getXml('xl/theme/theme1.xml'); // 标准路径
     if (themeXml) {
       theme = ThemeParser.parse(themeXml);
     }
 
-    // 4. Parse Workbook & Sheets
+    // 4. 解析工作簿和工作表
     let sheets: XlsxSheet[] = [];
     const wbXml = getXml('xl/workbook.xml');
     const relsXml = getXml('xl/_rels/workbook.xml.rels');
@@ -49,7 +60,7 @@ export class XlsxParser {
       const { sheets: parsedSheets } = WorkbookParser.parse(wbXml, relsXml);
       sheets = parsedSheets;
 
-      // 5. Parse Each Sheet
+      // 5. 解析每个工作表
       for (const sheet of sheets) {
         if (!sheet.id) continue;
 
@@ -57,7 +68,7 @@ export class XlsxParser {
         let sheetPath = relationships[sheet.id];
 
         if (sheetPath) {
-          // Resolve path
+          // 解析路径
           if (sheetPath.startsWith('/')) sheetPath = sheetPath.substring(1);
           else sheetPath = 'xl/' + sheetPath;
 
@@ -66,7 +77,7 @@ export class XlsxParser {
             const parsedSheet = WorksheetParser.parse(sheetXml, sheet);
             Object.assign(sheet, parsedSheet);
 
-            // 6. Handle Drawings if present
+            // 6. 处理绘图（如果存在）
             if (sheet.drawingId) {
               const pathParts = sheetPath.split('/');
               const fileName = pathParts.pop();
@@ -91,15 +102,12 @@ export class XlsxParser {
                   } else {
                     drawingPath = drawingPath.substring(1);
                   }
-                  // console.log('Resolved Drawing Path:', drawingPath);
 
                   const drawingXml = getXml(drawingPath);
                   if (drawingXml) {
-                    // console.log('Parsing Drawing:', drawingPath);
                     const { images, shapes, connectors, chartRefs } = DrawingParser.parse(drawingXml);
-                    // console.log('Parsed Drawings:', { images, shapes, connectors, chartRefs });
 
-                    // 7. Resolve Image Embeds (BLIPs) and Chart References
+                    // 7. 解析图片嵌入 (BLIP) 和图表引用
                     const dPathParts = drawingPath.split('/');
                     const dFileName = dPathParts.pop();
                     const dFolder = dPathParts.join('/');
@@ -110,7 +118,7 @@ export class XlsxParser {
                       const drawingRels = WorkbookParser.parseRels(drawingRelsXml);
 
                       for (const img of images) {
-                        const targetId = img.embedId; // Use embedId for lookup
+                        const targetId = img.embedId; // 使用 embedId 进行查找
                         const imgRelPath = drawingRels[targetId];
 
                         if (imgRelPath) {
@@ -135,13 +143,13 @@ export class XlsxParser {
                             else if (imgPath.endsWith('.gif')) img.mimeType = 'image/gif';
                             else if (imgPath.endsWith('.bmp')) img.mimeType = 'image/bmp';
 
-                            // Generate Blob URL for browser rendering
+                            // 为浏览器渲染生成 Blob URL
                             if (typeof URL !== 'undefined' && typeof Blob !== 'undefined' && img.mimeType) {
                               try {
                                 const blob = new Blob([img.data!], { type: img.mimeType });
                                 img.src = URL.createObjectURL(blob);
                               } catch (e) {
-                                console.warn('Failed to create object URL for image', e);
+                                console.warn('创建图片 Object URL 失败', e);
                               }
                             }
                           }
@@ -149,7 +157,7 @@ export class XlsxParser {
                       }
                       sheet.images = images;
 
-                      // 8. Parse Charts
+                      // 8. 解析图表
                       if (chartRefs.length > 0) {
                         const charts: OfficeChart[] = [];
                         for (const chartRef of chartRefs) {
@@ -176,7 +184,7 @@ export class XlsxParser {
                                 id: chartRef.id,
                                 anchor: chartRef.anchor
                               });
-                              console.log(`Parsed Chart: ${chartRef.name}`, parsedChart);
+                              console.log(`已解析图表: ${chartRef.name}`, parsedChart);
                             }
                           }
                         }
@@ -184,7 +192,7 @@ export class XlsxParser {
                       }
                     }
 
-                    // Assign shapes (no external rels usually for basic shapes)
+                    // 分配形状（基础形状通常没有外部关系）
                     sheet.shapes = shapes;
                     sheet.connectors = connectors;
                   }
@@ -192,7 +200,7 @@ export class XlsxParser {
               }
             }
           } else {
-            console.warn(`Sheet XML not found at ${sheetPath}`);
+            console.warn(`在 ${sheetPath} 未找到工作表 XML`);
           }
         }
       }

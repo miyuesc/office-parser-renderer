@@ -1,3 +1,14 @@
+/**
+ * @ai-space/shared 共享工具库
+ *
+ * 提供 Office 文档解析与渲染所需的通用工具：
+ * - ZIP 解压服务
+ * - XML 解析工具
+ * - 单位转换工具
+ * - 颜色处理工具
+ * - DrawingML 解析与形状生成
+ */
+
 export * from './zip';
 export * from './xml';
 export * from './utils/geometry';

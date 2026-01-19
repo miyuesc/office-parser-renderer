@@ -1,7 +1,19 @@
+/**
+ * 单元格样式工具
+ *
+ * 将 XLSX 单元格样式转换为 CSS 样式
+ */
 import { ColorUtils } from '@ai-space/shared';
 import { XlsxWorkbook, XlsxColor } from '../types';
 
 export class CellStyleUtils {
+  /**
+   * 获取单元格的 CSS 样式
+   *
+   * @param workbook - 工作簿对象
+   * @param styleIndex - 样式索引
+   * @returns CSS 样式对象
+   */
   static getCss(workbook: XlsxWorkbook, styleIndex?: number): Partial<CSSStyleDeclaration> {
     if (styleIndex === undefined) return {};
 
@@ -10,7 +22,7 @@ export class CellStyleUtils {
 
     const css: any = {};
 
-    // Font
+    // 字体
     const font = workbook.styles.fonts[xf.fontId];
     if (font) {
       css.fontFamily = font.name || 'Calibri';
@@ -24,23 +36,23 @@ export class CellStyleUtils {
       if (color) css.color = color;
     }
 
-    // Fill
+    // 填充
     const fill = workbook.styles.fills[xf.fillId];
     if (fill) {
-      // Check patternType
+      // 检查图案类型
       if (fill.patternType === 'none') {
-        // No background
+        // 无背景
       } else {
         const fg = this.resolveColor(fill.fgColor, workbook);
-        // For solid fills, fgColor is the color.
+        // 对于纯色填充，fgColor 就是颜色
         if (fg) css.backgroundColor = fg;
         else if (fill.bgColor) css.backgroundColor = this.resolveColor(fill.bgColor, workbook);
       }
     }
 
-    // Alignment (omitted mostly unchanged, just context)
+    // 对齐（为了健壮性放宽检查，忽略 applyAlignment）
     if (xf.alignment) {
-      // Relaxed check: ignore applyAlignment for robustness
+      // 水平对齐
       if (xf.alignment.horizontal) {
         switch (xf.alignment.horizontal) {
           case 'center':
@@ -56,6 +68,7 @@ export class CellStyleUtils {
             css.textAlign = 'left';
         }
       }
+      // 垂直对齐
       if (xf.alignment.vertical) {
         switch (xf.alignment.vertical) {
           case 'top':
@@ -71,6 +84,7 @@ export class CellStyleUtils {
             css.verticalAlign = 'bottom';
         }
       }
+      // 自动换行
       if (xf.alignment.wrapText) {
         css.whiteSpace = 'pre-wrap';
         css.wordWrap = 'break-word';
@@ -81,9 +95,14 @@ export class CellStyleUtils {
       css.whiteSpace = 'nowrap';
     }
 
-    // Borders
+    // 边框
     const border = workbook.styles.borders[xf.borderId];
     if (border) {
+      /**
+       * 获取边框 CSS 值
+       * @param side - 边框边对象
+       * @returns CSS 边框字符串
+       */
       const getBorderCss = (side: any) => {
         if (!side || side.style === 'none') return 'none';
 
@@ -92,8 +111,8 @@ export class CellStyleUtils {
 
         switch (side.style) {
           case 'hair':
-            width = '1px';
-            break; // thin
+            width = '1px'; // 细线
+            break;
           case 'dotted':
             style = 'dotted';
             break;
@@ -134,18 +153,27 @@ export class CellStyleUtils {
     return css;
   }
 
+  /**
+   * 解析颜色
+   *
+   * 将 XLSX 颜色对象转换为十六进制颜色字符串
+   *
+   * @param xlsxColor - XLSX 颜色对象
+   * @param workbook - 工作簿对象
+   * @returns 十六进制颜色字符串
+   */
   static resolveColor(xlsxColor: XlsxColor | undefined, workbook: XlsxWorkbook): string | undefined {
     if (!xlsxColor) return undefined;
 
     let hex: string | undefined;
 
     if (xlsxColor.rgb) {
-      // ARGB
+      // ARGB 格式
       hex = xlsxColor.rgb;
       if (!hex.startsWith('#')) hex = '#' + hex;
       if (hex.length === 9) hex = '#' + hex.substring(3);
     } else if (xlsxColor.theme !== undefined && workbook.theme) {
-      // Theme lookup
+      // 主题颜色查找
       const key = String(xlsxColor.theme);
       if (workbook.theme.colorScheme[key]) {
         hex = '#' + workbook.theme.colorScheme[key];
@@ -154,6 +182,7 @@ export class CellStyleUtils {
       hex = '#000000';
     }
 
+    // 应用色调调整
     if (hex && xlsxColor.tint !== undefined) {
       hex = ColorUtils.applyTint(hex, xlsxColor.tint);
     }

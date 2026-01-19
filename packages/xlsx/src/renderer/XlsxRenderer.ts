@@ -704,6 +704,10 @@ export class XlsxRenderer {
     // 根据类型渲染
     if (chart.type === 'barChart') {
       this.renderBarChart(chart, g, rect, ctx);
+    } else if (chart.type === 'pieChart' || chart.type === 'pie3DChart') {
+      this.renderPieChart(chart, g, rect, ctx);
+    } else if (chart.type === 'lineChart') {
+      this.renderLineChart(chart, g, rect, ctx);
     } else {
       // 占位符
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -798,11 +802,11 @@ export class XlsxRenderer {
     // 柱宽计算 - Office 风格
     // 每个分类占用的总宽度
     const catW = plotW / numCats;
-    // 组间距：Office 默认让柱组占每个分类宽度的约 85%，两侧各留约 7.5% 作为间距
-    const groupGapRatio = 0.15; // 15% 总间距（两侧各 7.5%）
+    // 组间距：Office 默认让柱组占每个分类宽度的约 55%，两侧各留约 22.5% 作为间距
+    const groupGapRatio = 0.45; // 45% 总间距（两侧各 22.5%）
     const groupW = catW * (1 - groupGapRatio);
-    // 组内各系列之间留小间距
-    const barGap = numSeries > 1 ? (groupW * 0.05) / (numSeries - 1) : 0;
+    // 组内各系列之间留较大间距 (15%)
+    const barGap = numSeries > 1 ? (groupW * 0.15) / (numSeries - 1) : 0;
     const barW = (groupW - barGap * (numSeries - 1)) / numSeries;
     // 分类内柱组起始偏移（使柱组在分类内居中）
     const groupStartOffset = catW * (groupGapRatio / 2);
@@ -886,6 +890,303 @@ export class XlsxRenderer {
 
       const legendText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       legendText.setAttribute('x', String(x + 14));
+      legendText.setAttribute('y', String(legendY));
+      legendText.setAttribute('font-size', '10');
+      legendText.setAttribute('fill', '#595959');
+      legendText.textContent = series.name || `Series ${si + 1}`;
+      container.appendChild(legendText);
+    });
+  }
+
+  /**
+   * 渲染饼图
+   * @param chart 图表数据
+   * @param container SVG 容器
+   * @param rect 渲染区域
+   * @param _ctx 渲染上下文
+   */
+  private renderPieChart(
+    chart: OfficeChart,
+    container: SVGElement,
+    rect: { x: number; y: number; w: number; h: number },
+    _ctx: any
+  ) {
+    if (!chart.series.length) return;
+
+    const padding = { top: 40, right: 20, bottom: 30, left: 20 };
+    const plotW = rect.w - padding.left - padding.right;
+    const plotH = rect.h - padding.top - padding.bottom;
+
+    if (plotW <= 0 || plotH <= 0) return;
+
+    // 绘制标题
+    if (chart.title) {
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      title.setAttribute('x', String(rect.w / 2));
+      title.setAttribute('y', '20');
+      title.setAttribute('text-anchor', 'middle');
+      title.setAttribute('font-size', '14');
+      title.setAttribute('font-weight', 'bold');
+      title.setAttribute('fill', '#333');
+      title.textContent = chart.title;
+      container.appendChild(title);
+    }
+
+    // 计算饼图中心和半径
+    const centerX = padding.left + plotW / 2;
+    const centerY = padding.top + plotH / 2;
+    const radius = (Math.min(plotW, plotH) / 2) * 0.75;
+
+    // 使用第一个系列的数据
+    const series = chart.series[0];
+    if (!series || !series.values.length) return;
+
+    // 计算总值
+    const total = series.values.reduce((sum, v) => sum + (isNaN(v) ? 0 : v), 0);
+    if (total === 0) return;
+
+    // 主色系 (Office 风格)
+    const colors = ['#4F81BD', '#C0504D', '#9BBB59', '#8064A2', '#4BACC6', '#F79646'];
+
+    // 绘制扇形
+    let startAngle = -Math.PI / 2; // 从 12 点钟位置开始
+
+    series.values.forEach((val, i) => {
+      const safeVal = isNaN(val) ? 0 : val;
+      if (safeVal <= 0) return;
+
+      const angle = (safeVal / total) * 2 * Math.PI;
+      const endAngle = startAngle + angle;
+
+      // 计算扇形路径
+      const x1 = centerX + radius * Math.cos(startAngle);
+      const y1 = centerY + radius * Math.sin(startAngle);
+      const x2 = centerX + radius * Math.cos(endAngle);
+      const y2 = centerY + radius * Math.sin(endAngle);
+
+      // 使用 SVG arc 绘制扇形
+      const largeArcFlag = angle > Math.PI ? 1 : 0;
+      const d = [
+        `M ${centerX} ${centerY}`,
+        `L ${x1} ${y1}`,
+        `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
+        'Z'
+      ].join(' ');
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('fill', colors[i % colors.length]);
+      path.setAttribute('stroke', '#ffffff');
+      path.setAttribute('stroke-width', '1');
+      container.appendChild(path);
+
+      startAngle = endAngle;
+    });
+
+    // 绘制图例
+    const categories = series.categories || [];
+    const legendY = rect.h - 15;
+    const itemW = Math.min(80, plotW / Math.max(1, categories.length));
+    const totalLegendW = categories.length * itemW;
+    const legendStartX = padding.left + (plotW - totalLegendW) / 2;
+
+    categories.forEach((cat, i) => {
+      const x = legendStartX + i * itemW;
+
+      const legendRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      legendRect.setAttribute('x', String(x));
+      legendRect.setAttribute('y', String(legendY - 8));
+      legendRect.setAttribute('width', '10');
+      legendRect.setAttribute('height', '10');
+      legendRect.setAttribute('fill', colors[i % colors.length]);
+      container.appendChild(legendRect);
+
+      const legendText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      legendText.setAttribute('x', String(x + 14));
+      legendText.setAttribute('y', String(legendY));
+      legendText.setAttribute('font-size', '9');
+      legendText.setAttribute('fill', '#595959');
+      // 截断长文本
+      const maxChars = Math.floor((itemW - 20) / 5);
+      legendText.textContent = cat.length > maxChars ? cat.substring(0, maxChars) + '..' : cat;
+      container.appendChild(legendText);
+    });
+  }
+
+  /**
+   * 渲染折线图
+   * @param chart 图表数据
+   * @param container SVG 容器
+   * @param rect 渲染区域
+   * @param _ctx 渲染上下文
+   */
+  private renderLineChart(
+    chart: OfficeChart,
+    container: SVGElement,
+    rect: { x: number; y: number; w: number; h: number },
+    _ctx: any
+  ) {
+    if (!chart.series.length) return;
+
+    const padding = { top: 40, right: 20, bottom: 50, left: 50 };
+    const plotW = rect.w - padding.left - padding.right;
+    const plotH = rect.h - padding.top - padding.bottom;
+
+    if (plotW <= 0 || plotH <= 0) return;
+
+    // 绘制标题
+    if (chart.title) {
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      title.setAttribute('x', String(rect.w / 2));
+      title.setAttribute('y', '25');
+      title.setAttribute('text-anchor', 'middle');
+      title.setAttribute('font-size', '14');
+      title.setAttribute('font-weight', 'bold');
+      title.setAttribute('fill', '#333');
+      title.textContent = chart.title;
+      container.appendChild(title);
+    }
+
+    // 计算数据范围
+    let maxVal = 0;
+    chart.series.forEach(s => {
+      s.values.forEach(v => {
+        if (!isNaN(v) && v > maxVal) maxVal = v;
+      });
+    });
+
+    if (maxVal === 0) maxVal = 100;
+    else maxVal = Math.ceil(maxVal * 1.1);
+
+    // 绘制 Y 轴网格线和标签
+    const numTicks = 5;
+    for (let i = 0; i <= numTicks; i++) {
+      const val = (maxVal / numTicks) * i;
+      const y = padding.top + plotH - plotH * (i / numTicks);
+
+      const tick = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      tick.setAttribute('x1', String(padding.left));
+      tick.setAttribute('y1', String(y));
+      tick.setAttribute('x2', String(padding.left + plotW));
+      tick.setAttribute('y2', String(y));
+      tick.setAttribute('stroke', '#d9d9d9');
+      tick.setAttribute('stroke-width', '1');
+      container.appendChild(tick);
+
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.setAttribute('x', String(padding.left - 8));
+      label.setAttribute('y', String(y));
+      label.setAttribute('text-anchor', 'end');
+      label.setAttribute('dominant-baseline', 'middle');
+      label.setAttribute('font-size', '10');
+      label.setAttribute('fill', '#595959');
+      label.textContent = Math.round(val).toString();
+      container.appendChild(label);
+    }
+
+    const categories = chart.series[0]?.categories || [];
+    const numCats = categories.length;
+    if (numCats === 0) return;
+
+    const catW = plotW / Math.max(1, numCats - 1);
+
+    // 主色系
+    const colors = ['#4F81BD', '#C0504D', '#9BBB59', '#8064A2', '#4BACC6', '#F79646'];
+
+    // 绘制折线和数据点
+    chart.series.forEach((series, si) => {
+      const color = series.fillColor ? this.resolveColor(series.fillColor) : colors[si % colors.length];
+      const points: { x: number; y: number }[] = [];
+
+      series.values.forEach((val, ci) => {
+        const safeVal = isNaN(val) ? 0 : val;
+        const x = padding.left + ci * catW;
+        const y = padding.top + plotH - (safeVal / maxVal) * plotH;
+        points.push({ x, y });
+      });
+
+      // 绘制折线
+      if (points.length > 1) {
+        const pathD = points.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(' ');
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', pathD);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', color);
+        path.setAttribute('stroke-width', '2.5');
+        path.setAttribute('stroke-linejoin', 'round');
+        container.appendChild(path);
+      }
+
+      // 绘制数据点标记
+      points.forEach(p => {
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', String(p.x));
+        circle.setAttribute('cy', String(p.y));
+        circle.setAttribute('r', '4');
+        circle.setAttribute('fill', color);
+        circle.setAttribute('stroke', '#ffffff');
+        circle.setAttribute('stroke-width', '1.5');
+        container.appendChild(circle);
+      });
+    });
+
+    // 绘制 X 轴线
+    const xAxisLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    xAxisLine.setAttribute('x1', String(padding.left));
+    xAxisLine.setAttribute('y1', String(padding.top + plotH));
+    xAxisLine.setAttribute('x2', String(padding.left + plotW));
+    xAxisLine.setAttribute('y2', String(padding.top + plotH));
+    xAxisLine.setAttribute('stroke', '#8c8c8c');
+    xAxisLine.setAttribute('stroke-width', '1');
+    container.appendChild(xAxisLine);
+
+    // 绘制 X 轴标签
+    categories.forEach((cat, ci) => {
+      const x = padding.left + ci * catW;
+      const y = padding.top + plotH + 15;
+
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.setAttribute('x', String(x));
+      label.setAttribute('y', String(y));
+      label.setAttribute('text-anchor', 'middle');
+      label.setAttribute('font-size', '10');
+      label.setAttribute('fill', '#595959');
+
+      const maxChars = Math.floor(catW / 6);
+      label.textContent = cat.length > maxChars ? cat.substring(0, maxChars) + '...' : cat;
+      container.appendChild(label);
+    });
+
+    // 绘制图例
+    const numSeries = chart.series.length;
+    const legendY = rect.h - 15;
+    const seriesW = 80;
+    const totalLegendW = numSeries * seriesW;
+    const legendStartX = padding.left + (plotW - totalLegendW) / 2;
+
+    chart.series.forEach((series, si) => {
+      const color = series.fillColor ? this.resolveColor(series.fillColor) : colors[si % colors.length];
+      const x = legendStartX + si * seriesW;
+
+      // 折线图例使用线条样式
+      const legendLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      legendLine.setAttribute('x1', String(x));
+      legendLine.setAttribute('y1', String(legendY - 4));
+      legendLine.setAttribute('x2', String(x + 12));
+      legendLine.setAttribute('y2', String(legendY - 4));
+      legendLine.setAttribute('stroke', color);
+      legendLine.setAttribute('stroke-width', '2');
+      container.appendChild(legendLine);
+
+      const legendCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      legendCircle.setAttribute('cx', String(x + 6));
+      legendCircle.setAttribute('cy', String(legendY - 4));
+      legendCircle.setAttribute('r', '3');
+      legendCircle.setAttribute('fill', color);
+      container.appendChild(legendCircle);
+
+      const legendText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      legendText.setAttribute('x', String(x + 16));
       legendText.setAttribute('y', String(legendY));
       legendText.setAttribute('font-size', '10');
       legendText.setAttribute('fill', '#595959');
@@ -1017,9 +1318,25 @@ export class XlsxRenderer {
       const presetPath = generatePresetPath(shape.geometry, rect.w, rect.h, shape.adjustValues);
       if (presetPath) {
         vector = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        vector.setAttribute('d', presetPath);
+        // 使用 presetPath.path 访问路径字符串
+        vector.setAttribute('d', presetPath.path);
         // 确保 fill 先绘制，stroke 后绘制（stroke 在外侧而非覆盖填充）
         vector.style.paintOrder = 'fill stroke';
+
+        // 处理 noFill 标志（用于连接线等开放路径）
+        if (presetPath.noFill) {
+          vector.setAttribute('fill', 'none');
+        }
+
+        // 处理辅助描边路径（如 callout 指示线），需要创建额外的路径元素
+        if (presetPath.strokePath) {
+          const strokePathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          strokePathEl.setAttribute('d', presetPath.strokePath);
+          strokePathEl.setAttribute('fill', 'none');
+          // 描边路径的样式会在后续由 stroke 逻辑处理
+          // @ts-ignore - 临时存储以便后续添加到容器
+          vector._strokePathElement = strokePathEl;
+        }
       } else {
         // Default to rect if no preset found
         vector = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -1118,6 +1435,22 @@ export class XlsxRenderer {
       g.appendChild(vector._wrapper);
     } else {
       g.appendChild(vector);
+    }
+
+    // 添加辅助描边路径元素（如 callout 指示线）
+    // @ts-ignore
+    if (vector._strokePathElement) {
+      // @ts-ignore
+      const strokePathEl = vector._strokePathElement as SVGPathElement;
+      // 应用相同的描边样式
+      if (strokeColor !== 'none') {
+        strokePathEl.setAttribute('stroke', strokeColor);
+        const widthPt = strokeWidth > 20 ? strokeWidth / 12700 : strokeWidth;
+        strokePathEl.setAttribute('stroke-width', String(widthPt || 1));
+        strokePathEl.setAttribute('stroke-linejoin', 'round');
+        strokePathEl.setAttribute('stroke-linecap', 'round');
+      }
+      g.appendChild(strokePathEl);
     }
     // Text Rendering
     if (shape.textBody) {

@@ -39,6 +39,8 @@ export interface GeneratedPath {
   path: string;
   /** 是否禁止填充 */
   noFill: boolean;
+  /** 辅助描边路径（仅描边不填充，如 callout 指示线） */
+  strokePath?: string;
 }
 
 /**
@@ -61,7 +63,8 @@ export function generatePresetPath(
     if (isShapeResult(result)) {
       return {
         path: result.path,
-        noFill: result.noFill ?? false
+        noFill: result.noFill ?? false,
+        strokePath: result.strokePath
       };
     }
     return {

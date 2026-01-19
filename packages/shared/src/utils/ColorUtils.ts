@@ -1,9 +1,17 @@
+/**
+ * 颜色处理工具类
+ *
+ * 提供颜色格式转换、色调调整等功能
+ */
 export class ColorUtils {
   /**
-   * Applies a tint value to a hex color.
-   * @param hex - Hex color string (e.g., "#FF0000" or "FF0000")
-   * @param tint - Tint value between -1.0 and 1.0
-   * @returns Tinted hex color
+   * 对十六进制颜色应用色调 (tint) 值
+   *
+   * 正值使颜色变亮（与白色混合），负值使颜色变暗（与黑色混合）
+   *
+   * @param hex - 十六进制颜色字符串（如 "#FF0000" 或 "FF0000"）
+   * @param tint - 色调值，范围 -1.0 到 1.0
+   * @returns 调整后的十六进制颜色
    */
   static applyTint(hex: string, tint: number): string {
     if (!hex) return '#000000';
@@ -13,11 +21,11 @@ export class ColorUtils {
     const hsl = this.rgbToHsl(rgb.r, rgb.g, rgb.b);
 
     if (tint < 0) {
-      // Darker: lum * (1.0 + tint)
+      // 变暗：亮度 * (1.0 + tint)
       hsl.l = hsl.l * (1.0 + tint);
     } else {
-      // Lighter: lum * (1.0 - tint) + (HLSMAX - HLSMAX * (1.0 - tint))
-      // Simplified: L + (1 - L) * tint
+      // 变亮：亮度 * (1.0 - tint) + (最大亮度 - 最大亮度 * (1.0 - tint))
+      // 简化公式：L + (1 - L) * tint
       hsl.l = hsl.l * (1.0 - tint) + tint;
     }
 
@@ -25,6 +33,11 @@ export class ColorUtils {
     return this.rgbToHex(newRgb.r, newRgb.g, newRgb.b);
   }
 
+  /**
+   * 将十六进制颜色转换为 RGB 对象
+   * @param hex - 十六进制颜色字符串
+   * @returns RGB 颜色对象
+   */
   static hexToRgb(hex: string): { r: number; g: number; b: number } {
     hex = hex.replace(/^#/, '');
     if (hex.length === 3) {
@@ -33,7 +46,7 @@ export class ColorUtils {
         .map(c => c + c)
         .join('');
     }
-    // Handle ARGB (8 chars), ignore alpha for now or assume opaque
+    // 处理 ARGB 格式（8 位），暂时忽略 alpha 值
     if (hex.length === 8) {
       hex = hex.substring(2);
     }
@@ -46,10 +59,24 @@ export class ColorUtils {
     };
   }
 
+  /**
+   * 将 RGB 颜色转换为十六进制字符串
+   * @param r - 红色分量 (0-255)
+   * @param g - 绿色分量 (0-255)
+   * @param b - 蓝色分量 (0-255)
+   * @returns 十六进制颜色字符串
+   */
   static rgbToHex(r: number, g: number, b: number): string {
     return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
   }
 
+  /**
+   * 将 RGB 颜色转换为 HSL 颜色
+   * @param r - 红色分量 (0-255)
+   * @param g - 绿色分量 (0-255)
+   * @param b - 蓝色分量 (0-255)
+   * @returns HSL 颜色对象（h, s, l 范围均为 0-1）
+   */
   static rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: number } {
     r /= 255;
     g /= 255;
@@ -80,11 +107,18 @@ export class ColorUtils {
     return { h, s, l };
   }
 
+  /**
+   * 将 HSL 颜色转换为 RGB 颜色
+   * @param h - 色相 (0-1)
+   * @param s - 饱和度 (0-1)
+   * @param l - 亮度 (0-1)
+   * @returns RGB 颜色对象
+   */
   static hslToRgb(h: number, s: number, l: number): { r: number; g: number; b: number } {
     let r, g, b;
 
     if (s === 0) {
-      r = g = b = l; // achromatic
+      r = g = b = l; // 无色调（灰度）
     } else {
       const hue2rgb = (p: number, q: number, t: number) => {
         if (t < 0) t += 1;
@@ -110,6 +144,10 @@ export class ColorUtils {
   }
 }
 
+/**
+ * 本地默认主题颜色映射
+ * 当未提供主题时使用此默认值
+ */
 const LocalDefaultThemeColors = {
   dk1: '#000000',
   lt1: '#FFFFFF',
@@ -125,6 +163,15 @@ const LocalDefaultThemeColors = {
   folHlink: '#954F72'
 };
 
+/**
+ * 解析主题颜色引用
+ *
+ * 将 "theme:accent1" 格式的引用转换为实际的十六进制颜色值
+ *
+ * @param themeColor - 主题颜色引用字符串
+ * @param themeColors - 可选的自定义主题颜色映射
+ * @returns 十六进制颜色值
+ */
 export function resolveThemeColor(themeColor: string, themeColors?: Record<string, string>): string {
   if (!themeColor) return '#000000';
   if (themeColor.startsWith('#')) return themeColor;

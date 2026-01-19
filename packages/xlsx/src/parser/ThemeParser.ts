@@ -1,17 +1,32 @@
+/**
+ * 主题解析器
+ *
+ * 解析 XLSX 主题定义 (xl/theme/theme1.xml)
+ */
 import { XmlUtils } from '@ai-space/shared';
 import { XlsxTheme } from '../types';
 
 export class ThemeParser {
+  /**
+   * 解析主题 XML
+   *
+   * @param themeXml - 主题 XML 内容
+   * @returns 主题对象
+   */
   static parse(themeXml: string): XlsxTheme {
     const doc = XmlUtils.parse(themeXml);
     const colorScheme: Record<string, string> = {};
 
-    // clrScheme
-    //  - dk1, lt1, dk2, lt2, accent1...accent6, hlink, folHlink
+    // 颜色方案
+    // - dk1, lt1, dk2, lt2, accent1...accent6, hlink, folHlink
 
     const clrScheme = XmlUtils.query(doc, 'a\\:clrScheme');
     if (clrScheme) {
-      // Helper to extract RGB from sysClr or srgbClr
+      /**
+       * 从 sysClr 或 srgbClr 提取 RGB 值
+       * @param nodeName - 节点名称
+       * @param mapTo - 映射到的索引
+       */
       const extractColor = (nodeName: string, mapTo: string) => {
         const node = XmlUtils.query(clrScheme, `a\\:${nodeName}`);
         if (node) {
@@ -25,11 +40,11 @@ export class ThemeParser {
             colorVal = sysClr.getAttribute('lastClr') || '000000';
           }
 
-          // Store by both numeric index and name
+          // 同时存储数字索引和名称
           colorScheme[mapTo] = colorVal;
           colorScheme[nodeName] = colorVal;
 
-          // Also map aliases
+          // 同时映射别名
           if (nodeName === 'dk1') colorScheme['tx1'] = colorVal;
           if (nodeName === 'lt1') colorScheme['bg1'] = colorVal;
           if (nodeName === 'dk2') colorScheme['tx2'] = colorVal;

@@ -1,7 +1,19 @@
+/**
+ * 工作表解析器
+ *
+ * 解析 XLSX 工作表结构 (xl/worksheets/sheet*.xml)
+ */
 import { XmlUtils } from '@ai-space/shared';
 import { XlsxSheet, XlsxRow, XlsxColumn, XlsxMergeCell, XlsxCell } from '../types';
 
 export class WorksheetParser {
+  /**
+   * 解析工作表 XML
+   *
+   * @param xml - 工作表 XML 内容
+   * @param baseSheet - 基础工作表对象
+   * @returns 完整的工作表对象
+   */
   static parse(xml: string, baseSheet: XlsxSheet): XlsxSheet {
     const doc = XmlUtils.parse(xml);
     const sheet = { ...baseSheet };
@@ -22,6 +34,12 @@ export class WorksheetParser {
     return sheet;
   }
 
+  /**
+   * 解析页边距
+   *
+   * @param doc - 文档对象
+   * @returns 页边距对象
+   */
   private static parsePageMargins(doc: Document): any {
     const node = XmlUtils.query(doc, 'pageMargins');
     if (!node) return undefined;
@@ -35,6 +53,12 @@ export class WorksheetParser {
     };
   }
 
+  /**
+   * 解析页面设置
+   *
+   * @param doc - 文档对象
+   * @returns 页面设置对象
+   */
   private static parsePageSetup(doc: Document): any {
     const node = XmlUtils.query(doc, 'pageSetup');
     if (!node) return undefined;
@@ -47,12 +71,18 @@ export class WorksheetParser {
     };
   }
 
+  /**
+   * 解析页眉页脚
+   *
+   * @param doc - 文档对象
+   * @returns 页眉页脚对象
+   */
   private static parseHeaderFooter(doc: Document): any {
     const node = XmlUtils.query(doc, 'headerFooter');
     if (!node) return undefined;
 
     return {
-      alignWithMargins: node.getAttribute('alignWithMargins') !== '0', // default true
+      alignWithMargins: node.getAttribute('alignWithMargins') !== '0', // 默认为 true
       differentFirst: node.getAttribute('differentFirst') === '1',
       differentOddEven: node.getAttribute('differentOddEven') === '1',
       oddHeader: XmlUtils.query(node, 'oddHeader')?.textContent || undefined,
@@ -64,13 +94,19 @@ export class WorksheetParser {
     };
   }
 
+  /**
+   * 解析列定义
+   *
+   * @param doc - 文档对象
+   * @returns 列定义数组
+   */
   private static parseCols(doc: Document): XlsxColumn[] {
     const cols: XlsxColumn[] = [];
     const colNodes = XmlUtils.queryAll(doc, 'cols col');
     colNodes.forEach((node: Element) => {
       const min = parseInt(node.getAttribute('min') || '1', 10);
       const max = parseInt(node.getAttribute('max') || '1', 10);
-      const width = parseFloat(node.getAttribute('width') || '8'); // Default approx width
+      const width = parseFloat(node.getAttribute('width') || '8'); // 默认近似宽度
       const customWidth = !!node.getAttribute('customWidth');
       const hidden = !!node.getAttribute('hidden');
 
@@ -85,6 +121,12 @@ export class WorksheetParser {
     return cols;
   }
 
+  /**
+   * 解析行数据
+   *
+   * @param doc - 文档对象
+   * @returns 行数据映射
+   */
   private static parseRows(doc: Document): Record<number, XlsxRow> {
     const rows: Record<number, XlsxRow> = {};
     const rowNodes = XmlUtils.queryAll(doc, 'sheetData row');
@@ -97,7 +139,7 @@ export class WorksheetParser {
       const cNodes = XmlUtils.queryAll(row, 'c');
 
       cNodes.forEach((c: Element) => {
-        const r = c.getAttribute('r'); // e.g. "B2"
+        const r = c.getAttribute('r'); // 例如 "B2"
         if (!r) return;
 
         const colIndex = this.getColumnIndex(r);
@@ -108,7 +150,7 @@ export class WorksheetParser {
         const f = XmlUtils.query(c, 'f')?.textContent;
 
         let val: any = v;
-        // Type handling
+        // 类型处理
         if (v !== undefined) {
           if (t === 'n') {
             val = parseFloat(v);
@@ -117,8 +159,8 @@ export class WorksheetParser {
             val = v === '1';
           }
         }
-        // 's' (shared) -> index
-        // 'str' -> inline string
+        // 's' (shared) -> 索引
+        // 'str' -> 内联字符串
         // 'inlineStr' -> <is><t>...</t></is>
 
         if (t === 'inlineStr') {
@@ -146,6 +188,12 @@ export class WorksheetParser {
     return rows;
   }
 
+  /**
+   * 解析合并单元格
+   *
+   * @param doc - 文档对象
+   * @returns 合并单元格数组
+   */
   private static parseMerges(doc: Document): XlsxMergeCell[] {
     const merges: XlsxMergeCell[] = [];
     const mergeNodes = XmlUtils.queryAll(doc, 'mergeCells mergeCell');
@@ -165,6 +213,14 @@ export class WorksheetParser {
     return merges;
   }
 
+  /**
+   * 获取列索引
+   *
+   * 将列字母转换为数字索引（如 A=1, B=2, AA=27）
+   *
+   * @param cellRef - 单元格引用（如 "B2"）
+   * @returns 列索引
+   */
   private static getColumnIndex(cellRef: string): number {
     const colStr = cellRef.replace(/[0-9]/g, '');
     let colIndex = 0;
@@ -174,6 +230,12 @@ export class WorksheetParser {
     return colIndex;
   }
 
+  /**
+   * 获取单元格地址
+   *
+   * @param ref - 单元格引用（如 "B2"）
+   * @returns 行列坐标对象
+   */
   private static getCellAddress(ref: string): { r: number; c: number } {
     const colStr = ref.replace(/[0-9]/g, '');
     const rowStr = ref.replace(/[^0-9]/g, '');

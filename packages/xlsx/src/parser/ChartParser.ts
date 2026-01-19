@@ -26,7 +26,7 @@ export interface ChartSeries {
  */
 export interface OfficeChart {
   /** 图表类型 */
-  type: 'barChart' | 'pieChart' | 'lineChart' | 'areaChart' | 'scatterChart' | 'other';
+  type: 'barChart' | 'pieChart' | 'pie3DChart' | 'lineChart' | 'areaChart' | 'scatterChart' | 'other';
   /** 图表标题 */
   title?: string;
   /** 数据系列 */
@@ -88,6 +88,13 @@ export class ChartParser {
     if (lineChart) {
       result.type = 'lineChart';
       result.series = this.parseSeriesData(lineChart);
+    }
+
+    // 3D 饼图
+    const pie3DChart = XmlUtils.query(doc, 'c\\:pie3DChart');
+    if (pie3DChart) {
+      result.type = 'pie3DChart';
+      result.series = this.parseSeriesData(pie3DChart);
     }
 
     console.log('Parsed Chart:', result);

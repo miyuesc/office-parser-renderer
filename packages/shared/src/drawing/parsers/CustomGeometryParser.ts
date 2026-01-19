@@ -1,6 +1,26 @@
+/**
+ * 自定义几何解析器
+ *
+ * 解析 DrawingML 中的自定义几何形状定义 (a:custGeom)，
+ * 将 OOXML 路径命令转换为 SVG 路径数据
+ */
 import { XmlUtils } from '../../xml';
 
 export class CustomGeometryParser {
+  /**
+   * 解析自定义几何形状
+   *
+   * 支持的路径命令：
+   * - moveTo: 移动到点
+   * - lnTo: 直线到点
+   * - cubicBezTo: 三次贝塞尔曲线
+   * - quadBezTo: 二次贝塞尔曲线
+   * - arcTo: 椭圆弧
+   * - close: 闭合路径
+   *
+   * @param custGeom - custGeom 元素节点
+   * @returns 包含 SVG 路径数据和坐标系尺寸的对象
+   */
   static parseCustomGeometry(custGeom: Element): { path: string; w?: number; h?: number } {
     const pathLst = XmlUtils.query(custGeom, 'a\\:pathLst');
     if (!pathLst) return { path: '' };
@@ -9,11 +29,15 @@ export class CustomGeometryParser {
     let totalW: number | undefined;
     let totalH: number | undefined;
 
-    // Helper to parse coordinate
+    /**
+     * 解析坐标值
+     * @param val - 坐标字符串
+     * @returns 数值（变量字符串暂时返回 0，TODO: 支持 gdLst）
+     */
     const getCoord = (val: string | null) => {
       if (!val) return 0;
       const num = parseInt(val, 10);
-      return isNaN(num) ? 0 : num; // If it's a variable string, we default to 0 for now (TODO: gdLst support)
+      return isNaN(num) ? 0 : num;
     };
 
     const paths = XmlUtils.queryAll(pathLst, 'a\\:path');
@@ -27,9 +51,10 @@ export class CustomGeometryParser {
       let currentY = 0;
 
       Array.from(p.children).forEach(cmd => {
-        const tagName = cmd.tagName.split(':').pop(); // remove prefix
+        const tagName = cmd.tagName.split(':').pop(); // 移除命名空间前缀
         switch (tagName) {
           case 'moveTo': {
+            // 移动到点
             const pt = XmlUtils.query(cmd, 'a\\:pt');
             if (pt) {
               const x = getCoord(pt.getAttribute('x'));
@@ -41,6 +66,7 @@ export class CustomGeometryParser {
             break;
           }
           case 'lnTo': {
+            // 直线到点
             const pt = XmlUtils.query(cmd, 'a\\:pt');
             if (pt) {
               const x = getCoord(pt.getAttribute('x'));
@@ -52,6 +78,7 @@ export class CustomGeometryParser {
             break;
           }
           case 'cubicBezTo': {
+            // 三次贝塞尔曲线（3 个控制点）
             const pts = XmlUtils.queryAll(cmd, 'a\\:pt');
             if (pts.length === 3) {
               const x1 = getCoord(pts[0].getAttribute('x'));
@@ -67,6 +94,7 @@ export class CustomGeometryParser {
             break;
           }
           case 'quadBezTo': {
+            // 二次贝塞尔曲线（2 个控制点）
             const pts = XmlUtils.queryAll(cmd, 'a\\:pt');
             if (pts.length === 2) {
               const x1 = getCoord(pts[0].getAttribute('x'));
@@ -80,20 +108,22 @@ export class CustomGeometryParser {
             break;
           }
           case 'arcTo': {
-            // OOXML arcTo: wR, hR, stAng (start angle), swAng (swing angle)
-            // Angles in 60000ths of a degree.
+            // 椭圆弧
+            // OOXML arcTo 参数：wR(水平半径), hR(垂直半径),
+            // stAng(起始角度), swAng(扫过角度)
+            // 角度单位：60000 分之一度
             const wR = getCoord(cmd.getAttribute('wR'));
             const hR = getCoord(cmd.getAttribute('hR'));
             const stAng = parseInt(cmd.getAttribute('stAng') || '0', 10) / 60000;
             const swAng = parseInt(cmd.getAttribute('swAng') || '0', 10) / 60000;
 
-            // Calculate end point
-            // The arc is part of an ellipse centered at some point (cx, cy).
-            // BUT OOXML arcTo does not specify center. It starts at current point.
-            // Current point corresponds to angle stAng on the ellipse.
+            // 计算终点
+            // 弧线是以某点 (cx, cy) 为中心的椭圆的一部分
+            // 但 OOXML arcTo 不指定中心点，它从当前点开始
+            // 当前点对应椭圆上 stAng 角度的位置
             // P_start = (cx + wR * cos(stAng), cy + hR * sin(stAng)) = (currentX, currentY)
-            // So cx = currentX - wR * cos(stAng)
-            //    cy = currentY - hR * sin(stAng)
+            // 所以 cx = currentX - wR * cos(stAng)
+            //      cy = currentY - hR * sin(stAng)
 
             const stRad = (stAng * Math.PI) / 180;
             const swRad = (swAng * Math.PI) / 180;
@@ -105,7 +135,7 @@ export class CustomGeometryParser {
             const endX = cx + wR * Math.cos(endRad);
             const endY = cy + hR * Math.sin(endRad);
 
-            // SVG Arc: A rx ry x-axis-rotation large-arc-flag sweep-flag x y
+            // SVG 弧线参数：A rx ry x-axis-rotation large-arc-flag sweep-flag x y
             const largeArcFlag = Math.abs(swAng) >= 180 ? 1 : 0;
             const sweepFlag = swAng > 0 ? 1 : 0;
 
@@ -116,6 +146,7 @@ export class CustomGeometryParser {
             break;
           }
           case 'close': {
+            // 闭合路径
             d += 'Z ';
             break;
           }

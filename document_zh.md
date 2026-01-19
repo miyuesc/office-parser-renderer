@@ -1,8 +1,8 @@
-# Office Canvas Renderer - 产品与技术指南
+# Office Parser And Renderer - 产品与技术指南
 
 ## 1. 项目介绍
 
-**Office Canvas Renderer** 是一个高性能的纯前端解决方案，用于解析和解释 Microsoft Office Open XML (OOXML) 文档——包括 **DOCX** (Word)、**XLSX** (Excel) 和 **PPTX** (PowerPoint)——并使用 **HTML5 Canvas** 进行高保真渲染。
+**Office Parser And Renderer** 是一个高性能的纯前端解决方案，用于解析和解释 Microsoft Office Open XML (OOXML) 文档——包括 **DOCX** (Word)、**XLSX** (Excel) 和 **PPTX** (PowerPoint)。
 
 本项目的主要目标是解决基于 HTML-DOM 的渲染方案中经常出现的不一致性和性能瓶颈。通过利用 **Canvas API**，我们确保：
 
@@ -35,8 +35,6 @@
   - 输出格式: `ESM` (EcmaScript Modules) 和 `CJS` (CommonJS)。
 
 ---
-
-## 3. 系统架构
 
 ## 3. 系统架构
 

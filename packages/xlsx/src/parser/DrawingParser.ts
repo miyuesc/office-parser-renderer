@@ -1,3 +1,8 @@
+/**
+ * 绘图解析器
+ *
+ * 解析 XLSX 文件中的绘图 XML (xl/drawings/drawing*.xml)
+ */
 import { XmlUtils, DrawingMLParser } from '@ai-space/shared';
 import { OfficeImage, OfficeShape, OfficeConnector, OfficeGroupShape } from '../types';
 
@@ -5,13 +10,26 @@ import { OfficeImage, OfficeShape, OfficeConnector, OfficeGroupShape } from '../
  * 图表引用信息
  */
 export interface ChartReference {
+  /** 图表 ID */
   id: string;
+  /** 图表名称 */
   name?: string;
-  chartId: string; // r:id 指向 chart XML
+  /** 图表关系 ID (r:id)，指向图表 XML */
+  chartId: string;
+  /** 锚点信息 */
   anchor: any;
 }
 
+/**
+ * 绘图解析器类
+ */
 export class DrawingParser {
+  /**
+   * 解析绘图 XML
+   *
+   * @param drawingXml - 绘图 XML 内容
+   * @returns 解析后的绘图对象（图片、形状、连接符、组合、图表引用）
+   */
   static parse(drawingXml: string): {
     images: OfficeImage[];
     shapes: OfficeShape[];
@@ -20,8 +38,7 @@ export class DrawingParser {
     chartRefs: ChartReference[];
   } {
     console.group('DrawingParser.parse');
-    console.log('XML Length:', drawingXml.length);
-    // console.log('XML Content:', drawingXml);
+    console.log('XML 长度:', drawingXml.length);
 
     const doc = XmlUtils.parse(drawingXml);
     const images: OfficeImage[] = [];
@@ -30,7 +47,12 @@ export class DrawingParser {
     const groupShapes: OfficeGroupShape[] = [];
     const chartRefs: ChartReference[] = [];
 
-    // Recursive processor for elements
+    /**
+     * 递归处理元素
+     * @param node - 当前节点
+     * @param anchor - 锚点信息
+     * @param target - 目标数组容器
+     */
     const processElement = (
       node: Element,
       anchor: any,
@@ -41,10 +63,10 @@ export class DrawingParser {
         groupShapes: OfficeGroupShape[];
       }
     ): void => {
-      // 1. Group Shape (xdr:grpSp)
+      // 1. 组合形状 (xdr:grpSp)
       const grpSp = XmlUtils.query(node, 'xdr\\:grpSp') || (node.tagName === 'xdr:grpSp' ? node : null);
       if (grpSp) {
-        console.log('Found GroupShape', grpSp);
+        console.log('发现组合形状', grpSp);
         const cNvPr = XmlUtils.query(grpSp, 'xdr\\:cNvPr');
 
         const group: OfficeGroupShape = {
@@ -57,10 +79,10 @@ export class DrawingParser {
           groups: []
         };
 
-        // Iterate immediate children
+        // 遍历直接子元素
         const children = Array.from(grpSp.children) as Element[];
         children.forEach(child => {
-          // Pass the group's arrays as targets
+          // 将组合的数组作为目标传入
           processElement(child, anchor, {
             images: group.images,
             shapes: group.shapes,
@@ -73,10 +95,10 @@ export class DrawingParser {
         return;
       }
 
-      // 2. Image (xdr:pic)
+      // 2. 图片 (xdr:pic)
       const pic = XmlUtils.query(node, 'xdr\\:pic') || (node.tagName === 'xdr:pic' ? node : null);
       if (pic) {
-        console.log('Found Image', pic);
+        console.log('发现图片', pic);
         const blip = XmlUtils.query(pic, 'a\\:blip');
         const embedId = blip?.getAttribute('r:embed');
         if (embedId) {
@@ -91,7 +113,7 @@ export class DrawingParser {
 
           if (spPr) {
             const style = DrawingMLParser.parseShapeProperties(spPr);
-            console.log(`Image [${name}] Props:`, style);
+            console.log(`图片 [${name}] 属性:`, style);
             if (style.rotation) rotation = style.rotation;
 
             const xfrm = XmlUtils.query(spPr, 'a\\:xfrm');
@@ -108,7 +130,7 @@ export class DrawingParser {
               const adj = style.adjustValues;
               if (adj && (adj['adj'] || adj['adj1'] || adj['val'])) {
                 geometry = 'roundRect';
-                console.log(`Image [${name}] inferred roundRect from adjustValues`);
+                console.log(`图片 [${name}] 从 adjustValues 推断为 roundRect`);
               }
             }
           }
@@ -131,10 +153,10 @@ export class DrawingParser {
         return;
       }
 
-      // 3. Shape (xdr:sp)
+      // 3. 形状 (xdr:sp)
       const sp = XmlUtils.query(node, 'xdr\\:sp') || (node.tagName === 'xdr:sp' ? node : null);
       if (sp) {
-        console.log('Found Shape', sp);
+        console.log('发现形状', sp);
         const cNvPr = XmlUtils.query(sp, 'xdr\\:cNvPr');
         const id = cNvPr?.getAttribute('id') || '0';
         const name = cNvPr?.getAttribute('name');
@@ -144,7 +166,7 @@ export class DrawingParser {
 
         if (spPr) {
           const props = DrawingMLParser.parseShapeProperties(spPr);
-          console.log(`Shape [${name}] Props:`, props);
+          console.log(`形状 [${name}] 属性:`, props);
           const txBodyNode = XmlUtils.query(sp, 'xdr\\:txBody');
           const txBody = txBodyNode ? DrawingMLParser.parseTextBody(txBodyNode) : undefined;
           const style = styleNode ? DrawingMLParser.parseStyle(styleNode) : undefined;
@@ -172,10 +194,10 @@ export class DrawingParser {
         return;
       }
 
-      // 4. Connector (xdr:cxnSp)
+      // 4. 连接符 (xdr:cxnSp)
       const cxnSp = XmlUtils.query(node, 'xdr\\:cxnSp') || (node.tagName === 'xdr:cxnSp' ? node : null);
       if (cxnSp) {
-        console.log('Found Connector', cxnSp);
+        console.log('发现连接符', cxnSp);
         const cNvPr = XmlUtils.query(cxnSp, 'xdr\\:cNvPr');
         const id = cNvPr?.getAttribute('id') || '0';
         const name = cNvPr?.getAttribute('name');
@@ -183,7 +205,7 @@ export class DrawingParser {
         const spPr = XmlUtils.query(cxnSp, 'xdr\\:spPr');
         if (spPr) {
           const props = DrawingMLParser.parseShapeProperties(spPr);
-          console.log(`Connector [${name}] Props:`, props);
+          console.log(`连接符 [${name}] 属性:`, props);
           const styleNode = XmlUtils.query(cxnSp, 'xdr\\:style');
           const style = styleNode ? DrawingMLParser.parseStyle(styleNode) : undefined;
 
@@ -206,11 +228,11 @@ export class DrawingParser {
         return;
       }
 
-      // 5. Graphic Frame (xdr:graphicFrame) - 用于图表
+      // 5. 图形框架 (xdr:graphicFrame) - 用于图表
       const graphicFrame =
         XmlUtils.query(node, 'xdr\\:graphicFrame') || (node.tagName === 'xdr:graphicFrame' ? node : null);
       if (graphicFrame) {
-        console.log('Found GraphicFrame (Chart)', graphicFrame);
+        console.log('发现图形框架 (图表)', graphicFrame);
         const cNvPr = XmlUtils.query(graphicFrame, 'xdr\\:nvGraphicFramePr xdr\\:cNvPr');
         const id = cNvPr?.getAttribute('id') || '0';
         const name = cNvPr?.getAttribute('name');
@@ -226,14 +248,17 @@ export class DrawingParser {
               chartId,
               anchor
             });
-            console.log(`Found Chart Reference: ${name} -> ${chartId}`);
+            console.log(`发现图表引用: ${name} -> ${chartId}`);
           }
         }
         return;
       }
     };
 
-    // Main Anchor Processor
+    /**
+     * 主锚点处理器
+     * @param anchor - 锚点元素
+     */
     const processAnchor = (anchor: Element) => {
       const from = this.parseAnchor(XmlUtils.query(anchor, 'xdr\\:from'));
       const to = this.parseAnchor(XmlUtils.query(anchor, 'xdr\\:to'));
@@ -243,27 +268,33 @@ export class DrawingParser {
 
       const anchorObj = { type: 'absolute', from, to, ext };
 
-      // Pass the anchor container itself as the root node for query
-      // And pass the main result arrays as targets
+      // 将锚点容器本身作为根节点传入查询
+      // 并将主结果数组作为目标传入
       processElement(anchor, anchorObj, { images, shapes, connectors, groupShapes });
     };
 
-    // Two Cell Anchor
+    // 双单元格锚点
     const twoCellAnchors = XmlUtils.queryAll(doc, 'xdr\\:twoCellAnchor');
-    console.log('twoCellAnchors:', twoCellAnchors.length);
+    console.log('双单元格锚点数量:', twoCellAnchors.length);
     twoCellAnchors.forEach((anchor: Element) => processAnchor(anchor));
 
-    // One Cell Anchor
+    // 单单元格锚点
     const oneCellAnchors = XmlUtils.queryAll(doc, 'xdr\\:oneCellAnchor');
-    console.log('oneCellAnchors:', oneCellAnchors.length);
+    console.log('单单元格锚点数量:', oneCellAnchors.length);
     oneCellAnchors.forEach((anchor: Element) => processAnchor(anchor));
 
-    console.log('Parsed Results:', { images, shapes, connectors, groupShapes, chartRefs });
+    console.log('解析结果:', { images, shapes, connectors, groupShapes, chartRefs });
     console.groupEnd();
 
     return { images, shapes, connectors, groupShapes, chartRefs };
   }
 
+  /**
+   * 解析锚点位置
+   *
+   * @param node - 锚点节点 (xdr:from 或 xdr:to)
+   * @returns 锚点位置对象
+   */
   private static parseAnchor(
     node: Element | null
   ): { col: number; colOff: number; row: number; rowOff: number } | null {
@@ -282,6 +313,12 @@ export class DrawingParser {
     };
   }
 
+  /**
+   * 解析扩展尺寸
+   *
+   * @param node - ext 节点
+   * @returns 尺寸对象
+   */
   private static parseExt(node: Element | null) {
     if (!node) return null;
     return {

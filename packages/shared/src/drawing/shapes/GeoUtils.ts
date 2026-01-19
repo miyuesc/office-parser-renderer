@@ -61,7 +61,8 @@ export const GeoUtils = {
         defaultAdj1 = 37500;
         break;
       case 7:
-        defaultAdj1 = 37500;
+        // OOXML 规范值：42533，使七角星更"胖"
+        defaultAdj1 = 42533;
         break;
       case 8:
         defaultAdj1 = 37500;

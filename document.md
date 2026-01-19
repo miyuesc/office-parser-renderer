@@ -1,8 +1,8 @@
-# Office Canvas Renderer - Product & Technical Guidelines
+# Office Parser And Renderer - Product & Technical Guidelines
 
 ## 1. Project Introduction
 
-**Office Canvas Renderer** is a high-performance, pure front-end solution for parsing and interpreting Microsoft Office Open XML (OOXML) documents—including **DOCX** (Word), **XLSX** (Excel), and **PPTX** (PowerPoint)—and rendering them with high fidelity using **HTML5 Canvas**.
+**Office Parser And Renderer** is a high-performance, pure front-end solution for parsing and interpreting Microsoft Office Open XML (OOXML) documents—including **DOCX** (Word), **XLSX** (Excel), and **PPTX** (PowerPoint).
 
 The primary goal of this project is to solve the inconsistencies and performance bottlenecks often found in HTML-DOM-based rendering approaches. By leveraging the **Canvas API**, we ensure:
 
