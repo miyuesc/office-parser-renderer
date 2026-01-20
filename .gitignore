@@ -53,3 +53,7 @@ packages/**/*.xlsx
 pptx-zip/
 pptx-files/
 packages/**/*.pptx
+
+packages/**/*.jpeg
+packages/**/*.jpg
+*.png
