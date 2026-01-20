@@ -101,6 +101,29 @@ Office 形状极其丰富，实现时需注意以下几类特殊情况：
 - **Office Open XML**：参考 [Office Open XML](http://officeopenxml.com/)
 - **OOXML XSD**：参考 [OOXML XSD](https://schemas.liquid-technologies.com/officeopenxml/2006/)
 
+### 插入形状、图表参考代码
+
+1. [Ziv-Barber/officegen](https://github.com/Ziv-Barber/officegen)
+    - [pptxshapes.js](https://github.com/Ziv-Barber/officegen/blob/master/lib/pptx/pptxshapes.js)
+    - [shapes.js](https://github.com/Ziv-Barber/officegen/blob/master/lib/pptx/shapes.js)
+    - [charts.js](https://github.com/Ziv-Barber/officegen/blob/master/lib/pptx/charts.js)
+    - [officechart.js](https://github.com/Ziv-Barber/officegen/blob/master/lib/pptx/officechart.js)
+2. [Qihoo360/se-office](https://github.com/Qihoo360/se-office)
+    - [Drawings](https://github.com/Qihoo360/se-office/tree/main/sdkjs/common/Drawings)
+    - [Shape.js](https://github.com/Qihoo360/se-office/blob/main/sdkjs/common/Drawings/Format/Shape.js)
+    - [Path.js](https://github.com/Qihoo360/se-office/blob/main/sdkjs/common/Drawings/Format/Path.js)
+    - [Geometry.js](https://github.com/Qihoo360/se-office/blob/main/sdkjs/common/Drawings/Format/Geometry.js)
+    - [Serialize.js](https://github.com/Qihoo360/se-office/blob/main/sdkjs/common/Shapes/Serialize.js)
+3. [moneyinto/ppt-parse](https://github.com/moneyinto/ppt-parse)
+    - [shape.js](https://github.com/moneyinto/ppt-parse/blob/master/src/shape.js)
+    - [elements](https://github.com/moneyinto/ppt-parse/tree/master/src/components/elements)
+4. [beautifulai/PptxGenJS](https://github.com/beautifulai/PptxGenJS)
+    - [gen-objects.ts](https://github.com/beautifulai/PptxGenJS/blob/main/src/gen-objects.ts)
+    - [gen-charts.ts](https://github.com/beautifulai/PptxGenJS/blob/main/src/gen-charts.ts)
+    - [core-enums.ts](https://github.com/beautifulai/PptxGenJS/blob/main/src/core-enums.ts)
+5. [heavysixer/node-pptx](https://github.com/heavysixer/node-pptx)
+    - [shape-types.js](https://github.com/heavysixer/node-pptx/blob/master/lib/shape-types.js)
+
 ## 验证工作流 (Validation Workflow)
 
 开发过程中严格遵循以下校验步骤：
