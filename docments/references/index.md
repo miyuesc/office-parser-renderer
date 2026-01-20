@@ -24,3 +24,7 @@
 
 5. [heavysixer/node-pptx](https://github.com/heavysixer/node-pptx)
     - [shape-types.js](https://github.com/heavysixer/node-pptx/blob/master/lib/shape-types.js)
+
+6. [superdoc-dev/superdoc](https://github.com/superdoc-dev/superdoc)
+    - [preset-geometry.js](https://github.com/superdoc-dev/superdoc/blob/main/packages/preset-geometry/index.js)
+
