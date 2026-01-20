@@ -1,200 +1,221 @@
-import { ZipService, XmlUtils, LengthUtils } from '@ai-space/shared';
-import { NumberingParser } from './numbering-parser';
-import { RelationshipsParser } from './relationships-parser';
-import { DocxDocument, Paragraph, Run, NumberingDefinition, Drawing } from '../types.ts';
+/**
+ * DOCX 主解析器
+ *
+ * 解析完整的 DOCX 文件，协调各个子解析器
+ */
 
+import { ZipService } from '@ai-space/shared';
+import { Logger } from '../utils/Logger';
+import { ErrorHandler, DocxErrorCode } from '../utils/ErrorHandler';
+import { DocumentParser } from './DocumentParser';
+import { StylesParser } from './StylesParser';
+import { NumberingParser } from './NumberingParser';
+import { SectionParser } from './SectionParser';
+import { HeaderFooterParser } from './HeaderFooterParser';
+import { RelationshipsParser } from './RelationshipsParser';
+import { MediaParser } from './MediaParser';
+import type { DocxDocument, DocxStyles, NumberingDefinition, DocxSection } from '../types';
+
+const log = Logger.createTagged('DocxParser');
+
+/**
+ * DOCX 解析器类
+ */
 export class DocxParser {
-    async parse(buffer: ArrayBuffer): Promise<DocxDocument> {
-        const files = await ZipService.load(buffer);
-        const decoder = new TextDecoder();
-        
-        const getXml = (path: string) => {
-            return files[path] ? decoder.decode(files[path]) : null;
-        };
+  /**
+   * 解析 DOCX 文件
+   *
+   * 支持多种输入格式：File、ArrayBuffer、Uint8Array
+   *
+   * @param input - 输入数据
+   * @returns 解析后的文档对象
+   */
+  async parse(input: File | ArrayBuffer | Uint8Array): Promise<DocxDocument> {
+    Logger.group('解析 DOCX 文件');
+    Logger.time('解析耗时');
 
-        const documentXml = getXml('word/document.xml');
-        const numberingXml = getXml('word/numbering.xml');
-        const relsXml = getXml('word/_rels/document.xml.rels');
-        
-        if (!documentXml) {
-            throw new Error('Invalid DOCX: Missing word/document.xml');
-        }
+    try {
+      // 1. 统一转换输入格式
+      const buffer = await this.normalizeInput(input);
+      log.info('输入转换完成', { size: buffer.byteLength });
 
-        let numbering: NumberingDefinition = { abstractNums: {}, nums: {} };
-        if (numberingXml) {
-            numbering = NumberingParser.parse(numberingXml);
-        }
+      // 2. 解压 ZIP 文件
+      const files = await ZipService.load(buffer);
+      const decoder = new TextDecoder();
+      log.info('ZIP 解压完成', { fileCount: Object.keys(files).length });
 
-        let relationships: Record<string, string> = {};
-        if (relsXml) {
-            relationships = RelationshipsParser.parse(relsXml);
-        }
+      // 3. 解析包级别关系
+      const packageRels = RelationshipsParser.parsePackageRels(files, decoder);
+      log.debug('包级别关系', packageRels);
 
-        // Load Images
-        const images: Record<string, string> = {};
-        for (const [rId, target] of Object.entries(relationships)) {
-            if (target.match(/\.(png|jpeg|jpg|gif)$/i)) {
-                 const cleanTarget = target.startsWith('/') ? target.substring(1) : `word/${target}`;
-                 const fileData = files[cleanTarget];
-                 
-                 if (fileData) {
-                     // Create Blob URL
-                     const mimeType = this.getMimeType(cleanTarget);
-                     const blob = new Blob([fileData], { type: mimeType });
-                     const url = URL.createObjectURL(blob);
-                     images[cleanTarget] = url;
-                 }
-            }
-        }
+      // 4. 解析文档级别关系
+      const documentRels = RelationshipsParser.parseDocumentRels(files, decoder);
+      log.debug('文档级别关系', documentRels);
 
-        const xmlDoc = XmlUtils.parse(documentXml);
-        const body = xmlDoc.querySelector('w\\:body, body'); 
-        
-        const children: any[] = [];
-        if (body) {
-           for (const child of Array.from(body.children)) {
-               if (child.tagName.endsWith('p')) {
-                   children.push(this.parseParagraph(child as Element));
-               } else if (child.tagName.endsWith('tbl')) {
-                   children.push(this.parseTable(child as Element));
-               }
-           }
-        }
+      // 创建关系映射（简化版，用于兼容）
+      const relationships: Record<string, string> = {};
+      for (const rel of documentRels) {
+        relationships[rel.id] = rel.target;
+      }
 
-        return {
-            body: children,
-            styles: {},
-            numbering,
-            relationships,
-            images
-        };
+      // 5. 解析样式
+      const styles = StylesParser.parseFromFiles(files, decoder);
+      log.info('样式解析完成', { styleCount: Object.keys(styles.styles).length });
+
+      // 6. 解析编号
+      let numbering: NumberingDefinition = { abstractNums: {}, nums: {} };
+      const numberingPath = 'word/numbering.xml';
+      if (files[numberingPath]) {
+        const numberingXml = decoder.decode(files[numberingPath]);
+        numbering = NumberingParser.parse(numberingXml);
+        log.info('编号解析完成');
+      }
+
+      // 7. 解析文档内容
+      const context = { styles: styles.styles, numbering, relationships };
+      const documentResult = DocumentParser.parseFromFiles(files, decoder, context);
+      log.info('文档内容解析完成', {
+        elementCount: documentResult.body.length,
+        sectionCount: documentResult.sections.length
+      });
+
+      // 8. 解析页眉页脚
+      const headerFooterResult = HeaderFooterParser.parse(files, decoder, documentRels, context);
+
+      // 将页眉页脚内容填充到分节配置中
+      this.fillHeaderFooterContent(documentResult.sections, headerFooterResult);
+      this.fillHeaderFooterContent([documentResult.lastSection], headerFooterResult);
+      log.info('页眉页脚解析完成');
+
+      // 9. 解析媒体资源
+      const mediaResult = MediaParser.parse(files, documentRels);
+      const images: Record<string, string> = mediaResult.imageUrls;
+      log.info('媒体资源解析完成', { imageCount: Object.keys(images).length });
+
+      // 10. 构建最终文档对象
+      const document: DocxDocument = {
+        body: documentResult.body,
+        sections: documentResult.sections.length > 0 ? documentResult.sections : [documentResult.lastSection],
+        styles,
+        numbering,
+        relationships,
+        images
+      };
+
+      Logger.timeEnd('解析耗时');
+      Logger.groupEnd();
+
+      return document;
+    } catch (error) {
+      Logger.timeEnd('解析耗时');
+      Logger.groupEnd();
+      log.error('解析失败', error);
+      throw ErrorHandler.wrap(error, '解析 DOCX 文件失败');
+    }
+  }
+
+  /**
+   * 标准化输入数据
+   *
+   * @param input - 输入数据
+   * @returns ArrayBuffer
+   */
+  private async normalizeInput(input: File | ArrayBuffer | Uint8Array): Promise<ArrayBuffer> {
+    if (input instanceof ArrayBuffer) {
+      return input;
     }
 
-    private parseParagraph(node: Element): Paragraph {
-        const pPr = XmlUtils.query(node, 'w\\:pPr, pPr');
-        
-        // Parse Numbering Props
-        let numberingProps = undefined;
-        if (pPr) {
-            const numPr = XmlUtils.query(pPr, 'w\\:numPr, numPr');
-            if (numPr) {
-                const numId = XmlUtils.query(numPr, 'w\\:numId, numId')?.getAttribute('w:val');
-                const ilvl = XmlUtils.query(numPr, 'w\\:ilvl, ilvl')?.getAttribute('w:val');
-                if (numId && ilvl) {
-                    numberingProps = { 
-                        id: parseInt(numId, 10), 
-                        level: parseInt(ilvl, 10) 
-                    };
-                }
-            }
+    if (input instanceof Uint8Array) {
+      return input.buffer.slice(input.byteOffset, input.byteOffset + input.byteLength);
+    }
+
+    if (input instanceof File) {
+      return await input.arrayBuffer();
+    }
+
+    throw ErrorHandler.invalidFile('不支持的输入类型');
+  }
+
+  /**
+   * 填充页眉页脚内容到分节配置
+   *
+   * @param sections - 分节列表
+   * @param headerFooterResult - 页眉页脚解析结果
+   */
+  private fillHeaderFooterContent(
+    sections: DocxSection[],
+    headerFooterResult: ReturnType<typeof HeaderFooterParser.parse>
+  ): void {
+    for (const section of sections) {
+      // 填充默认页眉
+      if (section.header?.id) {
+        const content = headerFooterResult.headers[section.header.id];
+        if (content) {
+          section.header.content = content.content;
         }
+      }
 
-        const runs: Run[] = [];
-        const runNodes = XmlUtils.queryAll(node, 'w\\:r, r');
-        
-        const children: (Run|Drawing)[] = [];
-        runNodes.forEach((r: Element) => {
-             const t = XmlUtils.query(r, 'w\\:t, t');
-             if (t) {
-                 children.push({
-                     type: 'run',
-                     props: {},
-                     text: t.textContent || ''
-                 });
-             }
-             const drawing = XmlUtils.query(r, 'w\\:drawing, drawing');
-             if (drawing) {
-                 const d = this.parseDrawing(drawing);
-                 if (d) children.push(d);
-             }
-        });
-
-        return {
-            type: 'paragraph',
-            props: {
-                numbering: numberingProps
-            },
-            children: children
-        };
-    }
-
-    private parseDrawing(node: Element): import('../types').Drawing | null {
-        const blip = node.querySelector('a\\:blip, blip'); 
-        if (!blip) return null;
-        
-        const embedId = blip.getAttribute('r:embed');
-        if (!embedId) return null;
-        
-        const extent = node.querySelector('wp\\:extent, extent');
-        const cx = extent?.getAttribute('cx');
-        const cy = extent?.getAttribute('cy');
-        
-        return {
-            type: 'drawing',
-            image: {
-                src: embedId, 
-                width: cx ? LengthUtils.emusToPixels(parseInt(cx, 10)) : 100,
-                height: cy ? LengthUtils.emusToPixels(parseInt(cy, 10)) : 100
-            }
-        };
-    }
-
-    private getMimeType(filename: string): string {
-        if (filename.endsWith('.png')) return 'image/png';
-        if (filename.endsWith('.jpeg') || filename.endsWith('.jpg')) return 'image/jpeg';
-        if (filename.endsWith('.gif')) return 'image/gif';
-        return 'application/octet-stream';
-    }
-
-    private parseTable(node: Element): import('../types').Table {
-        const rows: import('../types').TableRow[] = [];
-        const grid: number[] = [];
-
-        const tblGrid = XmlUtils.query(node, 'w\\:tblGrid, tblGrid');
-        if (tblGrid) {
-            const cols = XmlUtils.queryAll(tblGrid, 'w\\:gridCol, gridCol');
-            cols.forEach((col: Element) => {
-                const w = col.getAttribute('w:w');
-                grid.push(w ? LengthUtils.twipsToPixels(parseInt(w, 10)) : 0);
-            });
+      // 填充默认页脚
+      if (section.footer?.id) {
+        const content = headerFooterResult.footers[section.footer.id];
+        if (content) {
+          section.footer.content = content.content;
         }
+      }
 
-        const rowNodes = XmlUtils.queryAll(node, 'w\\:tr, tr');
-        rowNodes.forEach((tr: Element) => {
-            const cells: import('../types').TableCell[] = [];
-            const cellNodes = XmlUtils.queryAll(tr, 'w\\:tc, tc');
-            
-            cellNodes.forEach((tc: Element) => {
-                const cellChildren: any[] = [];
-                const pNodes = XmlUtils.queryAll(tc, 'w\\:p, p');
-                pNodes.forEach((p: Element) => cellChildren.push(this.parseParagraph(p)));
+      // 填充首页页眉
+      if (section.firstHeader?.id) {
+        const content = headerFooterResult.headers[section.firstHeader.id];
+        if (content) {
+          section.firstHeader.content = content.content;
+        }
+      }
 
-                const tcPr = XmlUtils.query(tc, 'w\\:tcPr, tcPr');
-                const gridSpan = tcPr ? XmlUtils.query(tcPr, 'w\\:gridSpan, gridSpan')?.getAttribute('w:val') : null;
-                const width = tcPr ? XmlUtils.query(tcPr, 'w\\:tcW, tcW')?.getAttribute('w:w') : null;
+      // 填充首页页脚
+      if (section.firstFooter?.id) {
+        const content = headerFooterResult.footers[section.firstFooter.id];
+        if (content) {
+          section.firstFooter.content = content.content;
+        }
+      }
 
-                cells.push({
-                    type: 'cell',
-                    children: cellChildren,
-                    props: {
-                        gridSpan: gridSpan ? parseInt(gridSpan, 10) : 1,
-                        width: width ? LengthUtils.twipsToPixels(parseInt(width, 10)) : undefined
-                    }
-                });
-            });
+      // 填充偶数页页眉
+      if (section.evenHeader?.id) {
+        const content = headerFooterResult.headers[section.evenHeader.id];
+        if (content) {
+          section.evenHeader.content = content.content;
+        }
+      }
 
-            rows.push({
-                type: 'row',
-                cells,
-                props: {}
-            });
-        });
-
-        return {
-            type: 'table',
-            rows,
-            grid,
-            props: {}
-        };
+      // 填充偶数页页脚
+      if (section.evenFooter?.id) {
+        const content = headerFooterResult.footers[section.evenFooter.id];
+        if (content) {
+          section.evenFooter.content = content.content;
+        }
+      }
     }
+  }
+
+  /**
+   * 解析文档并提取纯文本
+   *
+   * @param input - 输入数据
+   * @returns 纯文本字符串
+   */
+  async extractText(input: File | ArrayBuffer | Uint8Array): Promise<string> {
+    const doc = await this.parse(input);
+    return DocumentParser.extractText(doc.body);
+  }
+
+  /**
+   * 获取文档页面配置
+   *
+   * @param input - 输入数据
+   * @returns 分节配置数组
+   */
+  async getPageSettings(input: File | ArrayBuffer | Uint8Array): Promise<DocxSection[]> {
+    const doc = await this.parse(input);
+    return doc.sections;
+  }
 }
