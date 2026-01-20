@@ -99,8 +99,32 @@ export class HeaderFooterParser {
     }
 
     try {
+      // 解析该 Header/Footer 文件的专用关系 (e.g., word/_rels/header1.xml.rels)
+      const fileRels = RelationshipsParser.parseFileRels(files, decoder, path);
+
+      // 合并上下文：优先使用文件自身的关系，但也保留全局文档信息
+      // 注意：DrawingParser 通常依赖 context.document.relationships 或类似的查找机制
+      // 我们创建一个新的上下文，注入当前文件的关系
+      const fileContext: ParagraphParserContext = {
+        ...context,
+        // 这里假设 context 中可能有 document 对象，我们需要确保 DrawingParser 能找到图片
+        // 这可能需要更新 context 的定义或 DocxDocument 的结构来支持局部关系
+        // 目前简单起见，我们将这些关系合并到 document.relationships 中（如果有的话），或者作为临时上下文传递
+        // 但更安全的方式是 Update ParagraphParserContext to carry local relationships
+        relationships: fileRels
+      };
+
+      // 如果 context.document 存在，尝试将局部关系也合并进去，以便 DrawingParser.parse 能查到
+      // FIXME: 这是一种临时变通，理想情况下 DrawingParser 应该接受 localRelationships
+      if (context?.document && fileRels.length > 0) {
+        // 创建一个新的 document 引用，包含合并后的关系（避免污染全局 document）
+        // 但由于 document 对象比较大，浅拷贝可能不够。
+        // 实际上 DrawingParser.parse 使用 relationships 参数（如果有）。
+        // 让我们查看 ParagraphParser.parse 的签名，它接受 context
+      }
+
       const xml = decoder.decode(data);
-      const content = this.parseContent(xml, type, context);
+      const content = this.parseContent(xml, type, fileContext);
 
       // 从文件名提取类型信息
       const fileName = path.split('/').pop() || '';

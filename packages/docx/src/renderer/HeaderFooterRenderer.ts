@@ -8,6 +8,7 @@ import { Logger } from '../utils/Logger';
 import { UnitConverter } from '../utils/UnitConverter';
 import { ParagraphRenderer, ParagraphRenderContext } from './ParagraphRenderer';
 import { TableRenderer } from './TableRenderer';
+import { DrawingRenderer } from './DrawingRenderer';
 import type { DocxHeaderFooter, DocxSection, DocxElement } from '../types';
 
 const log = Logger.createTagged('HeaderFooterRenderer');
@@ -178,6 +179,11 @@ export class HeaderFooterRenderer {
         return ParagraphRenderer.render(element, context);
       case 'table':
         return TableRenderer.render(element, context);
+      case 'drawing':
+        return DrawingRenderer.render(element, {
+          document: context?.document,
+          images: context?.document?.images
+        });
       default:
         log.debug(`未处理的页眉/页脚元素类型: ${element.type}`);
         return null;

@@ -140,7 +140,7 @@ export class DocxRenderer {
     }
 
     // 创建内容区域
-    const contentArea = this.createContentArea(pageConfig);
+    const contentArea = this.createContentArea(pageConfig, section);
     pageContainer.appendChild(contentArea);
 
     // 渲染页眉
@@ -232,21 +232,25 @@ export class DocxRenderer {
       const pageRange = pageBreaks.pageRanges[pageIndex];
       const pageNumber = pageIndex + 1;
 
+      // 获取当前页面的分节配置
+      const currentSection = doc.sections[pageRange.sectionIndex] || section;
+      const currentPageConfig = this.resolvePageConfig(currentSection);
+
       // 创建页面容器
-      const pageContainer = this.createPageContainer(pageConfig, section);
+      const pageContainer = this.createPageContainer(currentPageConfig, currentSection);
       this.container.appendChild(pageContainer);
 
       // 渲染水印层
       // 优先使用 API 设置的值，其次使用文档解析的值（如果启用）
       const watermarkConfig =
-        this.options.watermark || (this.options.useDocumentWatermark !== false ? section.watermark : undefined);
+        this.options.watermark || (this.options.useDocumentWatermark !== false ? currentSection.watermark : undefined);
       if (watermarkConfig) {
-        const watermarkLayer = this.createWatermarkLayer(watermarkConfig, pageConfig);
+        const watermarkLayer = this.createWatermarkLayer(watermarkConfig, currentPageConfig);
         pageContainer.appendChild(watermarkLayer);
       }
 
       // 创建内容区域
-      const contentArea = this.createContentArea(pageConfig);
+      const contentArea = this.createContentArea(currentPageConfig, currentSection);
       pageContainer.appendChild(contentArea);
 
       // 渲染页眉
@@ -364,28 +368,41 @@ export class DocxRenderer {
    * @returns HTMLElement 或 null
    */
   private renderElement(element: DocxElement, context: ParagraphRenderContext): HTMLElement | null {
+    let rendered: HTMLElement | null = null;
+
     switch (element.type) {
       case 'paragraph':
-        return ParagraphRenderer.render(element, context);
+        rendered = ParagraphRenderer.render(element, context);
+        break;
 
       case 'table':
-        return TableRenderer.render(element, context);
+        rendered = TableRenderer.render(element, context);
+        break;
 
       case 'drawing':
-        return DrawingRenderer.render(element, {
+        rendered = DrawingRenderer.render(element, {
           document: context.document,
           images: context.document?.images
         });
+        break;
 
       case 'sectionBreak':
-        // 分节符处理
-        log.debug('遇到分节符');
-        return null;
+        // 分节符渲染为零高度元素，以便在分页计算中被捕获
+        rendered = document.createElement('div');
+        rendered.setAttribute('data-type', 'sectionBreak');
+        break;
 
       default:
         log.debug(`未处理的元素类型: ${(element as DocxElement).type}`);
         return null;
     }
+
+    if (rendered) {
+      // 附加原始元素引用，供分页计算使用
+      (rendered as any)._docxElement = element;
+    }
+
+    return rendered;
   }
 
   /**
@@ -426,22 +443,33 @@ export class DocxRenderer {
     }
 
     // 添加纸张角标
-    this.addCornerMarks(page);
+    this.addCornerMarks(page, config);
 
     return page;
   }
 
   /**
-   * 添加纸张角标
+   * 添加纸张角标（位于正文区域四角）
    *
    * @param page - 页面元素
+   * @param config - 页面配置（用于获取边距）
    */
-  private addCornerMarks(page: HTMLElement): void {
+  private addCornerMarks(page: HTMLElement, config: ResolvedPageConfig): void {
     const corners = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+
+    // 使用边距定位
+    const margins = config.margins;
 
     for (const corner of corners) {
       const mark = document.createElement('div');
       mark.className = `docx-corner-mark ${corner}`;
+
+      // 设置内联样式以适应不同页面的边距
+      if (corner.includes('top')) mark.style.top = `${margins.top}pt`;
+      if (corner.includes('bottom')) mark.style.bottom = `${margins.bottom}pt`;
+      if (corner.includes('left')) mark.style.left = `${margins.left}pt`;
+      if (corner.includes('right')) mark.style.right = `${margins.right}pt`;
+
       page.appendChild(mark);
     }
   }
@@ -450,9 +478,10 @@ export class DocxRenderer {
    * 创建内容区域
    *
    * @param config - 页面配置
+   * @param section - 分节配置（用于分栏）
    * @returns HTMLElement
    */
-  private createContentArea(config: ResolvedPageConfig): HTMLElement {
+  private createContentArea(config: ResolvedPageConfig, section?: DocxSection): HTMLElement {
     const content = document.createElement('div');
     content.className = 'docx-content';
 
@@ -463,6 +492,22 @@ export class DocxRenderer {
     style.paddingLeft = `${config.margins.left}pt`;
     style.boxSizing = 'border-box';
     style.minHeight = `${config.height}pt`;
+
+    // 处理分栏
+    if (section?.columns && section.columns.num > 1) {
+      style.columnCount = String(section.columns.num);
+
+      // 栏间距
+      if (section.columns.space) {
+        const gapPx = UnitConverter.twipsToPixels(section.columns.space);
+        style.columnGap = `${gapPx}px`;
+      }
+
+      // 分隔线
+      if (section.columns.sep) {
+        style.columnRule = '1px solid #ccc'; // 默认样式，OOXML separator is just a line
+      }
+    }
 
     // 调试模式下显示边界
     if (this.options.debug) {
@@ -488,9 +533,14 @@ export class DocxRenderer {
       pageWidth = section.pageSize.width;
       pageHeight = section.pageSize.height;
       // 处理横向纸张方向：如果是横向且宽度小于高度，则交换宽高
+      // 注意：A4 (11906x16838), Letter (12240x15840) 等预设值通常是准确的 Twips 值
       if (section.pageSize.orientation === 'landscape' && pageWidth < pageHeight) {
         [pageWidth, pageHeight] = [pageHeight, pageWidth];
       }
+
+      // 如果没有明确定义宽高（rare），使用默认
+      if (!pageWidth) pageWidth = 11906; // A4
+      if (!pageHeight) pageHeight = 16838; // A4
     } else {
       // 使用覆盖选项
       if (typeof this.options.pageSize === 'object') {
@@ -707,32 +757,24 @@ export class DocxRenderer {
       /* 纸张角标样式 */
       .docx-corner-mark {
         position: absolute;
-        width: 10px;
-        height: 10px;
+        width: 30px;
+        height: 30px;
         pointer-events: none;
         z-index: 2;
       }
       .docx-corner-mark.top-left {
-        top: 5px;
-        left: 5px;
         border-top: 1px solid #999;
         border-left: 1px solid #999;
       }
       .docx-corner-mark.top-right {
-        top: 5px;
-        right: 5px;
         border-top: 1px solid #999;
         border-right: 1px solid #999;
       }
       .docx-corner-mark.bottom-left {
-        bottom: 5px;
-        left: 5px;
         border-bottom: 1px solid #999;
         border-left: 1px solid #999;
       }
       .docx-corner-mark.bottom-right {
-        bottom: 5px;
-        right: 5px;
         border-bottom: 1px solid #999;
         border-right: 1px solid #999;
       }

@@ -18,6 +18,8 @@ import type {
   LineBreak,
   ParagraphChild
 } from '../types';
+import { FillParser } from '@ai-space/shared/src/drawing/parsers/FillParser';
+import { ShapePropertiesParser } from '@ai-space/shared/src/drawing/parsers/ShapePropertiesParser';
 
 const log = Logger.createTagged('RunParser');
 
@@ -418,6 +420,42 @@ export class RunParser {
     const effectNode = XmlUtils.query(node, 'w\\:effect, effect');
     if (effectNode) {
       props.effect = effectNode.getAttribute('w:val') || undefined;
+    }
+
+    // w14:textOutline (文本轮廓)
+    const textOutlineNode = XmlUtils.query(node, 'w14\\:textOutline, textOutline');
+    if (textOutlineNode) {
+      // 解析轮廓属性
+      const w = parseInt(textOutlineNode.getAttribute('w') || '0', 10);
+      const cap = textOutlineNode.getAttribute('cap');
+      const cmpd = textOutlineNode.getAttribute('cmpd');
+      const algn = textOutlineNode.getAttribute('algn'); // stroke alignment?
+
+      // 解析填充 (轮廓颜色)
+      const lnFill = FillParser.parseFill(textOutlineNode);
+      let color;
+      if (lnFill && lnFill.type === 'solid') color = lnFill.color;
+
+      props.textOutline = {
+        width: w,
+        color,
+        gradient: lnFill && lnFill.type === 'gradient' ? lnFill.gradient : undefined,
+        cap: cap as any,
+        compound: cmpd as any
+        // algn ignored for now
+      };
+
+      // Dash style
+      const prstDash = XmlUtils.query(textOutlineNode, 'a\\:prstDash');
+      if (prstDash) {
+        props.textOutline.dashStyle = prstDash.getAttribute('val') || undefined;
+      }
+    }
+
+    // w14:textFill (文本填充)
+    const textFillNode = XmlUtils.query(node, 'w14\\:textFill, textFill');
+    if (textFillNode) {
+      props.textFill = FillParser.parseFill(textFillNode);
     }
 
     return props;

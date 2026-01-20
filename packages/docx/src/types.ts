@@ -5,6 +5,8 @@
  * 基于 OOXML (ECMA-376) 标准
  */
 
+import { OfficeStroke, OfficeFill } from '@ai-space/shared';
+
 // ============================================================================
 // 文档级别类型
 // ============================================================================
@@ -458,6 +460,10 @@ export interface RunProperties {
   eastAsianLayout?: EastAsianLayout;
   /** 文字效果 */
   effect?: string;
+  /** 文本轮廓 (w14:textOutline) */
+  textOutline?: OfficeStroke;
+  /** 文本填充 (w14:textFill) */
+  textFill?: OfficeFill;
   /** 缩放比例 (百分比) */
   w?: number;
 }
@@ -937,6 +943,10 @@ export interface TableBorders {
   right?: BorderStyle;
   insideH?: BorderStyle;
   insideV?: BorderStyle;
+  /** 左上到右下对角线 */
+  tl2br?: BorderStyle;
+  /** 右上到左下对角线 */
+  tr2bl?: BorderStyle;
 }
 
 /**

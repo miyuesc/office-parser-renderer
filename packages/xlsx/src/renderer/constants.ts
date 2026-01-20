@@ -49,11 +49,17 @@ export const CHART_PADDING = {
 /** Y 轴刻度数量 */
 export const Y_AXIS_TICK_COUNT = 5;
 
-/** 柱状图组间距比例 */
-export const BAR_GROUP_GAP_RATIO = 0.45;
+/**
+ * 柱状图组间距比例
+ * Office 默认约为 150% 柱宽，此处使用 0.35 (约 54% 间隙)
+ */
+export const BAR_GROUP_GAP_RATIO = 0.35;
 
-/** 柱状图组内间距比例 */
-export const BAR_INNER_GAP_RATIO = 0.15;
+/**
+ * 柱状图组内间距比例
+ * Office 默认组内无间距或极小间距
+ */
+export const BAR_INNER_GAP_RATIO = 0.08;
 
 /** Y 值上限余量比例 */
 export const Y_MAX_MARGIN_RATIO = 1.1;

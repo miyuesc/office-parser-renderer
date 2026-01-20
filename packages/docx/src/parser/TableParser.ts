@@ -167,7 +167,7 @@ export class TableParser {
   private static parseTableBorders(node: Element): TableBorders {
     const borders: TableBorders = {};
 
-    const sides = ['top', 'bottom', 'left', 'right', 'insideH', 'insideV'];
+    const sides = ['top', 'bottom', 'left', 'right', 'insideH', 'insideV', 'tl2br', 'tr2bl'];
     for (const side of sides) {
       const sideNode = XmlUtils.query(node, `w\\:${side}, ${side}`);
       if (sideNode) {

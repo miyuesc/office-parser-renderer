@@ -159,6 +159,11 @@ export class PageCalculator {
         if (child.type === 'break' && child.breakType === 'page') {
           return true;
         }
+
+        // 检查 Run 内部是否有分页符 (由 RunParser 解析为 \x0C)
+        if (child.type === 'run' && child.text.includes('\x0C')) {
+          return true;
+        }
       }
     }
 
@@ -185,19 +190,26 @@ export class PageCalculator {
 
     let currentPageStart = 0;
     let currentHeight = 0;
+    let currentSectionIndex = 0;
     const contentHeightPx = UnitConverter.pointsToPixels(pageConfig.contentHeight);
 
     for (let i = 0; i < renderedElements.length; i++) {
       const element = renderedElements[i];
-      const elementHeight = element.offsetHeight;
+      // Use getBoundingClientRect for sub-pixel precision
+      const elementHeight = element.getBoundingClientRect().height;
+      const docxElement = (element as any)._docxElement as DocxElement | undefined;
+
+      // 检查强制分页
+      const forceBreak = docxElement && this.isForcePageBreak(docxElement);
 
       // 检查是否需要分页
-      if (currentHeight + elementHeight > contentHeightPx && currentHeight > 0) {
+      // 如果强制分页，或者高度超标（且不是页面第一个元素）
+      if ((forceBreak || currentHeight + elementHeight > contentHeightPx) && currentHeight > 0) {
         // 添加当前页范围
         result.pageRanges.push({
           start: currentPageStart,
           end: i,
-          sectionIndex: 0
+          sectionIndex: currentSectionIndex
         });
 
         // 开始新页
@@ -207,6 +219,18 @@ export class PageCalculator {
       } else {
         currentHeight += elementHeight;
       }
+
+      // 更新分节索引
+      // 如果当前元素是分节符，后续内容属于下一节
+      if (docxElement && docxElement.type === 'sectionBreak') {
+        currentSectionIndex = Math.min(currentSectionIndex + 1, this.sections.length - 1);
+
+        // 如果分节符导致了分页（NextPage），上面的 forceBreak 逻辑已经处理了分页
+        // 这里只需要确保新的页面使用新的 sectionIndex
+
+        // 注意：如果是 Continuous 分节符且未分页，当前页面的 sectionIndex 可能不准确
+        // 但由于 renderer 目前每页只支持一个配置，这是对 NextPage 场景的妥协支持
+      }
     }
 
     // 添加最后一页
@@ -214,7 +238,7 @@ export class PageCalculator {
       result.pageRanges.push({
         start: currentPageStart,
         end: renderedElements.length,
-        sectionIndex: 0
+        sectionIndex: currentSectionIndex
       });
     }
 

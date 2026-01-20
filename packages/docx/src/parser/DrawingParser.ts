@@ -128,33 +128,24 @@ export class DrawingParser {
    */
   private static parseGraphic(node: Element, drawing: Drawing, cx: number, cy: number): void {
     const graphicData = XmlUtils.query(node, 'a\\:graphicData, graphicData');
-    console.log('[DrawingParser] parseGraphic - graphicData found:', !!graphicData);
     if (!graphicData) return;
 
     const uri = graphicData.getAttribute('uri') || '';
-    console.log('[DrawingParser] parseGraphic - uri:', uri);
 
     // 根据 URI 判断图形类型
     if (uri.includes('picture')) {
       // 图片
-      console.log('[DrawingParser] parseGraphic - 识别为 picture 类型');
       drawing.image = this.parsePicture(graphicData, cx, cy);
-      console.log('[DrawingParser] parseGraphic - drawing.image:', !!drawing.image);
     } else if (uri.includes('chart')) {
       // 图表
       drawing.chart = this.parseChart(graphicData, cx, cy);
     } else if (uri.includes('wordprocessingShape') || uri.includes('drawingml')) {
       // 形状
-      console.log('[DrawingParser] parseGraphic - 识别为 shape 类型');
       drawing.shape = this.parseShape(graphicData, cx, cy);
-      console.log('[DrawingParser] parseGraphic - drawing.shape:', !!drawing.shape);
     } else if (uri.includes('wordprocessingGroup')) {
       // 组合，尝试解析为形状（组合中可能包含多个形状）
-      console.log('[DrawingParser] parseGraphic - 识别为 group 类型');
       drawing.shape = this.parseGroup(graphicData, cx, cy);
-      console.log('[DrawingParser] parseGraphic - drawing.shape (from group):', !!drawing.shape);
     } else {
-      console.log('[DrawingParser] parseGraphic - 未知的图形类型');
       log.debug(`未知的图形类型: ${uri}`);
     }
   }
@@ -168,16 +159,11 @@ export class DrawingParser {
    * @returns DrawingImage 对象
    */
   private static parsePicture(node: Element, cx: number, cy: number): DrawingImage | undefined {
-    console.log('[DrawingParser] parsePicture - node.tagName:', node.tagName);
-    console.log('[DrawingParser] parsePicture - node.innerHTML (first 500 chars):', node.innerHTML.substring(0, 500));
-
     // 查找 blip 元素（图片引用）
     const blip = node.querySelector('a\\:blip, blip');
-    console.log('[DrawingParser] parsePicture - blip found:', !!blip);
     if (!blip) return undefined;
 
     const embedId = blip.getAttribute('r:embed') || blip.getAttribute('r:link') || '';
-    console.log('[DrawingParser] parsePicture - embedId:', embedId);
     if (!embedId) return undefined;
 
     const image: DrawingImage = {
@@ -223,15 +209,11 @@ export class DrawingParser {
    * @returns DrawingShape 对象
    */
   private static parseShape(node: Element, cx: number, cy: number): DrawingShape | undefined {
-    console.log('[DrawingParser] parseShape - node tagName:', node.tagName);
-
     // 查找形状属性
     const wsp = node.querySelector('wps\\:wsp, wsp');
-    console.log('[DrawingParser] parseShape - wsp found:', !!wsp);
 
     if (!wsp) {
       // 如果没有 wsp，尝试创建一个基本矩形形状作为占位符
-      console.log('[DrawingParser] parseShape - 创建执位符形状');
       return {
         id: '',
         cx,
@@ -317,8 +299,6 @@ export class DrawingParser {
    * @returns DrawingShape 对象（组合作为整体形状的占位符）
    */
   private static parseGroup(node: Element, cx: number, cy: number): DrawingShape | undefined {
-    console.log('[DrawingParser] parseGroup - 处理组合元素');
-
     // 组合元素 (wpg:wgp) 包含多个形状，目前简化处理为单个占位符
     // TODO: 完整实现应解析每个子形状并组合渲染
     const wgp = node.querySelector('wpg\\:wgp, wgp');

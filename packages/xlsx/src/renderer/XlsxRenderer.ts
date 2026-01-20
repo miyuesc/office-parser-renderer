@@ -109,8 +109,12 @@ export class XlsxRenderer {
   private renderLayout() {
     if (!this.workbook) return;
 
+    // 注入 XLSX 专用样式
+    this.injectStyles();
+
     // 清空容器并设置基础 Flexbox 布局
     this.container.innerHTML = '';
+    this.container.className = 'xlsx-container';
     this.container.style.display = 'flex';
     this.container.style.flexDirection = 'column';
     this.container.style.height = '100%';
@@ -610,5 +614,66 @@ export class XlsxRenderer {
       if (r === m.s.r && c === m.s.c) return m;
     }
     return null;
+  }
+
+  /**
+   * 注入 XLSX 专用样式表
+   * 使用命名空间隔离，避免与 DOCX 样式冲突
+   */
+  private injectStyles(): void {
+    const styleId = 'xlsx-renderer-styles';
+
+    // 检查是否已注入
+    if (document.getElementById(styleId)) {
+      return;
+    }
+
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+      /* XLSX 渲染器专用样式 - 使用 xlsx-container 命名空间隔离 */
+      .xlsx-container {
+        font-family: 'Calibri', 'Segoe UI', 'Arial', sans-serif;
+        font-size: 11pt;
+        line-height: 1.2;
+        color: #000;
+        position: relative;
+      }
+
+      .xlsx-container * {
+        box-sizing: border-box;
+      }
+
+      .xlsx-container table {
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+
+      .xlsx-container td {
+        padding: 2px 4px;
+        vertical-align: middle;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* Sheet 标签栏样式 - 确保不被其他样式覆盖 */
+      .xlsx-container > div:last-child {
+        flex-shrink: 0;
+        min-height: 32px;
+      }
+
+      /* 确保 SVG 覆盖层正确显示 */
+      .xlsx-container svg {
+        pointer-events: none;
+        overflow: visible;
+      }
+
+      .xlsx-container svg g {
+        pointer-events: all;
+      }
+    `;
+
+    document.head.appendChild(style);
   }
 }

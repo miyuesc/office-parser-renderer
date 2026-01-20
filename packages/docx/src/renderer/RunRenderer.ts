@@ -190,6 +190,33 @@ export class RunRenderer {
         style.textShadow = textShadow;
       }
     }
+
+    // w14:textFill (文本填充 - 渐变等)
+    if (props.textFill) {
+      if (props.textFill.type === 'gradient' && props.textFill.gradient) {
+        // CSS Gradient Text
+        const gradient = props.textFill.gradient;
+        const angle = gradient.angle ? gradient.angle / 60000 : 90; // default 90?
+        // Convert stops to CSS
+        const stops = gradient.stops.map(s => `#${s.color} ${s.position * 100}%`).join(', ');
+        // Simple Linear Gradient approximation
+        style.backgroundImage = `linear-gradient(${angle}deg, ${stops})`;
+        style.webkitBackgroundClip = 'text';
+        style.backgroundClip = 'text';
+        style.color = 'transparent';
+      } else if (props.textFill.type === 'solid' && props.textFill.color) {
+        style.color = `#${props.textFill.color}`;
+      }
+    }
+
+    // w14:textOutline (文本轮廓)
+    if (props.textOutline) {
+      const w = UnitConverter.emuToPixels(props.textOutline.width || 0);
+      const color = props.textOutline.color || '000000';
+      if (w > 0) {
+        style.webkitTextStroke = `${w}px #${color}`;
+      }
+    }
   }
 
   /**

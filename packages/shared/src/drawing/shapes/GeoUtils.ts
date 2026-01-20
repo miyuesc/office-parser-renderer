@@ -1,5 +1,6 @@
 /**
  * 几何辅助工具类
+ * 提供 SVG 路径生成的基础函数
  */
 export const GeoUtils = {
   /** 矩形路径 */
@@ -49,40 +50,52 @@ export const GeoUtils = {
     const ry = h / 2;
 
     // OOXML 默认的内半径比例 (根据点数不同)
+    // 值为 1/100000，表示内径占外径的百分比
+    // 参考 ECMA-376 规范中的 presetGeom 定义
     let defaultAdj1: number;
     switch (points) {
       case 4:
-        defaultAdj1 = 37500; // Was 12500 (too thin)
+        // 四角星：内径较小，使角更尖锐
+        defaultAdj1 = 12500; // 12.5% - OOXML star4 标准默认值
         break;
       case 5:
-        defaultAdj1 = 37500; // Standard 5-point
+        // 五角星：经典五角星比例
+        defaultAdj1 = 19098; // 19.098% - OOXML star5 标准默认值 (黄金比例相关)
         break;
       case 6:
-        defaultAdj1 = 37500;
+        // 六角星：大卫之星比例
+        defaultAdj1 = 28868; // 28.868% - OOXML star6 标准默认值
         break;
       case 7:
-        // OOXML 规范值：42533，使七角星更"胖"
-        defaultAdj1 = 42533;
+        // 七角星：OOXML 规范值
+        defaultAdj1 = 34601; // 34.601% - OOXML star7 标准默认值
         break;
       case 8:
-        defaultAdj1 = 37500;
+        // 八角星
+        defaultAdj1 = 37500; // 37.5% - OOXML star8 标准默认值
         break;
       case 10:
-        defaultAdj1 = 37500;
+        // 十角星
+        defaultAdj1 = 38268; // 38.268% - OOXML star10 标准默认值
         break;
       case 12:
-        defaultAdj1 = 37500;
+        // 十二角星
+        defaultAdj1 = 37500; // 37.5% - OOXML star12 标准默认值
         break;
       case 16:
-        defaultAdj1 = 37500;
+        // 十六角星
+        defaultAdj1 = 37500; // 37.5% - OOXML star16 标准默认值
         break;
       case 24:
-        defaultAdj1 = 37500;
+        // 二十四角星
+        defaultAdj1 = 37500; // 37.5% - OOXML star24 标准默认值
         break;
       case 32:
-        defaultAdj1 = 37500;
+        // 三十二角星
+        defaultAdj1 = 37500; // 37.5% - OOXML star32 标准默认值
         break;
       default:
+        // 默认值：使用通用比例
         defaultAdj1 = 37500;
         break;
     }

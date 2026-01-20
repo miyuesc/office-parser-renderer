@@ -36,14 +36,19 @@ export class TableRenderer {
     tableEl.className = 'docx-table';
 
     // 应用表格样式
-    this.applyTableStyles(tableEl, table.props, table.grid);
+    TableRenderer.applyTableStyles(tableEl, table.props, table.grid);
 
     // 渲染所有行
     const tbody = document.createElement('tbody');
-    for (const row of table.rows) {
-      const rowEl = this.renderRow(row, table.grid, context);
+    const rowCount = table.rows.length;
+
+    table.rows.forEach((row, rowIndex) => {
+      const isFirstRow = rowIndex === 0;
+      const isLastRow = rowIndex === rowCount - 1;
+
+      const rowEl = TableRenderer.renderRow(row, table.grid, table.props.cellMargins, isFirstRow, isLastRow, context);
       tbody.appendChild(rowEl);
-    }
+    });
     tableEl.appendChild(tbody);
 
     return tableEl;
@@ -51,13 +56,15 @@ export class TableRenderer {
 
   /**
    * 渲染表格行
-   *
-   * @param row - TableRow 对象
-   * @param grid - 列宽网格
-   * @param context - 渲染上下文
-   * @returns HTMLTableRowElement
    */
-  private static renderRow(row: TableRow, grid: number[], context?: TableRenderContext): HTMLTableRowElement {
+  private static renderRow(
+    row: TableRow,
+    grid: number[],
+    tableMargins: TableCellMargins | undefined,
+    isFirstRow: boolean,
+    isLastRow: boolean,
+    context?: TableRenderContext
+  ): HTMLTableRowElement {
     const tr = document.createElement('tr');
     tr.className = 'docx-table-row';
 
@@ -74,41 +81,65 @@ export class TableRenderer {
 
     // 渲染单元格
     let gridIndex = 0;
-    for (const cell of row.cells) {
+    const cellCount = row.cells.length;
+
+    row.cells.forEach((cell, cellIndex) => {
       // 跳过垂直合并的继续单元格
       if (cell.props.vMerge === 'continue') {
         gridIndex += cell.props.gridSpan || 1;
-        continue;
+        return;
       }
 
-      const td = this.renderCell(cell, grid, gridIndex, context);
+      const isFirstCol = cellIndex === 0;
+      const isLastCol = cellIndex === cellCount - 1;
+
+      const td = TableRenderer.renderCell(
+        cell,
+        grid,
+        gridIndex,
+        tableMargins,
+        isFirstRow,
+        isLastRow,
+        isFirstCol,
+        isLastCol,
+        context
+      );
       tr.appendChild(td);
       gridIndex += cell.props.gridSpan || 1;
-    }
+    });
 
     return tr;
   }
 
   /**
    * 渲染单元格
-   *
-   * @param cell - TableCell 对象
-   * @param grid - 列宽网格
-   * @param gridIndex - 网格起始索引
-   * @param context - 渲染上下文
-   * @returns HTMLTableCellElement
    */
   private static renderCell(
     cell: TableCell,
     grid: number[],
     gridIndex: number,
+    tableMargins: TableCellMargins | undefined,
+    isFirstRow: boolean,
+    isLastRow: boolean,
+    isFirstCol: boolean,
+    isLastCol: boolean,
     context?: TableRenderContext
   ): HTMLTableCellElement {
     const td = document.createElement('td');
     td.className = 'docx-table-cell';
 
     // 应用单元格样式
-    this.applyCellStyles(td, cell.props, grid, gridIndex);
+    TableRenderer.applyCellStyles(
+      td,
+      cell.props,
+      grid,
+      gridIndex,
+      tableMargins,
+      isFirstRow,
+      isLastRow,
+      isFirstCol,
+      isLastCol
+    );
 
     // 处理水平合并
     if (cell.props.gridSpan && cell.props.gridSpan > 1) {
@@ -117,7 +148,7 @@ export class TableRenderer {
 
     // 渲染内容
     for (const child of cell.children) {
-      const element = this.renderCellChild(child, context);
+      const element = TableRenderer.renderCellChild(child, context);
       if (element) {
         td.appendChild(element);
       }
@@ -134,11 +165,127 @@ export class TableRenderer {
   }
 
   /**
+   * 应用单元格样式
+   */
+  private static applyCellStyles(
+    td: HTMLTableCellElement,
+    props: TableCellProperties,
+    grid: number[],
+    gridIndex: number,
+    tableMargins: TableCellMargins | undefined,
+    isFirstRow: boolean,
+    isLastRow: boolean,
+    isFirstCol: boolean,
+    isLastCol: boolean
+  ): void {
+    const style = td.style;
+
+    // 单元格宽度
+    if (props.width) {
+      if (props.widthType === 'pct') {
+        style.width = `${props.width / 50}%`;
+      } else {
+        const widthPx = UnitConverter.twipsToPixels(props.width);
+        style.width = `${widthPx}px`;
+      }
+    } else {
+      // 从网格计算宽度
+      let totalWidth = 0;
+      const span = props.gridSpan || 1;
+      for (let i = gridIndex; i < gridIndex + span && i < grid.length; i++) {
+        totalWidth += grid[i];
+      }
+      if (totalWidth > 0) {
+        const widthPx = UnitConverter.twipsToPixels(totalWidth);
+        style.width = `${widthPx}px`;
+      }
+    }
+
+    // 垂直对齐
+    if (props.vAlign) {
+      style.verticalAlign = props.vAlign;
+    }
+
+    // 单元格边框 logic with inheritance fallback
+    const getBorder = (side: keyof typeof props.borders, fallbackVar: string) => {
+      if (props.borders && props.borders[side]) {
+        return TableRenderer.formatBorder(props.borders[side]!);
+      }
+      return `var(${fallbackVar}, 1px solid black)`;
+    };
+
+    style.borderTop = getBorder('top', isFirstRow ? '--table-border-top' : '--table-border-inside-h');
+    style.borderBottom = getBorder('bottom', isLastRow ? '--table-border-bottom' : '--table-border-inside-h');
+    style.borderLeft = getBorder('left', isFirstCol ? '--table-border-left' : '--table-border-inside-v');
+    style.borderRight = getBorder('right', isLastCol ? '--table-border-right' : '--table-border-inside-v');
+
+    // 对角线边框 (模拟)
+    const diagonals: string[] = [];
+    if (props.borders?.tl2br && props.borders.tl2br.val !== 'nil') {
+      const color =
+        props.borders.tl2br.color && props.borders.tl2br.color !== 'auto' ? `#${props.borders.tl2br.color}` : '#000';
+      const width = props.borders.tl2br.sz
+        ? Math.max(UnitConverter.eighthPointsToPixels(props.borders.tl2br.sz), 1)
+        : 1;
+      diagonals.push(
+        `linear-gradient(to bottom right, transparent calc(50% - ${width}px), ${color} calc(50% - ${width / 2}px), ${color} calc(50% + ${width / 2}px), transparent calc(50% + ${width}px))`
+      );
+    }
+
+    if (props.borders?.tr2bl && props.borders.tr2bl.val !== 'nil') {
+      const color =
+        props.borders.tr2bl.color && props.borders.tr2bl.color !== 'auto' ? `#${props.borders.tr2bl.color}` : '#000';
+      const width = props.borders.tr2bl.sz
+        ? Math.max(UnitConverter.eighthPointsToPixels(props.borders.tr2bl.sz), 1)
+        : 1;
+      diagonals.push(
+        `linear-gradient(to bottom left, transparent calc(50% - ${width}px), ${color} calc(50% - ${width / 2}px), ${color} calc(50% + ${width / 2}px), transparent calc(50% + ${width}px))`
+      );
+    }
+
+    if (diagonals.length > 0) {
+      style.backgroundImage = diagonals.join(', ');
+    }
+
+    // 单元格边距
+    const margins = props.margins || tableMargins;
+
+    if (margins) {
+      const top = margins.top ? UnitConverter.twipsToPixels(margins.top) : 0;
+      const right = margins.right ? UnitConverter.twipsToPixels(margins.right) : 0;
+      const bottom = margins.bottom ? UnitConverter.twipsToPixels(margins.bottom) : 0;
+      const left = margins.left ? UnitConverter.twipsToPixels(margins.left) : 0;
+      style.padding = `${top}px ${right}px ${bottom}px ${left}px`;
+    } else {
+      style.padding = '0';
+    }
+
+    // 底纹
+    // Handle w:shd which can have fill (bg color) and val (pattern)
+    // Here we primarily support fill color
+    if (props.shading) {
+      if (props.shading.fill && props.shading.fill !== 'auto') {
+        style.backgroundColor = `#${props.shading.fill}`;
+      } else if (props.shading.val === 'clear' && props.shading.color && props.shading.color !== 'auto') {
+        // Sometimes clear pattern with color is used for background? No, clear means no pattern.
+        // If fill is auto/undefined, and val is clear, it's transparent.
+      }
+      // TODO: Handle patterns key words if needed
+    }
+
+    // 文字方向
+    if (props.textDirection) {
+      style.writingMode = TableRenderer.mapTextDirection(props.textDirection);
+    }
+
+    // 禁止换行
+    if (props.noWrap) {
+      style.whiteSpace = 'nowrap';
+    }
+  }
+
+  /**
    * 渲染单元格内容
-   *
-   * @param child - 子元素
-   * @param context - 渲染上下文
-   * @returns HTMLElement 或 null
    */
   private static renderCellChild(child: DocxElement, context?: TableRenderContext): HTMLElement | null {
     switch (child.type) {
@@ -146,7 +293,6 @@ export class TableRenderer {
         return ParagraphRenderer.render(child, context);
 
       case 'table':
-        // 嵌套表格
         return TableRenderer.render(child, {
           ...context,
           nestLevel: (context?.nestLevel || 0) + 1
@@ -160,10 +306,6 @@ export class TableRenderer {
 
   /**
    * 应用表格样式
-   *
-   * @param table - 表格元素
-   * @param props - 表格属性
-   * @param grid - 列宽网格
    */
   private static applyTableStyles(table: HTMLTableElement, props: TableProperties, grid: number[]): void {
     const style = table.style;
@@ -207,7 +349,7 @@ export class TableRenderer {
 
     // 表格边框
     if (props.borders) {
-      this.applyTableBorders(table, props.borders);
+      TableRenderer.applyTableBorders(table, props.borders);
     }
 
     // 底纹
@@ -236,109 +378,74 @@ export class TableRenderer {
     const style = table.style;
 
     if (borders.top) {
-      style.setProperty('--table-border-top', this.formatBorder(borders.top));
+      style.setProperty('--table-border-top', TableRenderer.formatBorder(borders.top));
     }
     if (borders.bottom) {
-      style.setProperty('--table-border-bottom', this.formatBorder(borders.bottom));
+      style.setProperty('--table-border-bottom', TableRenderer.formatBorder(borders.bottom));
     }
     if (borders.left) {
-      style.setProperty('--table-border-left', this.formatBorder(borders.left));
+      style.setProperty('--table-border-left', TableRenderer.formatBorder(borders.left));
     }
     if (borders.right) {
-      style.setProperty('--table-border-right', this.formatBorder(borders.right));
+      style.setProperty('--table-border-right', TableRenderer.formatBorder(borders.right));
     }
     if (borders.insideH) {
-      style.setProperty('--table-border-inside-h', this.formatBorder(borders.insideH));
+      style.setProperty('--table-border-inside-h', TableRenderer.formatBorder(borders.insideH));
     }
     if (borders.insideV) {
-      style.setProperty('--table-border-inside-v', this.formatBorder(borders.insideV));
+      style.setProperty('--table-border-inside-v', TableRenderer.formatBorder(borders.insideV));
     }
 
     // 应用外边框到表格
     if (borders.top) {
-      style.borderTop = this.formatBorder(borders.top);
+      style.borderTop = TableRenderer.formatBorder(borders.top);
     }
     if (borders.bottom) {
-      style.borderBottom = this.formatBorder(borders.bottom);
+      style.borderBottom = TableRenderer.formatBorder(borders.bottom);
     }
     if (borders.left) {
-      style.borderLeft = this.formatBorder(borders.left);
+      style.borderLeft = TableRenderer.formatBorder(borders.left);
     }
     if (borders.right) {
-      style.borderRight = this.formatBorder(borders.right);
+      style.borderRight = TableRenderer.formatBorder(borders.right);
     }
   }
 
   /**
-   * 应用单元格样式
-   *
-   * @param td - 单元格元素
-   * @param props - 单元格属性
-   * @param grid - 列宽网格
-   * @param gridIndex - 网格索引
-   */
-  private static applyCellStyles(
-    td: HTMLTableCellElement,
-    props: TableCellProperties,
-    grid: number[],
-    gridIndex: number
-  ): void {
-    const style = td.style;
 
-    // 单元格宽度
-    if (props.width) {
-      if (props.widthType === 'pct') {
-        style.width = `${props.width / 50}%`;
-      } else {
-        const widthPx = UnitConverter.twipsToPixels(props.width);
-        style.width = `${widthPx}px`;
+    // 单元格边框 logic with inheritance fallback
+    const getBorder = (side: keyof typeof props.borders, fallbackVar: string) => {
+      if (props.borders && props.borders[side]) {
+        return TableRenderer.formatBorder(props.borders[side]!);
       }
-    } else {
-      // 从网格计算宽度
-      let totalWidth = 0;
-      const span = props.gridSpan || 1;
-      for (let i = gridIndex; i < gridIndex + span && i < grid.length; i++) {
-        totalWidth += grid[i];
-      }
-      if (totalWidth > 0) {
-        const widthPx = UnitConverter.twipsToPixels(totalWidth);
-        style.width = `${widthPx}px`;
-      }
+      return `var(${fallbackVar}, 1px solid black)`; 
+    };
+
+    style.borderTop = getBorder('top', isFirstRow ? '--table-border-top' : '--table-border-inside-h');
+    style.borderBottom = getBorder('bottom', isLastRow ? '--table-border-bottom' : '--table-border-inside-h');
+    style.borderLeft = getBorder('left', isFirstCol ? '--table-border-left' : '--table-border-inside-v');
+    style.borderRight = getBorder('right', isLastCol ? '--table-border-right' : '--table-border-inside-v');
+
+    // 对角线边框 (模拟)
+    const diagonals: string[] = [];
+    if (props.borders?.tl2br && props.borders.tl2br.val !== 'nil') {
+      const color = props.borders.tl2br.color && props.borders.tl2br.color !== 'auto' ? `#${props.borders.tl2br.color}` : '#000';
+      const width = props.borders.tl2br.sz ? Math.max(UnitConverter.eighthPointsToPixels(props.borders.tl2br.sz), 1) : 1;
+      diagonals.push(`linear-gradient(to bottom right, transparent calc(50% - ${width}px), ${color} calc(50% - ${width/2}px), ${color} calc(50% + ${width/2}px), transparent calc(50% + ${width}px))`);
     }
-
-    // 垂直对齐
-    if (props.vAlign) {
-      style.verticalAlign = props.vAlign;
+    
+    if (props.borders?.tr2bl && props.borders.tr2bl.val !== 'nil') {
+      const color = props.borders.tr2bl.color && props.borders.tr2bl.color !== 'auto' ? `#${props.borders.tr2bl.color}` : '#000';
+      const width = props.borders.tr2bl.sz ? Math.max(UnitConverter.eighthPointsToPixels(props.borders.tr2bl.sz), 1) : 1;
+      diagonals.push(`linear-gradient(to bottom left, transparent calc(50% - ${width}px), ${color} calc(50% - ${width/2}px), ${color} calc(50% + ${width/2}px), transparent calc(50% + ${width}px))`);
+    if (diagonals.length > 0) {
+      style.backgroundImage = diagonals.join(', ');
     }
-
-    // 单元格边框
-    if (props.borders) {
-      if (props.borders.top) {
-        style.borderTop = this.formatBorder(props.borders.top);
-      }
-      if (props.borders.bottom) {
-        style.borderBottom = this.formatBorder(props.borders.bottom);
-      }
-      if (props.borders.left) {
-        style.borderLeft = this.formatBorder(props.borders.left);
-      }
-      if (props.borders.right) {
-        style.borderRight = this.formatBorder(props.borders.right);
-      }
-    } else {
-      // 使用默认边框
-      style.border = '1px solid #000';
-    }
-
-    // 单元格边距
-    if (props.margins) {
-      const top = props.margins.top ? UnitConverter.twipsToPixels(props.margins.top) : 0;
-      const right = props.margins.right ? UnitConverter.twipsToPixels(props.margins.right) : 0;
-      const bottom = props.margins.bottom ? UnitConverter.twipsToPixels(props.margins.bottom) : 0;
-      const left = props.margins.left ? UnitConverter.twipsToPixels(props.margins.left) : 0;
+      const bottom = margins.bottom ? UnitConverter.twipsToPixels(margins.bottom) : 0;
+      const left = margins.left ? UnitConverter.twipsToPixels(margins.left) : 0;
       style.padding = `${top}px ${right}px ${bottom}px ${left}px`;
     } else {
-      style.padding = '5px';
+      style.padding = '0'; // default strict
     }
 
     // 底纹
@@ -348,7 +455,7 @@ export class TableRenderer {
 
     // 文字方向
     if (props.textDirection) {
-      style.writingMode = this.mapTextDirection(props.textDirection);
+      style.writingMode = TableRenderer.mapTextDirection(props.textDirection);
     }
 
     // 禁止换行
@@ -370,7 +477,7 @@ export class TableRenderer {
 
     const width = border.sz ? UnitConverter.eighthPointsToPixels(border.sz) : 1;
     const color = border.color && border.color !== 'auto' ? `#${border.color}` : '#000000';
-    const styleType = this.mapBorderStyle(border.val);
+    const styleType = TableRenderer.mapBorderStyle(border.val);
 
     return `${Math.max(width, 1)}px ${styleType} ${color}`;
   }

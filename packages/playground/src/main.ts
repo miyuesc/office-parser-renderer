@@ -28,7 +28,11 @@ fileInput.addEventListener('change', async e => {
       const doc = await parser.parse(arrayBuffer);
       console.log('DOCX AST:', doc);
 
-      const renderer = new DocxRenderer(container);
+      const renderer = new DocxRenderer(container, {
+        enablePagination: true, // 启用分页
+        useDocumentBackground: true, // 默认使用文档解析的背景色
+        useDocumentWatermark: true // 默认使用文档解析的水印
+      });
       await renderer.render(doc);
     } else if (name.endsWith('.pptx')) {
       const parser = new PptxParser();
@@ -110,9 +114,9 @@ fileInput.addEventListener('change', async e => {
       console.log('DOCX AST:', doc);
 
       const renderer = new DocxRenderer(container, {
-        enablePagination: true // 启用分页
-        // useDocumentBackground: true,  // 默认使用文档解析的背景色
-        // useDocumentWatermark: true    // 默认使用文档解析的水印
+        enablePagination: true, // 启用分页
+        useDocumentBackground: true, // 默认使用文档解析的背景色
+        useDocumentWatermark: true // 默认使用文档解析的水印
       });
       await renderer.render(doc);
       console.log('Render Complete');

@@ -9,6 +9,7 @@ import { XmlUtils } from '@ai-space/shared';
 import { Logger } from '../utils/Logger';
 import { RunParser } from './RunParser';
 import { DrawingParser } from './DrawingParser';
+import { VmlParser } from './VmlParser';
 import type {
   Paragraph,
   ParagraphProperties,
@@ -99,6 +100,23 @@ export class ParagraphParser {
             if (drawing) {
               children.push(drawing);
             }
+          }
+
+          // 检查 VML pict 元素
+          const pictNode = XmlUtils.query(child, 'w\\:pict, pict');
+          if (pictNode) {
+            // VML 形状通常嵌套在 pict 中
+            // 可能包含多个 v:shape
+            const vShapes = XmlUtils.queryAll(
+              pictNode,
+              'v\\:shape, shape, v\\:rect, rect, v\\:oval, oval, v\\:roundrect, roundrect'
+            );
+            vShapes.forEach(vShape => {
+              const drawing = VmlParser.parse(vShape);
+              if (drawing) {
+                children.push(drawing);
+              }
+            });
           }
           break;
 

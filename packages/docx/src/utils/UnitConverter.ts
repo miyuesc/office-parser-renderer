@@ -32,7 +32,7 @@ export class UnitConverter {
     if (!Number.isFinite(twips) || twips === 0) return 0;
     // twips -> inches -> pixels
     const inches = twips / TWIPS_PER_INCH;
-    return Math.round(inches * dpi);
+    return inches * dpi;
   }
 
   /**
@@ -45,7 +45,7 @@ export class UnitConverter {
   static pixelsToTwips(pixels: number, dpi: number = DEFAULT_DPI): number {
     if (!Number.isFinite(pixels) || pixels === 0) return 0;
     const inches = pixels / dpi;
-    return Math.round(inches * TWIPS_PER_INCH);
+    return Math.round(inches * TWIPS_PER_INCH); // Twips usually integers
   }
 
   /**
@@ -80,7 +80,7 @@ export class UnitConverter {
   static emuToPixels(emu: number, dpi: number = DEFAULT_DPI): number {
     if (!Number.isFinite(emu) || emu === 0) return 0;
     const inches = emu / EMU_PER_INCH;
-    return Math.round(inches * dpi);
+    return inches * dpi;
   }
 
   /**
@@ -152,7 +152,7 @@ export class UnitConverter {
   static pointsToPixels(points: number, dpi: number = DEFAULT_DPI): number {
     if (!Number.isFinite(points) || points === 0) return 0;
     const inches = points / POINTS_PER_INCH;
-    return Math.round(inches * dpi);
+    return inches * dpi;
   }
 
   /**

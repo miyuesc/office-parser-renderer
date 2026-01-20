@@ -142,6 +142,12 @@ export class DrawingRenderer {
     svg.style.position = 'absolute';
     svg.style.top = '0';
     svg.style.left = '0';
+    // 允许 overflow visible 以显示位于边框外的箭头
+    svg.style.overflow = 'visible';
+    
+    // 定义 Defs (渐变、Marker)
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    svg.appendChild(defs);
 
     // 创建形状路径
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -162,6 +168,15 @@ export class DrawingRenderer {
     if (shape.fill) {
       if (shape.fill.type === 'solid' && shape.fill.color) {
         path.setAttribute('fill', `#${shape.fill.color}`);
+      } else if (shape.fill.type === 'gradient' && shape.fill.gradient) {
+        // 创建渐变 ID
+        const gradId = `grad_${shape.id}_${Math.random().toString(36).substr(2, 9)}`;
+        const gradient = this.createGradient(defs, gradId, shape.fill.gradient);
+        if (gradient) {
+             path.setAttribute('fill', `url(#${gradId})`);
+        } else {
+             path.setAttribute('fill', '#cccccc');
+        }
       } else if (shape.fill.type === 'none') {
         path.setAttribute('fill', 'none');
       } else {
@@ -186,6 +201,19 @@ export class DrawingRenderer {
       }
       if (shape.stroke.dashStyle) {
         path.setAttribute('stroke-dasharray', this.getDashArray(shape.stroke.dashStyle));
+      }
+      
+      // 箭头 (Markers)
+      const strokeColor = shape.stroke.color || '000000';
+      if (shape.stroke.headEnd && shape.stroke.headEnd.type !== 'none') {
+           const markerId = `head_${shape.id}_${Math.random().toString(36).substr(2, 5)}`;
+           this.createMarker(defs, markerId, shape.stroke.headEnd.type, strokeColor, true);
+           path.setAttribute('marker-start', `url(#${markerId})`);
+      }
+      if (shape.stroke.tailEnd && shape.stroke.tailEnd.type !== 'none') {
+           const markerId = `tail_${shape.id}_${Math.random().toString(36).substr(2, 5)}`;
+           this.createMarker(defs, markerId, shape.stroke.tailEnd.type, strokeColor, false);
+           path.setAttribute('marker-end', `url(#${markerId})`);
       }
     } else {
       path.setAttribute('stroke', 'none');
@@ -298,5 +326,90 @@ export class DrawingRenderer {
     };
 
     return map[dashStyle] || 'none';
+  }
+
+  /**
+   * 创建 SVG 渐变
+   */
+  private static createGradient(defs: SVGDefsElement, id: string, gradient: { type: string, angle?: number, stops: Array<{position: number, color: string}> }): SVGElement | null {
+      const gradEl = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+      gradEl.setAttribute('id', id);
+      
+      let angle = gradient.angle || 0; 
+      // 简单映射: 0=LeftToRight, 90=TopToBottom (approx)
+      gradEl.setAttribute('x1', '0%');
+      gradEl.setAttribute('y1', '0%');
+      gradEl.setAttribute('x2', '100%');
+      gradEl.setAttribute('y2', '0%');
+      
+      if (Math.abs(angle - 90) < 45 || Math.abs(angle - 270) < 45) {
+         gradEl.setAttribute('x2', '0%');
+         gradEl.setAttribute('y2', '100%');
+      }
+
+      if (gradient.type === 'path') {
+           return null;
+      }
+
+      gradient.stops.forEach(stop => {
+          const stopEl = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
+          stopEl.setAttribute('offset', `${stop.position * 100}%`);
+          stopEl.setAttribute('stop-color', `#${stop.color}`);
+          gradEl.appendChild(stopEl);
+      });
+      
+      defs.appendChild(gradEl);
+      return gradEl;
+  }
+
+  /**
+   * 创建 Marker (箭头)
+   */
+  private static createMarker(defs: SVGDefsElement, id: string, type: string, color: string, isStart: boolean): void {
+      const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+      marker.setAttribute('id', id);
+      marker.setAttribute('markerUnits', 'strokeWidth');
+      // 基本尺寸
+      marker.setAttribute('markerWidth', '12');
+      marker.setAttribute('markerHeight', '12');
+      marker.setAttribute('refX', isStart ? '0' : '10');
+      marker.setAttribute('refY', '6');
+      marker.setAttribute('orient', 'auto');
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('fill', `#${color}`);
+      
+      // 根据类型生成路径
+      switch (type) {
+          case 'triangle':
+              path.setAttribute('d', isStart ? 'M10,0 L0,6 L10,12 Z' : 'M0,0 L10,6 L0,12 Z'); 
+              // Wait, directions need to be handled carefully with orient=auto and refX
+              // Usually standard path pointing Right ->
+              // If start marker, we usually reverse it via orient or path
+              // Let's stick to standard path pointing right, and let usage handle rotation?
+              // Or marker orient='auto-start-reverse' for start marker.
+              // SVG 1.1 supports orient="auto". start marker needs to point 180 deg?
+              path.setAttribute('d', 'M0,0 L10,6 L0,12 Z'); // Triangle pointing right
+              break;
+          case 'stealth':
+              path.setAttribute('d', 'M0,0 L10,6 L0,12 L3,6 Z');
+              break;
+          case 'oval':
+              // circle
+              const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+              circle.setAttribute('cx', '6');
+              circle.setAttribute('cy', '6');
+              circle.setAttribute('r', '4');
+              circle.setAttribute('fill', `#${color}`);
+              marker.appendChild(circle);
+              defs.appendChild(marker);
+              return;
+          case 'none':
+          default:
+              return;
+      }
+      
+      marker.appendChild(path);
+      defs.appendChild(marker);
   }
 }
