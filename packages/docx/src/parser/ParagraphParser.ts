@@ -5,7 +5,7 @@
  * 处理段落属性和子元素
  */
 
-import { XmlUtils } from '@ai-space/shared';
+import { XmlUtils, OMathParser } from '@ai-space/shared';
 import { Logger } from '../utils/Logger';
 import { RunParser } from './RunParser';
 import { DrawingParser } from './DrawingParser';
@@ -27,7 +27,8 @@ import type {
   LineBreak,
   Hyperlink,
   BookmarkStart,
-  BookmarkEnd
+  BookmarkEnd,
+  OMathElement
 } from '../types';
 
 const log = Logger.createTagged('ParagraphParser');
@@ -171,6 +172,19 @@ export class ParagraphParser {
           // 智能标签
           const smartTagChildren = this.parseChildren(child, context);
           children.push(...smartTagChildren);
+          break;
+
+        case 'omath':
+        case 'omathpara':
+          // 数学公式
+          const mathNode = OMathParser.parse(child);
+          if (mathNode) {
+            const omathElement: OMathElement = {
+              type: 'omath',
+              node: mathNode
+            };
+            children.push(omathElement);
+          }
           break;
 
         default:

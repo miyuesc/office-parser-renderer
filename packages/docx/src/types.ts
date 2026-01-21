@@ -214,7 +214,26 @@ export interface Paragraph {
 /**
  * 段落子元素联合类型
  */
-export type ParagraphChild = Run | Drawing | Tab | LineBreak | FieldCode | BookmarkStart | BookmarkEnd | Hyperlink;
+export type ParagraphChild =
+  | Run
+  | Drawing
+  | Tab
+  | LineBreak
+  | FieldCode
+  | BookmarkStart
+  | BookmarkEnd
+  | Hyperlink
+  | OMathElement;
+
+/**
+ * 数学公式元素接口
+ * 对应 m:oMath 或 m:oMathPara 元素
+ */
+export interface OMathElement {
+  type: 'omath';
+  /** 解析后的公式节点（来自 @ai-space/shared） */
+  node: unknown;
+}
 
 /**
  * 段落属性接口
