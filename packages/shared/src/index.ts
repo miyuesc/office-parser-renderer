@@ -8,6 +8,8 @@
  * - 颜色处理工具
  * - DrawingML 解析与形状生成
  * - Office Math 公式解析与渲染
+ * - 字体管理与 CSS 类生成
+ * - 样式工具（文本、对齐、边框等）
  */
 
 export * from './zip';
@@ -18,3 +20,6 @@ export * from './utils/Units';
 export * from './utils/PresetColorMap';
 export * from './drawing';
 export * from './math';
+export * from './fonts';
+export * from './fonts/FontManager';
+export * from './styles';

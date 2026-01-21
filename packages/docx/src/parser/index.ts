@@ -14,3 +14,4 @@ export * from './DrawingParser';
 export * from './NumberingParser';
 export * from './RelationshipsParser';
 export * from './MediaParser';
+export * from './ChartParser';

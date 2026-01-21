@@ -185,7 +185,7 @@ export interface ChartRenderOptions {
   /** 图表 ID */
   id?: string;
   /** 图表类型 */
-  type: 'barChart' | 'pieChart' | 'pie3DChart' | 'lineChart' | 'areaChart' | 'scatterChart' | 'other';
+  type: 'barChart' | 'pieChart' | 'pie3DChart' | 'lineChart' | 'areaChart' | 'scatterChart' | 'comboChart' | 'other';
   /** 图表标题 */
   title?: string;
   /** 数据系列列表 */
@@ -210,6 +210,8 @@ export interface ChartSeriesData {
   values: number[];
   /** 填充颜色 */
   fillColor?: string;
+  /** 系列图表类型（用于混合图表） */
+  chartType?: 'bar' | 'line' | 'area' | 'scatter';
 }
 
 /**

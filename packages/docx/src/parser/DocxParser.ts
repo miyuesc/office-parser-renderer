@@ -14,7 +14,8 @@ import { SectionParser } from './SectionParser';
 import { HeaderFooterParser } from './HeaderFooterParser';
 import { RelationshipsParser } from './RelationshipsParser';
 import { MediaParser } from './MediaParser';
-import type { DocxDocument, DocxStyles, NumberingDefinition, DocxSection } from '../types';
+import { ChartParser } from './ChartParser';
+import type { DocxDocument, DocxStyles, NumberingDefinition, DocxSection, DocxElement, Drawing } from '../types';
 
 const log = Logger.createTagged('DocxParser');
 
@@ -92,7 +93,11 @@ export class DocxParser {
       const images: Record<string, string> = mediaResult.imageUrls;
       log.info('媒体资源解析完成', { imageCount: Object.keys(images).length });
 
-      // 10. 构建最终文档对象
+      // 10. 解析图表数据
+      this.parseChartData(documentResult.body, files, decoder, relationships);
+      log.info('图表解析完成');
+
+      // 11. 构建最终文档对象
       const document: DocxDocument = {
         body: documentResult.body,
         sections: documentResult.sections.length > 0 ? documentResult.sections : [documentResult.lastSection],
@@ -217,5 +222,71 @@ export class DocxParser {
   async getPageSettings(input: File | ArrayBuffer | Uint8Array): Promise<DocxSection[]> {
     const doc = await this.parse(input);
     return doc.sections;
+  }
+
+  /**
+   * 解析图表数据
+   * 遍历文档中的 Drawing 元素，加载并解析图表 XML
+   *
+   * @param elements - 文档元素列表
+   * @param files - ZIP 文件映射
+   * @param decoder - 文本解码器
+   * @param relationships - 关系映射
+   */
+  private parseChartData(
+    elements: DocxElement[],
+    files: Record<string, Uint8Array>,
+    decoder: TextDecoder,
+    relationships: Record<string, string>
+  ): void {
+    for (const element of elements) {
+      if (element.type === 'paragraph') {
+        // 遍历段落子元素
+        for (const child of element.children) {
+          if (child.type === 'drawing' && (child as Drawing).chart) {
+            const drawing = child as Drawing;
+            const chart = drawing.chart!;
+            const chartPath = this.resolveChartPath(chart.rId, relationships);
+
+            if (chartPath && files[chartPath]) {
+              const chartXml = decoder.decode(files[chartPath]);
+              const parsedChart = ChartParser.parse(chartXml, chart.cx, chart.cy, chart.rId);
+              // 合并解析结果
+              Object.assign(chart, parsedChart);
+              log.debug(`解析图表: ${chartPath}`, parsedChart);
+            }
+          }
+        }
+      } else if (element.type === 'table') {
+        // 递归处理表格中的内容
+        for (const row of element.rows) {
+          for (const cell of row.cells) {
+            this.parseChartData(cell.children, files, decoder, relationships);
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * 解析图表文件路径
+   *
+   * @param rId - 图表关系 ID
+   * @param relationships - 关系映射
+   * @returns 图表文件路径
+   */
+  private resolveChartPath(rId: string, relationships: Record<string, string>): string | null {
+    const target = relationships[rId];
+    if (!target) {
+      log.warn(`未找到图表关系: ${rId}`);
+      return null;
+    }
+
+    // 解析相对路径 (通常是 charts/chartN.xml，需要转换为 word/charts/chartN.xml)
+    if (target.startsWith('/')) {
+      return target.substring(1);
+    } else {
+      return 'word/' + target;
+    }
   }
 }

@@ -5,18 +5,24 @@
  * 使用共享渲染器实现核心渲染逻辑
  */
 
-import { ImageRenderer as SharedImageRenderer, ShapeRenderer as SharedShapeRenderer, emuToPt } from '@ai-space/shared';
+import {
+  ImageRenderer as SharedImageRenderer,
+  ShapeRenderer as SharedShapeRenderer,
+  ChartRenderer as SharedChartRenderer,
+  emuToPt
+} from '@ai-space/shared';
 import type {
   RenderRect,
   RenderContext,
   StyleResolverInterface,
   ShapeRenderOptions,
   ImageRenderOptions,
+  ChartRenderOptions,
   ColorDef
 } from '@ai-space/shared';
 import { Logger } from '../utils/Logger';
 import { UnitConverter } from '../utils/UnitConverter';
-import type { Drawing, DrawingImage, DrawingShape, DocxDocument } from '../types';
+import type { Drawing, DrawingImage, DrawingShape, DrawingChart, DocxDocument } from '../types';
 
 const log = Logger.createTagged('DrawingRenderer');
 
@@ -46,13 +52,51 @@ class DocxStyleResolver implements StyleResolverInterface {
    */
   resolveColor(color: ColorDef): string {
     if (typeof color === 'string') {
+      // 处理 theme:xxx 格式
+      if (color.startsWith('theme:')) {
+        return this.resolveThemeColor(color.substring(6));
+      }
       return color.startsWith('#') ? color : `#${color}`;
     }
     if (color.val) {
       return color.val.startsWith('#') ? color.val : `#${color.val}`;
     }
-    // TODO: 处理主题颜色
+    if (color.theme) {
+      return this.resolveThemeColor(color.theme);
+    }
+    // 默认返回黑色
     return '#000000';
+  }
+
+  /**
+   * 解析主题颜色
+   * 将主题颜色键映射到具体的十六进制颜色值
+   */
+  private resolveThemeColor(themeKey: string): string {
+    // Office 标准主题颜色调色板
+    const themeColorMap: Record<string, string> = {
+      // 主要主题颜色
+      lt1: '#FFFFFF', // 浅色 1 (白色)
+      dk1: '#000000', // 深色 1 (黑色)
+      lt2: '#E7E6E6', // 浅色 2
+      dk2: '#44546A', // 深色 2
+      // 强调色
+      accent1: '#4472C4', // 蓝色
+      accent2: '#ED7D31', // 橙色
+      accent3: '#A5A5A5', // 灰色
+      accent4: '#FFC000', // 黄色
+      accent5: '#5B9BD5', // 浅蓝
+      accent6: '#70AD47', // 绿色
+      // 超链接
+      hlink: '#0563C1',
+      folHlink: '#954F72',
+      // 背景和文本颜色别名
+      bg1: '#FFFFFF',
+      bg2: '#E7E6E6',
+      tx1: '#000000',
+      tx2: '#44546A'
+    };
+    return themeColorMap[themeKey] || '#000000';
   }
 
   /**
@@ -185,7 +229,7 @@ export class DrawingRenderer {
     }
 
     if (drawing.chart) {
-      return this.renderChartPlaceholder(drawing.chart);
+      return this.renderChart(drawing.chart, context);
     }
 
     log.warn('未知的绘图类型');
@@ -321,28 +365,81 @@ export class DrawingRenderer {
   }
 
   /**
-   * 渲染图表占位符
+   * 渲染图表
    *
    * @param chart - DrawingChart 对象
+   * @param context - 渲染上下文
    * @returns HTMLElement
    */
-  private static renderChartPlaceholder(chart: { cx: number; cy: number }): HTMLElement {
+  private static renderChart(chart: DrawingChart, context?: DrawingRenderContext): HTMLElement {
     const container = document.createElement('div');
     container.className = 'docx-drawing docx-chart';
+    container.style.display = 'inline-block';
+    container.style.position = 'relative';
 
     const widthPx = UnitConverter.emuToPixels(chart.cx);
     const heightPx = UnitConverter.emuToPixels(chart.cy);
-
     container.style.width = `${widthPx}px`;
     container.style.height = `${heightPx}px`;
-    container.style.backgroundColor = '#f0f0f0';
-    container.style.display = 'flex';
-    container.style.alignItems = 'center';
-    container.style.justifyContent = 'center';
-    container.style.border = '1px dashed #999';
-    container.style.color = '#666';
-    container.textContent = '[图表]';
 
+    // 检查是否有解析的图表数据
+    if (!chart.type || !chart.series || chart.series.length === 0) {
+      // 没有图表数据，渲染占位符
+      container.style.backgroundColor = '#f0f0f0';
+      container.style.display = 'flex';
+      container.style.alignItems = 'center';
+      container.style.justifyContent = 'center';
+      container.style.border = '1px dashed #999';
+      container.style.color = '#666';
+      container.textContent = '[图表]';
+      return container;
+    }
+
+    // 创建 SVG 容器
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', String(widthPx));
+    svg.setAttribute('height', String(heightPx));
+    svg.setAttribute('viewBox', `0 0 ${widthPx} ${heightPx}`);
+    svg.style.position = 'absolute';
+    svg.style.top = '0';
+    svg.style.left = '0';
+    svg.style.overflow = 'visible';
+
+    // 创建 defs 元素
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    svg.appendChild(defs);
+
+    // 创建样式解析器
+    const styleResolver = new DocxStyleResolver(context || {});
+    const chartRenderer = new SharedChartRenderer(styleResolver);
+
+    // 准备渲染上下文
+    const renderCtx: RenderContext = {
+      defs,
+      images: context?.document?.images || context?.images || {}
+    };
+
+    // 准备图表渲染配置
+    const options: ChartRenderOptions = {
+      id: chart.rId,
+      type: chart.type || 'other',
+      title: chart.title,
+      series: chart.series.map(s => ({
+        index: s.index,
+        name: s.name,
+        categories: s.categories,
+        values: s.values,
+        fillColor: s.fillColor,
+        chartType: s.chartType
+      })),
+      barDirection: chart.barDirection,
+      grouping: chart.grouping
+    };
+
+    const rect: RenderRect = { x: 0, y: 0, w: widthPx, h: heightPx };
+    chartRenderer.renderChart(options, svg, rect, renderCtx);
+
+    container.appendChild(svg);
     return container;
   }
 }

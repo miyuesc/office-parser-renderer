@@ -78,6 +78,15 @@ export class ChartRenderer {
       this._renderPieChart(options, g, rect);
     } else if (options.type === 'lineChart') {
       this._renderLineChart(options, g, rect);
+    } else if (options.type === 'areaChart') {
+      // 面积图使用折线图渲染方式
+      this._renderLineChart(options, g, rect);
+    } else if (options.type === 'scatterChart') {
+      // 散点图使用折线图渲染方式
+      this._renderLineChart(options, g, rect);
+    } else if (options.type === 'comboChart') {
+      // 混合图表
+      this._renderComboChart(options, g, rect);
     } else {
       // 占位符
       this._renderPlaceholder(options, g, rect);
@@ -265,7 +274,8 @@ export class ChartRenderer {
     const numCats = categories.length;
     if (numCats === 0) return;
 
-    const catW = plotW / Math.max(1, numCats - 1);
+    // 折线图的数据点应该在每个类别的中心位置，与 X 轴标签对齐
+    const catW = plotW / numCats;
 
     // 绘制折线和数据点
     options.series.forEach((series, si) => {
@@ -276,7 +286,8 @@ export class ChartRenderer {
 
       series.values.forEach((val, ci) => {
         const safeVal = isNaN(val) ? 0 : val;
-        const x = padding.left + ci * catW;
+        // 数据点在每个类别的中心位置，与柱状图和 X 轴标签保持一致
+        const x = padding.left + ci * catW + catW / 2;
         const y = padding.top + plotH - (safeVal / maxVal) * plotH;
         points.push({ x, y });
       });
@@ -311,6 +322,130 @@ export class ChartRenderer {
 
     // 绘制图例
     this._renderLegend(container, options.series, padding.left, plotW, rect.h, 'line');
+  }
+
+  /**
+   * 渲染混合图表（柱状图 + 折线图）
+   */
+  private _renderComboChart(options: ChartRenderOptions, container: SVGElement, rect: RenderRect): void {
+    if (!options.series.length) return;
+
+    const padding = CHART_PADDING.bar;
+    const plotW = rect.w - padding.left - padding.right;
+    const plotH = rect.h - padding.top - padding.bottom;
+
+    if (plotW <= 0 || plotH <= 0) return;
+
+    // 绘制标题
+    if (options.title) {
+      this._renderTitle(container, options.title, rect.w / 2, 25);
+    }
+
+    // 按类型分组系列
+    const barSeries = options.series.filter(s => s.chartType === 'bar' || !s.chartType);
+    const lineSeries = options.series.filter(s => s.chartType === 'line');
+
+    // 计算数据范围（考虑所有系列）
+    let maxVal = 0;
+    options.series.forEach(s => {
+      s.values.forEach(v => {
+        if (!isNaN(v) && v > maxVal) maxVal = v;
+      });
+    });
+
+    if (maxVal === 0) maxVal = 100;
+    else maxVal = Math.ceil(maxVal * Y_MAX_MARGIN_RATIO);
+
+    // 绘制 Y 轴网格线和标签
+    this._renderYAxis(container, padding, plotW, plotH, maxVal);
+
+    const categories = options.series[0]?.categories || [];
+    const numCats = categories.length;
+    if (numCats === 0) return;
+
+    const catW = plotW / numCats;
+
+    // 1. 先绘制柱状图系列
+    if (barSeries.length > 0) {
+      const numBarSeries = barSeries.length;
+      const groupW = catW * (1 - BAR_GROUP_GAP_RATIO);
+      const barGap = numBarSeries > 1 ? (groupW * 0.15) / (numBarSeries - 1) : 0;
+      const barW = (groupW - barGap * (numBarSeries - 1)) / numBarSeries;
+      const groupStartOffset = catW * (BAR_GROUP_GAP_RATIO / 2);
+
+      barSeries.forEach((series, si) => {
+        const color = series.fillColor
+          ? this.styleResolver.resolveColor(series.fillColor)
+          : OFFICE_THEME_COLORS[series.index % OFFICE_THEME_COLORS.length];
+
+        series.values.forEach((val, ci) => {
+          const safeVal = isNaN(val) ? 0 : val;
+          const barH = (safeVal / maxVal) * plotH;
+          const x = padding.left + ci * catW + groupStartOffset + si * (barW + barGap);
+          const y = padding.top + (plotH - barH);
+
+          if (barH > 0) {
+            const bar = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            bar.setAttribute('x', String(x));
+            bar.setAttribute('y', String(y));
+            bar.setAttribute('width', String(barW));
+            bar.setAttribute('height', String(barH));
+            bar.setAttribute('fill', color);
+            bar.setAttribute('stroke', DEFAULT_COLORS.white);
+            bar.setAttribute('stroke-width', '0.5');
+            container.appendChild(bar);
+          }
+        });
+      });
+    }
+
+    // 2. 再绘制折线图系列
+    if (lineSeries.length > 0) {
+      lineSeries.forEach(series => {
+        const color = series.fillColor
+          ? this.styleResolver.resolveColor(series.fillColor)
+          : OFFICE_THEME_COLORS[series.index % OFFICE_THEME_COLORS.length];
+        const points: { x: number; y: number }[] = [];
+
+        series.values.forEach((val, ci) => {
+          const safeVal = isNaN(val) ? 0 : val;
+          // 数据点在每个类别的中心位置
+          const x = padding.left + ci * catW + catW / 2;
+          const y = padding.top + plotH - (safeVal / maxVal) * plotH;
+          points.push({ x, y });
+        });
+
+        // 绘制折线
+        if (points.length > 1) {
+          const pathD = points.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(' ');
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', pathD);
+          path.setAttribute('fill', 'none');
+          path.setAttribute('stroke', color);
+          path.setAttribute('stroke-width', '2.5');
+          path.setAttribute('stroke-linejoin', 'round');
+          container.appendChild(path);
+        }
+
+        // 绘制数据点标记
+        points.forEach(p => {
+          const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          circle.setAttribute('cx', String(p.x));
+          circle.setAttribute('cy', String(p.y));
+          circle.setAttribute('r', '4');
+          circle.setAttribute('fill', color);
+          circle.setAttribute('stroke', DEFAULT_COLORS.white);
+          circle.setAttribute('stroke-width', '1.5');
+          container.appendChild(circle);
+        });
+      });
+    }
+
+    // 绘制 X 轴
+    this._renderXAxis(container, padding, plotW, plotH, categories, catW);
+
+    // 绘制图例（混合显示柱状图和折线图图例）
+    this._renderComboLegend(container, options.series, padding.left, plotW, rect.h);
   }
 
   /**
@@ -516,6 +651,67 @@ export class ChartRenderer {
       legendText.setAttribute('fill', DEFAULT_COLORS.labelText);
       const maxChars = Math.floor((itemW - 20) / 5);
       legendText.textContent = cat.length > maxChars ? cat.substring(0, maxChars) + '..' : cat;
+      container.appendChild(legendText);
+    });
+  }
+
+  /**
+   * 渲染混合图表图例
+   */
+  private _renderComboLegend(
+    container: SVGElement,
+    series: ChartSeriesData[],
+    paddingLeft: number,
+    plotW: number,
+    rectH: number
+  ): void {
+    const numSeries = series.length;
+    const legendY = rectH - 15;
+    const seriesW = 80;
+    const totalLegendW = numSeries * seriesW;
+    const legendStartX = paddingLeft + (plotW - totalLegendW) / 2;
+
+    series.forEach((s, si) => {
+      const color = s.fillColor
+        ? this.styleResolver.resolveColor(s.fillColor)
+        : OFFICE_THEME_COLORS[s.index % OFFICE_THEME_COLORS.length];
+      const x = legendStartX + si * seriesW;
+      const isLine = s.chartType === 'line';
+
+      if (isLine) {
+        // 折线图例
+        const legendLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        legendLine.setAttribute('x1', String(x));
+        legendLine.setAttribute('y1', String(legendY - 4));
+        legendLine.setAttribute('x2', String(x + 12));
+        legendLine.setAttribute('y2', String(legendY - 4));
+        legendLine.setAttribute('stroke', color);
+        legendLine.setAttribute('stroke-width', '2');
+        container.appendChild(legendLine);
+
+        const legendCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        legendCircle.setAttribute('cx', String(x + 6));
+        legendCircle.setAttribute('cy', String(legendY - 4));
+        legendCircle.setAttribute('r', '3');
+        legendCircle.setAttribute('fill', color);
+        container.appendChild(legendCircle);
+      } else {
+        // 柱状图例
+        const legendRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        legendRect.setAttribute('x', String(x));
+        legendRect.setAttribute('y', String(legendY - 8));
+        legendRect.setAttribute('width', '10');
+        legendRect.setAttribute('height', '10');
+        legendRect.setAttribute('fill', color);
+        container.appendChild(legendRect);
+      }
+
+      const legendText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      legendText.setAttribute('x', String(x + (isLine ? 16 : 14)));
+      legendText.setAttribute('y', String(legendY));
+      legendText.setAttribute('font-size', '10');
+      legendText.setAttribute('fill', DEFAULT_COLORS.labelText);
+      legendText.textContent = s.name || `Series ${si + 1}`;
       container.appendChild(legendText);
     });
   }

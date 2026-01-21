@@ -53,6 +53,17 @@ export class VmlParser {
    */
   private static parseShape(node: Element, type: string): Drawing | null {
     const id = node.getAttribute('id') || '';
+    const shapeType = node.getAttribute('type') || '';
+
+    // 检测并跳过水印形状
+    // 水印通常有以下特征：
+    // 1. id 包含 "WaterMark" (如 "PowerPlusWaterMarkObject16866167")
+    // 2. type 为 "#_x0000_t136"，这是 TextPath 类型，用于艺术字/水印文字
+    if (id.toLowerCase().includes('watermark') || shapeType === '#_x0000_t136') {
+      log.debug(`跳过水印形状: id=${id}, type=${shapeType}`);
+      return null;
+    }
+
     const style = node.getAttribute('style') || '';
     const styles = this.parseStyle(style);
 

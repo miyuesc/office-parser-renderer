@@ -3,30 +3,42 @@
  *
  * 将 XLSX 单元格样式转换为 CSS 样式
  */
-import { ColorUtils } from '@ai-space/shared';
+import { ColorUtils, FontManager, AlignmentStyles, BorderStyles, DEFAULT_FONT_SIZE_PT } from '@ai-space/shared';
 import { XlsxWorkbook, XlsxColor } from '../types';
 
+/**
+ * 单元格样式工具类
+ */
 export class CellStyleUtils {
   /**
    * 获取单元格的 CSS 样式
    *
    * @param workbook - 工作簿对象
    * @param styleIndex - 样式索引
-   * @returns CSS 样式对象
+   * @returns CSS 样式对象和字体 CSS 类名
    */
-  static getCss(workbook: XlsxWorkbook, styleIndex?: number): Partial<CSSStyleDeclaration> {
-    if (styleIndex === undefined) return {};
+  static getCss(
+    workbook: XlsxWorkbook,
+    styleIndex?: number
+  ): { css: Partial<CSSStyleDeclaration>; fontClassName?: string } {
+    if (styleIndex === undefined) return { css: {} };
 
     const xf = workbook.styles.cellXfs[styleIndex];
-    if (!xf) return {};
+    if (!xf) return { css: {} };
 
-    const css: any = {};
+    const css: Record<string, string> = {};
+    let fontClassName: string | undefined;
 
-    // 字体
+    // 字体 - 使用 FontManager
     const font = workbook.styles.fonts[xf.fontId];
     if (font) {
-      css.fontFamily = font.name || 'Calibri';
-      css.fontSize = (font.sz || 11) + 'pt';
+      const fontName = font.name || 'Calibri';
+      // 使用 FontManager 获取带降级的字体族
+      css.fontFamily = FontManager.getFontFamily(fontName);
+      // 获取 CSS 类名
+      fontClassName = FontManager.getFontClassName(fontName);
+
+      css.fontSize = (font.sz || DEFAULT_FONT_SIZE_PT) + 'pt';
       if (font.b) css.fontWeight = 'bold';
       if (font.i) css.fontStyle = 'italic';
       if (font.u) css.textDecoration = 'underline';
@@ -39,52 +51,21 @@ export class CellStyleUtils {
     // 填充
     const fill = workbook.styles.fills[xf.fillId];
     if (fill) {
-      // 检查图案类型
-      if (fill.patternType === 'none') {
-        // 无背景
-      } else {
+      if (fill.patternType !== 'none') {
         const fg = this.resolveColor(fill.fgColor, workbook);
-        // 对于纯色填充，fgColor 就是颜色
         if (fg) css.backgroundColor = fg;
-        else if (fill.bgColor) css.backgroundColor = this.resolveColor(fill.bgColor, workbook);
+        else if (fill.bgColor) css.backgroundColor = this.resolveColor(fill.bgColor, workbook) || '';
       }
     }
 
-    // 对齐（为了健壮性放宽检查，忽略 applyAlignment）
+    // 对齐 - 使用 AlignmentStyles
     if (xf.alignment) {
-      // 水平对齐
       if (xf.alignment.horizontal) {
-        switch (xf.alignment.horizontal) {
-          case 'center':
-            css.textAlign = 'center';
-            break;
-          case 'right':
-            css.textAlign = 'right';
-            break;
-          case 'justify':
-            css.textAlign = 'justify';
-            break;
-          default:
-            css.textAlign = 'left';
-        }
+        css.textAlign = AlignmentStyles.mapHorizontalAlignment(xf.alignment.horizontal);
       }
-      // 垂直对齐
       if (xf.alignment.vertical) {
-        switch (xf.alignment.vertical) {
-          case 'top':
-            css.verticalAlign = 'top';
-            break;
-          case 'center':
-            css.verticalAlign = 'middle';
-            break;
-          case 'bottom':
-            css.verticalAlign = 'bottom';
-            break;
-          default:
-            css.verticalAlign = 'bottom';
-        }
+        css.verticalAlign = AlignmentStyles.mapVerticalAlignment(xf.alignment.vertical, 'bottom');
       }
-      // 自动换行
       if (xf.alignment.wrapText) {
         css.whiteSpace = 'pre-wrap';
         css.wordWrap = 'break-word';
@@ -95,62 +76,57 @@ export class CellStyleUtils {
       css.whiteSpace = 'nowrap';
     }
 
-    // 边框
+    // 边框 - 使用 BorderStyles
     const border = workbook.styles.borders[xf.borderId];
     if (border) {
-      /**
-       * 获取边框 CSS 值
-       * @param side - 边框边对象
-       * @returns CSS 边框字符串
-       */
-      const getBorderCss = (side: any) => {
-        if (!side || side.style === 'none') return 'none';
-
-        let width = '1px';
-        let style = 'solid';
-
-        switch (side.style) {
-          case 'hair':
-            width = '1px'; // 细线
-            break;
-          case 'dotted':
-            style = 'dotted';
-            break;
-          case 'dashDot':
-          case 'dashDotDot':
-          case 'dashed':
-            style = 'dashed';
-            break;
-          case 'medium':
-            width = '2px';
-            break;
-          case 'mediumDashed':
-            width = '2px';
-            style = 'dashed';
-            break;
-          case 'thick':
-            width = '3px';
-            break;
-          case 'double':
-            width = '3px';
-            style = 'double';
-            break;
-          default:
-            width = '1px';
-            style = 'solid';
-        }
-
-        const color = this.resolveColor(side.color, workbook) || '#000000';
-        return `${width} ${style} ${color}`;
-      };
-
-      if (border.left) css.borderLeft = getBorderCss(border.left);
-      if (border.right) css.borderRight = getBorderCss(border.right);
-      if (border.top) css.borderTop = getBorderCss(border.top);
-      if (border.bottom) css.borderBottom = getBorderCss(border.bottom);
+      if (border.left) css.borderLeft = this.getBorderCss(border.left, workbook);
+      if (border.right) css.borderRight = this.getBorderCss(border.right, workbook);
+      if (border.top) css.borderTop = this.getBorderCss(border.top, workbook);
+      if (border.bottom) css.borderBottom = this.getBorderCss(border.bottom, workbook);
     }
 
-    return css;
+    return { css: css as Partial<CSSStyleDeclaration>, fontClassName };
+  }
+
+  /**
+   * 获取边框 CSS 值
+   *
+   * @param side - 边框边对象
+   * @param workbook - 工作簿对象
+   * @returns CSS 边框字符串
+   */
+  private static getBorderCss(side: { style?: string; color?: XlsxColor }, workbook: XlsxWorkbook): string {
+    if (!side || side.style === 'none') return 'none';
+
+    const style = BorderStyles.mapBorderStyle(side.style || 'thin');
+    const width = this.getBorderWidth(side.style || 'thin');
+    const color = this.resolveColor(side.color, workbook) || '#000000';
+
+    return `${width} ${style} ${color}`;
+  }
+
+  /**
+   * 根据边框类型获取边框宽度
+   *
+   * @param borderStyle - Excel 边框样式
+   * @returns CSS 宽度值
+   */
+  private static getBorderWidth(borderStyle: string): string {
+    switch (borderStyle) {
+      case 'hair':
+      case 'thin':
+        return '1px';
+      case 'medium':
+      case 'mediumDashed':
+      case 'mediumDashDot':
+      case 'mediumDashDotDot':
+        return '2px';
+      case 'thick':
+      case 'double':
+        return '3px';
+      default:
+        return '1px';
+    }
   }
 
   /**

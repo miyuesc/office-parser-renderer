@@ -744,6 +744,24 @@ export interface DrawingChart {
   cx: number;
   /** 高度 (EMU) */
   cy: number;
+  /** 图表类型 */
+  type?: 'barChart' | 'pieChart' | 'pie3DChart' | 'lineChart' | 'areaChart' | 'scatterChart' | 'comboChart' | 'other';
+  /** 图表标题 */
+  title?: string;
+  /** 数据系列 */
+  series?: Array<{
+    index: number;
+    name?: string;
+    categories: string[];
+    values: number[];
+    fillColor?: string;
+    /** 系列图表类型（用于混合图表） */
+    chartType?: 'bar' | 'line' | 'area' | 'scatter';
+  }>;
+  /** 柱状图方向 */
+  barDirection?: 'col' | 'bar';
+  /** 分组方式 */
+  grouping?: 'clustered' | 'stacked' | 'percentStacked';
 }
 
 /**

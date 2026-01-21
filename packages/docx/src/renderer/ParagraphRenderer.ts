@@ -6,11 +6,10 @@
  */
 
 import { Logger } from '../utils/Logger';
-import { UnitConverter } from '../utils/UnitConverter';
+import { UnitConverter, AlignmentStyles, BorderStyles, OMathRenderer, OMathNode } from '@ai-space/shared';
 import { RunRenderer, RunRenderContext } from './RunRenderer';
 import { DrawingRenderer } from './DrawingRenderer';
 import { ListCounter } from './ListCounter';
-import { OMathRenderer, OMathNode } from '@ai-space/shared';
 import type {
   Paragraph,
   ParagraphProperties,
@@ -147,9 +146,9 @@ export class ParagraphRenderer {
   static applyStyles(element: HTMLElement, props: ParagraphProperties, context?: ParagraphRenderContext): void {
     const style = element.style;
 
-    // 对齐方式
+    // 对齐方式 - 使用 AlignmentStyles
     if (props.alignment) {
-      style.textAlign = this.mapAlignment(props.alignment);
+      style.textAlign = AlignmentStyles.mapHorizontalAlignment(props.alignment);
     }
 
     // 缩进
@@ -162,7 +161,7 @@ export class ParagraphRenderer {
       this.applySpacing(style, props.spacing);
     }
 
-    // 边框
+    // 边框 - 使用 BorderStyles
     if (props.borders) {
       this.applyBorders(style, props.borders);
     }
@@ -194,23 +193,6 @@ export class ParagraphRenderer {
     if (props.rPr) {
       RunRenderer.applyStyles(element, props.rPr, context);
     }
-  }
-
-  /**
-   * 映射对齐方式
-   *
-   * @param alignment - 对齐方式
-   * @returns CSS text-align 值
-   */
-  private static mapAlignment(alignment: string): string {
-    const map: Record<string, string> = {
-      left: 'left',
-      center: 'center',
-      right: 'right',
-      both: 'justify',
-      distribute: 'justify'
-    };
-    return map[alignment] || 'left';
   }
 
   /**
@@ -278,7 +260,7 @@ export class ParagraphRenderer {
   }
 
   /**
-   * 应用边框样式
+   * 应用边框样式 - 使用 BorderStyles
    *
    * @param style - CSSStyleDeclaration
    * @param borders - 边框配置
@@ -287,74 +269,20 @@ export class ParagraphRenderer {
     if (!borders) return;
 
     if (borders.top) {
-      style.borderTop = this.formatBorder(borders.top);
+      style.borderTop = BorderStyles.formatBorder(borders.top);
     }
 
     if (borders.bottom) {
-      style.borderBottom = this.formatBorder(borders.bottom);
+      style.borderBottom = BorderStyles.formatBorder(borders.bottom);
     }
 
     if (borders.left) {
-      style.borderLeft = this.formatBorder(borders.left);
+      style.borderLeft = BorderStyles.formatBorder(borders.left);
     }
 
     if (borders.right) {
-      style.borderRight = this.formatBorder(borders.right);
+      style.borderRight = BorderStyles.formatBorder(borders.right);
     }
-  }
-
-  /**
-   * 格式化边框样式
-   *
-   * @param border - 边框配置
-   * @returns CSS border 属性值
-   */
-  private static formatBorder(border: { val: string; color?: string; sz?: number }): string {
-    const width = border.sz ? UnitConverter.eighthPointsToPixels(border.sz) : 1;
-    const color = border.color && border.color !== 'auto' ? `#${border.color}` : '#000000';
-    const styleType = this.mapBorderStyle(border.val);
-
-    return `${width}px ${styleType} ${color}`;
-  }
-
-  /**
-   * 映射边框样式
-   *
-   * @param val - 边框类型
-   * @returns CSS border-style 值
-   */
-  private static mapBorderStyle(val: string): string {
-    const map: Record<string, string> = {
-      single: 'solid',
-      thick: 'solid',
-      double: 'double',
-      dotted: 'dotted',
-      dashed: 'dashed',
-      dashSmallGap: 'dashed',
-      dotDash: 'dashed',
-      dotDotDash: 'dashed',
-      triple: 'solid',
-      thinThickSmallGap: 'double',
-      thickThinSmallGap: 'double',
-      thinThickThinSmallGap: 'double',
-      thinThickMediumGap: 'double',
-      thickThinMediumGap: 'double',
-      thinThickThinMediumGap: 'double',
-      thinThickLargeGap: 'double',
-      thickThinLargeGap: 'double',
-      thinThickThinLargeGap: 'double',
-      wave: 'solid',
-      doubleWave: 'solid',
-      dashDotStroked: 'dashed',
-      threeDEmboss: 'ridge',
-      threeDEngrave: 'groove',
-      outset: 'outset',
-      inset: 'inset',
-      nil: 'none',
-      none: 'none'
-    };
-
-    return map[val] || 'solid';
   }
 
   /**

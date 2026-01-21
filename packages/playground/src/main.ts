@@ -7,6 +7,78 @@ const fileInput = document.getElementById('fileInput') as HTMLInputElement;
 const container = document.getElementById('container') as HTMLElement;
 const status = document.getElementById('status') as HTMLSpanElement;
 const galleryBtn = document.getElementById('galleryBtn') as HTMLButtonElement;
+const loadDocxBtn = document.getElementById('loadDocxBtn') as HTMLButtonElement;
+const loadXlsxBtn = document.getElementById('loadXlsxBtn') as HTMLButtonElement;
+
+// 测试文档路径
+const TEST_DOCX_PATH = '/' + encodeURIComponent('测试docx.docx');
+const TEST_XLSX_PATH = '/' + encodeURIComponent('测试xlsx.xlsx');
+
+/**
+ * 加载并渲染 DOCX 文档
+ * @param url - 文档 URL
+ */
+async function loadDocx(url: string) {
+  status.textContent = 'Loading DOCX...';
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const buf = await res.arrayBuffer();
+
+    console.group('DOCX Load Process');
+    console.log('Parsing DOCX...');
+    const parser = new DocxParser();
+    const doc = await parser.parse(buf);
+    console.log('DOCX AST:', doc);
+
+    const renderer = new DocxRenderer(container, {
+      enablePagination: true,
+      useDocumentBackground: true,
+      useDocumentWatermark: true
+    });
+    await renderer.render(doc);
+    console.log('Render Complete');
+    console.groupEnd();
+
+    status.textContent = 'DOCX Rendered!';
+  } catch (err: any) {
+    console.error('DOCX load error:', err);
+    status.textContent = 'Error: ' + err.message;
+  }
+}
+
+/**
+ * 加载并渲染 XLSX 文档
+ * @param url - 文档 URL
+ */
+async function loadXlsx(url: string) {
+  status.textContent = 'Loading XLSX...';
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const buf = await res.arrayBuffer();
+
+    console.group('XLSX Load Process');
+    console.log('Parsing XLSX...');
+    const parser = new XlsxParser();
+    const doc = await parser.parse(buf);
+    console.log('XLSX AST:', doc);
+
+    const renderer = new XlsxRenderer(container);
+    await renderer.render(doc);
+    console.log('Render Complete');
+    console.groupEnd();
+
+    status.textContent = 'XLSX Rendered!';
+  } catch (err: any) {
+    console.error('XLSX load error:', err);
+    status.textContent = 'Error: ' + err.message;
+  }
+}
+
+// 快捷切换按钮事件
+loadDocxBtn.addEventListener('click', () => loadDocx(TEST_DOCX_PATH));
+loadXlsxBtn.addEventListener('click', () => loadXlsx(TEST_XLSX_PATH));
 
 galleryBtn.addEventListener('click', () => {
   status.textContent = 'Rendering Shape Gallery...';
@@ -14,6 +86,7 @@ galleryBtn.addEventListener('click', () => {
   status.textContent = 'Gallery Loaded';
 });
 
+// 文件选择事件
 fileInput.addEventListener('change', async e => {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
@@ -29,9 +102,9 @@ fileInput.addEventListener('change', async e => {
       console.log('DOCX AST:', doc);
 
       const renderer = new DocxRenderer(container, {
-        enablePagination: true, // 启用分页
-        useDocumentBackground: true, // 默认使用文档解析的背景色
-        useDocumentWatermark: true // 默认使用文档解析的水印
+        enablePagination: true,
+        useDocumentBackground: true,
+        useDocumentWatermark: true
       });
       await renderer.render(doc);
     } else if (name.endsWith('.pptx')) {
@@ -74,50 +147,5 @@ fileInput.addEventListener('change', async e => {
   }
 });
 
-// Auto-load test file
-(async () => {
-  try {
-    console.log('Fetching test file...');
-    // 1. xlsx (uncomment to test xlsx)
-    // const res = await fetch('/' + encodeURIComponent('测试xlsx.xlsx'));
-    // if (res.ok) {
-    //   const buf = await res.arrayBuffer();
-    //   const { XlsxParser, XlsxRenderer } = await import('@ai-space/xlsx');
-    //   console.group('Auto-Load Process');
-    //   console.log('Parsing XLSX...');
-    //   const parser = new XlsxParser();
-    //   const doc = await parser.parse(buf);
-    //   console.log('XLSX AST:', doc);
-    //   const renderer = new XlsxRenderer(container);
-    //   await renderer.render(doc);
-    //   console.log('Render Complete');
-    //   console.groupEnd();
-    // }
-
-    // 2. docx
-    const res = await fetch('/' + encodeURIComponent('测试docx.docx'));
-    if (res.ok) {
-      const buf = await res.arrayBuffer();
-      const { DocxParser, DocxRenderer } = await import('@ai-space/docx');
-
-      console.group('Auto-Load Process');
-      console.log('Parsing DOCX...');
-      const parser = new DocxParser();
-      const doc = await parser.parse(buf);
-      console.log('DOCX AST:', doc);
-
-      const renderer = new DocxRenderer(container, {
-        enablePagination: true,
-        useDocumentBackground: true,
-        useDocumentWatermark: true
-      });
-      await renderer.render(doc);
-      console.log('Render Complete');
-      console.groupEnd();
-    } else {
-      console.error('Failed to fetch /测试docx.docx', res.status, res.statusText);
-    }
-  } catch (e) {
-    console.error('Auto-load failed', e);
-  }
-})();
+// 自动加载默认测试文档 (DOCX)
+loadDocx(TEST_DOCX_PATH);

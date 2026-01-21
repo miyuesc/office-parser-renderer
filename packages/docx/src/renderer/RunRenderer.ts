@@ -6,8 +6,8 @@
  */
 
 import { Logger } from '../utils/Logger';
-import { UnitConverter } from '../utils/UnitConverter';
-import type { Run, RunProperties, UnderlineStyle, DocxStyles, DocxTheme } from '../types';
+import { FontManager, UnitConverter, TextStyles } from '@ai-space/shared';
+import type { Run, RunProperties, DocxStyles, DocxTheme } from '../types';
 
 const log = Logger.createTagged('RunRenderer');
 
@@ -82,10 +82,13 @@ export class RunRenderer {
   static applyStyles(element: HTMLElement, props: RunProperties, context?: RunRenderContext): void {
     const style = element.style;
 
-    // 字体
-    const fontFamily = this.getFontFamily(props, context);
-    if (fontFamily) {
-      style.fontFamily = fontFamily;
+    // 字体 - 使用 FontManager 获取字体族和添加 CSS 类名
+    const fontInfo = this.getFontInfo(props, context);
+    if (fontInfo.fontFamily) {
+      style.fontFamily = fontInfo.fontFamily;
+    }
+    if (fontInfo.className) {
+      element.classList.add(fontInfo.className);
     }
 
     // 字号
@@ -104,9 +107,10 @@ export class RunRenderer {
       style.fontStyle = 'italic';
     }
 
-    // 下划线
+    // 下划线 - 使用 TextStyles
     if (props.underline) {
-      style.textDecoration = this.getTextDecoration(props);
+      const underlineType = props.underline.val || 'single';
+      style.textDecoration = TextStyles.getTextDecoration(underlineType);
       const underlineColor = props.underline.color;
       if (underlineColor && underlineColor !== 'auto') {
         style.textDecorationColor = `#${underlineColor}`;
@@ -127,9 +131,9 @@ export class RunRenderer {
       style.color = `#${props.color}`;
     }
 
-    // 高亮
+    // 高亮 - 使用 TextStyles
     if (props.highlight) {
-      const bgColor = this.getHighlightColor(props.highlight);
+      const bgColor = TextStyles.getHighlightColor(props.highlight);
       if (bgColor) {
         style.backgroundColor = bgColor;
       }
@@ -140,13 +144,15 @@ export class RunRenderer {
       style.backgroundColor = `#${props.shading.fill}`;
     }
 
-    // 上标/下标
-    if (props.vertAlign === 'superscript') {
-      style.verticalAlign = 'super';
-      style.fontSize = '0.75em';
-    } else if (props.vertAlign === 'subscript') {
-      style.verticalAlign = 'sub';
-      style.fontSize = '0.75em';
+    // 上标/下标 - 使用 TextStyles
+    if (props.vertAlign) {
+      const verticalAlign = TextStyles.getVerticalAlign(props.vertAlign);
+      if (verticalAlign) {
+        style.verticalAlign = verticalAlign;
+        if (props.vertAlign === 'superscript' || props.vertAlign === 'subscript') {
+          style.fontSize = '0.75em';
+        }
+      }
     }
 
     // 字符间距
@@ -157,9 +163,9 @@ export class RunRenderer {
 
     // 位置偏移
     if (props.position) {
-      const positionPx = UnitConverter.halfPointsToPoints(props.position);
+      const positionPt = UnitConverter.halfPointsToPoints(props.position);
       style.position = 'relative';
-      style.top = `${-positionPx}pt`;
+      style.top = `${-positionPt}pt`;
     }
 
     // 隐藏文本
@@ -167,14 +173,20 @@ export class RunRenderer {
       style.display = 'none';
     }
 
-    // 小型大写
+    // 小型大写 - 使用 TextStyles
     if (props.smallCaps) {
-      style.fontVariant = 'small-caps';
+      const fontVariant = TextStyles.getFontVariant(props.smallCaps);
+      if (fontVariant) {
+        style.fontVariant = fontVariant;
+      }
     }
 
-    // 全大写
+    // 全大写 - 使用 TextStyles
     if (props.caps) {
-      style.textTransform = 'uppercase';
+      const textTransform = TextStyles.getTextTransform(props.caps);
+      if (textTransform) {
+        style.textTransform = textTransform;
+      }
     }
 
     // 缩放
@@ -183,9 +195,14 @@ export class RunRenderer {
       style.display = 'inline-block';
     }
 
-    // 浮雕/印记/轮廓/阴影效果
+    // 浮雕/印记/轮廓/阴影效果 - 使用 TextStyles
     if (props.emboss || props.imprint || props.outline || props.shadow) {
-      const textShadow = this.getTextEffects(props);
+      const textShadow = TextStyles.getTextEffects({
+        shadow: props.shadow,
+        emboss: props.emboss,
+        imprint: props.imprint,
+        outline: props.outline
+      });
       if (textShadow) {
         style.textShadow = textShadow;
       }
@@ -196,10 +213,8 @@ export class RunRenderer {
       if (props.textFill.type === 'gradient' && props.textFill.gradient) {
         // CSS Gradient Text
         const gradient = props.textFill.gradient;
-        const angle = gradient.angle ? gradient.angle / 60000 : 90; // default 90?
-        // Convert stops to CSS
+        const angle = gradient.angle ? gradient.angle / 60000 : 90;
         const stops = gradient.stops.map(s => `#${s.color} ${s.position * 100}%`).join(', ');
-        // Simple Linear Gradient approximation
         style.backgroundImage = `linear-gradient(${angle}deg, ${stops})`;
         style.webkitBackgroundClip = 'text';
         style.backgroundClip = 'text';
@@ -220,46 +235,41 @@ export class RunRenderer {
   }
 
   /**
-   * 获取字体族
+   * 获取字体信息（font-family 和 CSS 类名）
    *
    * @param props - 运行属性
    * @param context - 渲染上下文
-   * @returns 字体族字符串
+   * @returns 字体信息对象
    */
-  private static getFontFamily(props: RunProperties, context?: RunRenderContext): string | null {
+  private static getFontInfo(
+    props: RunProperties,
+    context?: RunRenderContext
+  ): { fontFamily: string | null; className: string | null } {
     const fonts = props.fonts;
     if (!fonts) {
-      return context?.defaultFont || null;
+      const defaultFont = context?.defaultFont;
+      if (defaultFont) {
+        return {
+          fontFamily: FontManager.getFontFamily(defaultFont),
+          className: FontManager.getFontClassName(defaultFont)
+        };
+      }
+      return { fontFamily: null, className: null };
     }
 
-    // 优先使用东亚字体（中文环境）
-    const parts: string[] = [];
+    // 使用 FontManager 获取字体族（包含降级）
+    const fontFamily = FontManager.getFontFamilyFromProps({
+      ascii: fonts.ascii,
+      eastAsia: fonts.eastAsia,
+      hAnsi: fonts.hAnsi,
+      cs: fonts.cs
+    });
 
-    if (fonts.eastAsia) {
-      parts.push(`"${fonts.eastAsia}"`);
-    }
+    // 获取主字体的 CSS 类名（优先东亚字体）
+    const primaryFont = fonts.eastAsia || fonts.ascii || fonts.hAnsi;
+    const className = primaryFont ? FontManager.getFontClassName(primaryFont) : null;
 
-    if (fonts.ascii) {
-      parts.push(`"${fonts.ascii}"`);
-    }
-
-    if (fonts.hAnsi && fonts.hAnsi !== fonts.ascii) {
-      parts.push(`"${fonts.hAnsi}"`);
-    }
-
-    if (fonts.cs && fonts.cs !== fonts.ascii) {
-      parts.push(`"${fonts.cs}"`);
-    }
-
-    // 添加默认字体
-    if (context?.defaultFont) {
-      parts.push(`"${context.defaultFont}"`);
-    }
-
-    // 添加通用字体族
-    parts.push('sans-serif');
-
-    return parts.join(', ');
+    return { fontFamily, className };
   }
 
   /**
@@ -275,97 +285,6 @@ export class RunRenderer {
       return UnitConverter.halfPointsToPoints(props.size);
     }
     return context?.defaultFontSize || null;
-  }
-
-  /**
-   * 获取文本装饰
-   *
-   * @param props - 运行属性
-   * @returns CSS text-decoration 值
-   */
-  private static getTextDecoration(props: RunProperties): string {
-    if (!props.underline) return 'none';
-
-    const underlineType = props.underline.val;
-
-    // 映射下划线类型到 CSS
-    const styleMap: Record<string, string> = {
-      single: 'underline',
-      words: 'underline', // CSS 不支持仅单词下划线
-      double: 'underline',
-      thick: 'underline',
-      dotted: 'underline dotted',
-      dottedHeavy: 'underline dotted',
-      dash: 'underline dashed',
-      dashedHeavy: 'underline dashed',
-      dashLong: 'underline dashed',
-      dashLongHeavy: 'underline dashed',
-      dotDash: 'underline dashed',
-      dashDotHeavy: 'underline dashed',
-      dotDotDash: 'underline dashed',
-      dashDotDotHeavy: 'underline dashed',
-      wave: 'underline wavy',
-      wavyHeavy: 'underline wavy',
-      wavyDouble: 'underline wavy'
-    };
-
-    return styleMap[underlineType] || 'underline';
-  }
-
-  /**
-   * 获取高亮颜色
-   *
-   * @param highlight - 高亮类型
-   * @returns CSS 颜色值
-   */
-  private static getHighlightColor(highlight: string): string | null {
-    const colorMap: Record<string, string> = {
-      yellow: '#FFFF00',
-      green: '#00FF00',
-      cyan: '#00FFFF',
-      magenta: '#FF00FF',
-      blue: '#0000FF',
-      red: '#FF0000',
-      darkBlue: '#000080',
-      darkCyan: '#008080',
-      darkGreen: '#008000',
-      darkMagenta: '#800080',
-      darkRed: '#800000',
-      darkYellow: '#808000',
-      darkGray: '#808080',
-      lightGray: '#C0C0C0',
-      black: '#000000'
-    };
-
-    return colorMap[highlight] || null;
-  }
-
-  /**
-   * 获取文本效果
-   *
-   * @param props - 运行属性
-   * @returns CSS text-shadow 值
-   */
-  private static getTextEffects(props: RunProperties): string | null {
-    const shadows: string[] = [];
-
-    if (props.shadow) {
-      shadows.push('1px 1px 2px rgba(0,0,0,0.3)');
-    }
-
-    if (props.emboss) {
-      shadows.push('-1px -1px 0 #fff, 1px 1px 0 #000');
-    }
-
-    if (props.imprint) {
-      shadows.push('1px 1px 0 #fff, -1px -1px 0 #000');
-    }
-
-    if (props.outline) {
-      shadows.push('0 0 1px currentColor');
-    }
-
-    return shadows.length > 0 ? shadows.join(', ') : null;
   }
 
   /**

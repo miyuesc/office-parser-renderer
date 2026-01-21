@@ -10,7 +10,7 @@ import {
 import { CellStyleUtils } from './CellStyleUtils';
 import { NumberFormatUtils } from '../utils/NumberFormatUtils';
 // 虽然没有被显式使用，但这是预设路径生成逻辑的导入，保留以防未来需要直接调用
-import { generatePresetPath } from '@ai-space/shared';
+import { generatePresetPath, FontManager } from '@ai-space/shared';
 
 // 导入拆分的子模块
 import { StyleResolver, RenderContext } from './StyleResolver';
@@ -335,8 +335,12 @@ export class XlsxRenderer {
 
           // --- 应用单元格样式 ---
           if (this.workbook && cell.styleIndex !== undefined) {
-            const css = CellStyleUtils.getCss(this.workbook, cell.styleIndex);
+            const { css, fontClassName } = CellStyleUtils.getCss(this.workbook, cell.styleIndex);
             Object.assign(td.style, css);
+            // 添加字体 CSS 类名
+            if (fontClassName) {
+              td.classList.add(fontClassName);
+            }
           }
         }
 
@@ -621,6 +625,9 @@ export class XlsxRenderer {
    * 使用命名空间隔离，避免与 DOCX 样式冲突
    */
   private injectStyles(): void {
+    // 注入字体 CSS 样式
+    FontManager.injectFontStyles();
+
     const styleId = 'xlsx-renderer-styles';
 
     // 检查是否已注入
