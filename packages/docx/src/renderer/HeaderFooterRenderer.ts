@@ -224,7 +224,7 @@ export class HeaderFooterRenderer {
     isEvenOddDifferent: boolean = false
   ): DocxHeaderFooter | undefined {
     // 首页
-    if (pageIndex === 0 && section.titlePg && section.firstHeader) {
+    if (pageIndex === 0 && section.titlePg) {
       return section.firstHeader;
     }
 
@@ -251,7 +251,7 @@ export class HeaderFooterRenderer {
     isEvenOddDifferent: boolean = false
   ): DocxHeaderFooter | undefined {
     // 首页
-    if (pageIndex === 0 && section.titlePg && section.firstFooter) {
+    if (pageIndex === 0 && section.titlePg) {
       return section.firstFooter;
     }
 

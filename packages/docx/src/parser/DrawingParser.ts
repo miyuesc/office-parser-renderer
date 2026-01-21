@@ -107,7 +107,7 @@ export class DrawingParser {
     }
 
     // 解析锚定属性
-    // TODO: 解析 simplePos, positionH, positionV, wrap 等
+    drawing.position = this.parseAnchorPosition(node);
 
     // 解析图形内容
     const graphic = XmlUtils.query(node, 'a\\:graphic, graphic');
@@ -143,8 +143,8 @@ export class DrawingParser {
       // 形状
       drawing.shape = this.parseShape(graphicData, cx, cy);
     } else if (uri.includes('wordprocessingGroup')) {
-      // 组合，尝试解析为形状（组合中可能包含多个形状）
-      drawing.shape = this.parseGroup(graphicData, cx, cy);
+      // 组合，尝试解析为形状或图片（组合中可能包含多个形状）
+      this.parseGroupContent(graphicData, drawing, cx, cy);
     } else {
       log.debug(`未知的图形类型: ${uri}`);
     }
@@ -291,27 +291,48 @@ export class DrawingParser {
   }
 
   /**
-   * 解析组合元素
+   * 解析组合元素内容
    *
    * @param node - graphicData 元素
+   * @param drawing - Drawing 对象
    * @param cx - 宽度 (EMU)
    * @param cy - 高度 (EMU)
-   * @returns DrawingShape 对象（组合作为整体形状的占位符）
    */
-  private static parseGroup(node: Element, cx: number, cy: number): DrawingShape | undefined {
-    // 组合元素 (wpg:wgp) 包含多个形状，目前简化处理为单个占位符
-    // TODO: 完整实现应解析每个子形状并组合渲染
+  private static parseGroupContent(node: Element, drawing: Drawing, cx: number, cy: number): void {
     const wgp = node.querySelector('wpg\\:wgp, wgp');
 
     if (wgp) {
-      // 尝试提取第一个形状
+      // 1. 检查是否有图片 (pic:pic)
+      const pic = wgp.querySelector('pic\\:pic, pic');
+      if (pic) {
+        // 提取图片
+        // 注意：pic 元素的结构与 parsePicture 中的 graphicData 不同
+        // pic:pic -> pic:blipFill -> a:blip
+        const blipFill = pic.querySelector('pic\\:blipFill, blipFill');
+        if (blipFill) {
+          const blip = blipFill.querySelector('a\\:blip, blip');
+          if (blip) {
+            const embedId = blip.getAttribute('r:embed') || blip.getAttribute('r:link');
+            if (embedId) {
+              drawing.image = {
+                embedId,
+                cx,
+                cy
+              };
+              return;
+            }
+          }
+        }
+      }
+
+      // 2. 尝试提取第一个形状
       const firstWsp = wgp.querySelector('wps\\:wsp, wsp');
       if (firstWsp) {
         // 创建包含第一个形状的结果
         const spPr = firstWsp.querySelector('wps\\:spPr, spPr');
         if (spPr) {
           const props = DrawingMLParser.parseShapeProperties(spPr);
-          return {
+          drawing.shape = {
             id: '',
             cx,
             cy,
@@ -323,12 +344,13 @@ export class DrawingParser {
                 }
               : { type: 'solid', color: 'cccccc' }
           };
+          return;
         }
       }
     }
 
     // 回退：返回一个基本占位符
-    return {
+    drawing.shape = {
       id: '',
       cx,
       cy,

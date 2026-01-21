@@ -127,7 +127,10 @@ export class DocxRenderer {
     context: ParagraphRenderContext
   ): DocxRenderResult {
     // 创建页面容器
-    const pageContainer = this.createPageContainer(pageConfig, section);
+    const isCover = true; // For single page mode, we treat it as cover if it's the only page, or just apply logic
+    // Actually single page mode usually means just one long page or just testing.
+    // But if we want to support "cover page" logic, we should probably treat it as cover.
+    const pageContainer = this.createPageContainer(pageConfig, section, this.currentDoc?.background, true);
     this.container.appendChild(pageContainer);
 
     // 渲染水印层（在内容下方）
@@ -237,7 +240,8 @@ export class DocxRenderer {
       const currentPageConfig = this.resolvePageConfig(currentSection);
 
       // 创建页面容器
-      const pageContainer = this.createPageContainer(currentPageConfig, currentSection);
+      const isCover = pageIndex === 0;
+      const pageContainer = this.createPageContainer(currentPageConfig, currentSection, doc.background, isCover);
       this.container.appendChild(pageContainer);
 
       // 渲染水印层
@@ -410,15 +414,27 @@ export class DocxRenderer {
    *
    * @param config - 页面配置
    * @param section - 可选的分节配置（用于获取背景色等）
+   * @param docBackground - 文档背景色
+   * @param isCover - 是否为封面页
    * @returns HTMLElement
    */
-  private createPageContainer(config: ResolvedPageConfig, section?: DocxSection): HTMLElement {
+  private createPageContainer(
+    config: ResolvedPageConfig,
+    section?: DocxSection,
+    docBackground?: string,
+    isCover: boolean = false
+  ): HTMLElement {
     const page = document.createElement('div');
-    page.className = 'docx-page';
+    page.className = 'docx-page'; // Add docx-cover if isCover?
 
     const style = page.style;
     style.width = `${config.width}pt`;
-    style.minHeight = `${config.height}pt`;
+    style.height = `${config.height}pt`; // Fixed height
+    // style.minHeight = `${config.height}pt`; // Removed minHeight
+
+    // 封面页超出隐藏，非封面页正常显示但固定大小
+    style.overflow = isCover ? 'hidden' : 'visible';
+
     style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
     style.position = 'relative';
     style.boxSizing = 'border-box';
@@ -426,9 +442,11 @@ export class DocxRenderer {
 
     // 应用背景色
     // 优先使用 API 设置的值，其次使用文档解析的值（如果启用）
+    // Section background > Document background
     const bgColor =
       this.options.backgroundColor ||
-      (this.options.useDocumentBackground !== false ? section?.backgroundColor : undefined);
+      (this.options.useDocumentBackground !== false ? section?.backgroundColor || docBackground : undefined);
+
     style.backgroundColor = bgColor || 'white';
 
     // 应用缩放
@@ -491,7 +509,10 @@ export class DocxRenderer {
     style.paddingBottom = `${config.margins.bottom}pt`;
     style.paddingLeft = `${config.margins.left}pt`;
     style.boxSizing = 'border-box';
-    style.minHeight = `${config.height}pt`;
+    // Content area should not constrain height if overflow is visible,
+    // but the page container is fixed.
+    // style.minHeight = `${config.height}pt`;
+    style.height = '100%'; // Match page height
 
     // 处理分栏
     if (section?.columns && section.columns.num > 1) {

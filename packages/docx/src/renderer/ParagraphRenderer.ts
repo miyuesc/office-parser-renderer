@@ -18,7 +18,10 @@ import type {
   NumberingDefinition,
   DocxDocument,
   Drawing,
-  OMathElement
+  Drawing,
+  OMathElement,
+  InsertedText,
+  DeletedText
 } from '../types';
 
 const log = Logger.createTagged('ParagraphRenderer');
@@ -129,6 +132,13 @@ export class ParagraphRenderer {
           return OMathRenderer.render(omathChild.node as OMathNode);
         }
         return null;
+
+      case 'insertedText':
+        return this.renderInsertedText(child as InsertedText, context);
+
+      case 'deletedText':
+        // User requested tracking attributes even if hidden
+        return this.renderDeletedText(child as DeletedText, context);
 
       default:
         log.debug(`未处理的子元素类型: ${(child as ParagraphChild).type}`);
@@ -382,6 +392,44 @@ export class ParagraphRenderer {
       span.textContent = field.result || `[${field.fieldType}]`;
     }
 
+    return span;
+  }
+  /**
+   * 渲染新增文本 (修订)
+   */
+  private static renderInsertedText(node: InsertedText, context?: ParagraphRenderContext): HTMLElement {
+    const span = document.createElement('span');
+    span.className = 'docx-ins';
+    span.setAttribute('data-track-changes', 'insert');
+    if (node.author) span.setAttribute('data-author', node.author);
+    if (node.date) span.setAttribute('data-date', node.date);
+
+    // 默认样式：颜色通常由 CSS 控制，这里也可以简单设置
+    // span.style.textDecoration = 'underline'; // User requested no default underline
+
+    for (const child of node.children) {
+      const el = this.renderChild(child, context);
+      if (el) span.appendChild(el);
+    }
+    return span;
+  }
+
+  /**
+   * 渲染删除文本 (修订)
+   */
+  private static renderDeletedText(node: DeletedText, context?: ParagraphRenderContext): HTMLElement {
+    const span = document.createElement('span');
+    span.className = 'docx-del';
+    // 默认隐藏，但保留 DOM 以供查看
+    span.style.display = 'none';
+    span.setAttribute('data-track-changes', 'delete');
+    if (node.author) span.setAttribute('data-author', node.author);
+    if (node.date) span.setAttribute('data-date', node.date);
+
+    for (const child of node.children) {
+      const el = this.renderChild(child, context);
+      if (el) span.appendChild(el);
+    }
     return span;
   }
 }

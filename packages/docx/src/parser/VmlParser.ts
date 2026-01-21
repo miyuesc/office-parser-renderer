@@ -8,7 +8,9 @@
 import { XmlUtils } from '@ai-space/shared';
 import { UnitConverter } from '../utils/UnitConverter';
 import { Logger } from '../utils/Logger';
-import type { Drawing, DrawingShape, DrawingImage, PositionConfig, DrawingTextBody } from '../types';
+import type { Drawing, DrawingShape, DrawingImage, PositionConfig, DrawingTextBody, DocxElement } from '../types';
+import { ParagraphParser } from './ParagraphParser';
+import { TableParser } from './TableParser';
 
 const log = Logger.createTagged('VmlParser');
 
@@ -130,18 +132,29 @@ export class VmlParser {
         : undefined
     };
 
+    // Parse flip from style
+    const flip = styles.flip || '';
+    if (flip.includes('x')) shape.flipH = true;
+    if (flip.includes('y')) shape.flipV = true;
+
+    // Parse rotation from style if not in attribute
+    if (!shape.rotation && styles.rotation) {
+      shape.rotation = parseFloat(styles.rotation);
+    }
+
     // 检查是否有文本框 v:textbox
     const textbox = XmlUtils.query(node, 'v\\:textbox, textbox');
     if (textbox) {
       // v:textbox 通常包含 w:txbxContent
       const txbxContent = XmlUtils.query(textbox, 'w\\:txbxContent, txbxContent');
       if (txbxContent) {
-        // 这里我们暂且只提取纯文本，后续需要ParagraphParser递归支持
-        // 但 DrawingShape.textBody 目前结构比较简单
+        const content = this.parseTxbxContent(txbxContent);
         const textContent = txbxContent.textContent || '';
+
         shape.textBody = {
           text: textContent,
-          paragraphs: [] // Ideally parse paragraphs
+          paragraphs: [],
+          content // Store full content
         };
       }
     }
@@ -164,10 +177,43 @@ export class VmlParser {
       }
     }
 
+    // 解析定位
+    let position: any = undefined;
+    if (styles.position === 'absolute' || styles.position === 'relative') {
+      let left = styles.left ? UnitConverter.pointsToEmu(parseFloat(styles.left)) : 0;
+      let top = styles.top ? UnitConverter.pointsToEmu(parseFloat(styles.top)) : 0;
+      const zIndex = styles['z-index'] ? parseInt(styles['z-index'], 10) : undefined;
+
+      // Handle margin-left/top (common in Word VML)
+      // Word often uses left:0 with margin-left setting the actual offset
+      if (styles['margin-left']) {
+        left += UnitConverter.pointsToEmu(parseFloat(styles['margin-left']));
+      }
+      if (styles['margin-top']) {
+        top += UnitConverter.pointsToEmu(parseFloat(styles['margin-top']));
+      }
+
+      position = {
+        allowOverlap: true,
+        relativeHeight: zIndex,
+        horizontal: {
+          relativeTo: 'page', // VML usually relative to page or anchor
+          align: 'left',
+          posOffset: left
+        },
+        vertical: {
+          relativeTo: 'page',
+          align: 'top',
+          posOffset: top
+        }
+      };
+    }
+
     return {
       type: 'drawing',
       drawingType: 'anchor', // VML default to anchor usually
-      shape
+      shape,
+      position
     };
   }
 
@@ -184,6 +230,30 @@ export class VmlParser {
       }
     });
     return styles;
+  }
+
+  /**
+   * 解析文本框内容
+   */
+  private static parseTxbxContent(node: Element): DocxElement[] {
+    const elements: DocxElement[] = [];
+
+    for (const child of Array.from(node.children)) {
+      const tagName = child.tagName.toLowerCase();
+      const localName = tagName.split(':').pop() || tagName;
+
+      switch (localName) {
+        case 'p':
+          elements.push(ParagraphParser.parse(child));
+          break;
+        case 'tbl':
+          elements.push(TableParser.parse(child));
+          break;
+        // Add other elements if needed
+      }
+    }
+
+    return elements;
   }
 
   /**

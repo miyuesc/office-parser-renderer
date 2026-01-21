@@ -22,7 +22,17 @@ import type {
 } from '@ai-space/shared';
 import { Logger } from '../utils/Logger';
 import { UnitConverter } from '../utils/UnitConverter';
-import type { Drawing, DrawingImage, DrawingShape, DrawingChart, DocxDocument } from '../types';
+import type {
+  Drawing,
+  DrawingImage,
+  DrawingShape,
+  DrawingChart,
+  DocxDocument,
+  AnchorPosition,
+  DocxElement
+} from '../types';
+import { ParagraphRenderer } from './ParagraphRenderer';
+import { TableRenderer } from './TableRenderer';
 
 const log = Logger.createTagged('DrawingRenderer');
 
@@ -220,20 +230,72 @@ export class DrawingRenderer {
    * @returns HTMLElement 或 null
    */
   static render(drawing: Drawing, context?: DrawingRenderContext): HTMLElement | null {
+    let element: HTMLElement | null = null;
+
     if (drawing.image) {
-      return this.renderImage(drawing.image, context);
+      element = this.renderImage(drawing.image, context);
+    } else if (drawing.shape) {
+      element = this.renderShape(drawing.shape, context);
+    } else if (drawing.chart) {
+      element = this.renderChart(drawing.chart, context);
     }
 
-    if (drawing.shape) {
-      return this.renderShape(drawing.shape, context);
+    if (element && drawing.position) {
+      this.applyPositioning(element, drawing.position);
     }
 
-    if (drawing.chart) {
-      return this.renderChart(drawing.chart, context);
+    return element;
+  }
+
+  /**
+   * 应用锚定位置样式
+   */
+  private static applyPositioning(element: HTMLElement, pos: AnchorPosition): void {
+    element.style.position = 'absolute';
+
+    // Z-Index
+    if (pos.behindDoc) {
+      element.style.zIndex = '-1';
+    } else {
+      // ensure it is above text if not behind
+      element.style.zIndex = '1';
     }
 
-    log.warn('未知的绘图类型');
-    return null;
+    // Horizontal
+    if (pos.horizontal) {
+      const h = pos.horizontal;
+      if (h.posOffset !== undefined) {
+        element.style.left = `${UnitConverter.emuToPixels(h.posOffset)}px`;
+      } else if (h.align) {
+        // rough support for alignment
+        if (h.align === 'center') {
+          element.style.left = '50%';
+          element.style.transform = 'translateX(-50%)';
+        } else if (h.align === 'right') {
+          element.style.right = '0';
+        } else {
+          element.style.left = '0';
+        }
+      }
+    }
+
+    // Vertical
+    if (pos.vertical) {
+      const v = pos.vertical;
+      if (v.posOffset !== undefined) {
+        element.style.top = `${UnitConverter.emuToPixels(v.posOffset)}px`;
+      } else if (v.align) {
+        if (v.align === 'center') {
+          element.style.top = '50%';
+          const currentTransform = element.style.transform;
+          element.style.transform = currentTransform ? `${currentTransform} translateY(-50%)` : 'translateY(-50%)';
+        } else if (v.align === 'bottom') {
+          element.style.bottom = '0';
+        } else {
+          element.style.top = '0';
+        }
+      }
+    }
   }
 
   /**
@@ -361,6 +423,57 @@ export class DrawingRenderer {
     shapeRenderer.renderShape(options, svg, rect, renderCtx);
 
     container.appendChild(svg);
+
+    // 渲染文本框内容 (HTML 覆盖层)
+    if (shape.textBody?.content && shape.textBody.content.length > 0) {
+      const textContainer = document.createElement('div');
+      textContainer.className = 'docx-shape-text-body';
+      textContainer.style.position = 'absolute';
+      textContainer.style.top = '0';
+      textContainer.style.left = '0';
+      textContainer.style.width = '100%';
+      textContainer.style.height = '100%';
+      textContainer.style.overflow = 'hidden'; // Ensure it doesn't spill out
+      textContainer.style.display = 'flex';
+      textContainer.style.flexDirection = 'column';
+
+      // Vertical Alignment
+      const vAlign = shape.textBody.verticalAlignment || 'top';
+      if (vAlign === 'middle') textContainer.style.justifyContent = 'center';
+      else if (vAlign === 'bottom') textContainer.style.justifyContent = 'flex-end';
+      else textContainer.style.justifyContent = 'flex-start';
+
+      // Padding
+      // VML defaults or parsed padding?
+      // shape.textBody.padding is in EMU? No, usually in points or undefined.
+      // Shared ShapeRenderer expects padding. VmlParser didn't parse padding explicitly?
+      // Assuming defaults or mapped if available.
+      // For now, minimal padding.
+      textContainer.style.padding = '4px';
+
+      // Render children
+      // We need a context for ParagraphRenderer.
+      const pContext = {
+        document: context?.document,
+        styles: context?.document?.styles,
+        numbering: context?.document?.numbering
+      };
+
+      for (const element of shape.textBody.content) {
+        if (element.type === 'paragraph') {
+          const el = ParagraphRenderer.render(element, pContext);
+          textContainer.appendChild(el);
+        } else if (element.type === 'table') {
+          // TableRenderer.render signature needs checking.
+          // Usually render(table, context).
+          const el = TableRenderer.render(element, pContext);
+          textContainer.appendChild(el);
+        }
+      }
+
+      container.appendChild(textContainer);
+    }
+
     return container;
   }
 

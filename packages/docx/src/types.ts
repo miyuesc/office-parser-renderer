@@ -34,6 +34,8 @@ export interface DocxDocument {
   settings?: DocxSettings;
   /** 主题信息 */
   theme?: DocxTheme;
+  /** 文档背景色 */
+  background?: string;
 }
 
 /**
@@ -223,7 +225,34 @@ export type ParagraphChild =
   | BookmarkStart
   | BookmarkEnd
   | Hyperlink
-  | OMathElement;
+  | Hyperlink
+  | OMathElement
+  | InsertedText
+  | DeletedText;
+
+/**
+ * 新增文本 (修订)
+ * 对应 w:ins 元素
+ */
+export interface InsertedText {
+  type: 'insertedText';
+  id: string;
+  author: string;
+  date: string;
+  children: ParagraphChild[];
+}
+
+/**
+ * 删除文本 (修订)
+ * 对应 w:del 元素
+ */
+export interface DeletedText {
+  type: 'deletedText';
+  id: string;
+  author: string;
+  date: string;
+  children: ParagraphChild[];
+}
 
 /**
  * 数学公式元素接口
@@ -656,6 +685,40 @@ export interface Drawing {
   description?: string;
   /** 标题 */
   title?: string;
+  /** 锚定位置（仅用于 anchor 类型） */
+  position?: AnchorPosition;
+}
+
+/**
+ * 锚定位置接口
+ */
+export interface AnchorPosition {
+  allowOverlap?: boolean;
+  behindDoc?: boolean;
+  relativeHeight?: number;
+  horizontal?: PositionConfig;
+  vertical?: PositionConfig;
+  wrap?: WrapConfig;
+}
+
+/**
+ * 位置配置接口
+ */
+export interface PositionConfig {
+  relativeTo: 'margin' | 'page' | 'column' | 'character' | 'paragraph' | 'line';
+  align?: 'left' | 'center' | 'right' | 'inside' | 'outside' | 'top' | 'bottom';
+  posOffset?: number;
+}
+
+/**
+ * 环绕配置接口
+ */
+export interface WrapConfig {
+  type: 'none' | 'square' | 'tight' | 'through' | 'topAndBottom';
+  distT?: number;
+  distB?: number;
+  distL?: number;
+  distR?: number;
 }
 
 /**
@@ -823,6 +886,8 @@ export interface ShapeStroke {
 export interface ShapeTextBody {
   text: string;
   paragraphs: ShapeTextParagraph[];
+  /** 复杂文档内容（支持完整 Word 元素） */
+  content?: DocxElement[];
   verticalAlignment?: 'top' | 'middle' | 'bottom';
   padding?: { left: number; top: number; right: number; bottom: number };
   wrap?: 'square' | 'none';

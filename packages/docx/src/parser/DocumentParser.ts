@@ -44,6 +44,16 @@ export class DocumentParser {
     try {
       const doc = XmlUtils.parse(xml);
 
+      // 解析背景色
+      let background: string | undefined;
+      const backgroundNode = XmlUtils.query(doc, 'w\\:background, background');
+      if (backgroundNode) {
+        // w:background usually has w:color attribute
+        background = backgroundNode.getAttribute('w:color') || undefined;
+        // Sometimes it has w:themeColor etc which we might process later?
+        // For now just take color.
+      }
+
       // 查找文档主体
       const bodyNode = XmlUtils.query(doc, 'w\\:body, body');
       if (!bodyNode) {
@@ -71,7 +81,9 @@ export class DocumentParser {
 
       log.info(`解析文档: ${body.length} 个元素, ${sections.length} 个分节`);
 
-      return { body, sections, lastSection };
+      log.info(`解析文档: ${body.length} 个元素, ${sections.length} 个分节`);
+
+      return { body, sections, lastSection, background };
     } catch (e) {
       log.error('解析文档失败', e);
       return {
@@ -89,7 +101,7 @@ export class DocumentParser {
    * @param context - 解析上下文
    * @returns 元素和分节列表
    */
-  private static parseBody(
+  public static parseBody(
     bodyNode: Element,
     context?: ParagraphParserContext
   ): { elements: DocxElement[]; sections: DocxSection[] } {

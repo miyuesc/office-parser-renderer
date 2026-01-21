@@ -28,7 +28,10 @@ import type {
   Hyperlink,
   BookmarkStart,
   BookmarkEnd,
-  OMathElement
+  BookmarkEnd,
+  OMathElement,
+  InsertedText,
+  DeletedText
 } from '../types';
 
 const log = Logger.createTagged('ParagraphParser');
@@ -184,6 +187,22 @@ export class ParagraphParser {
               node: mathNode
             };
             children.push(omathElement);
+          }
+          break;
+
+        case 'ins':
+          // 新增内容
+          const ins = this.parseInsertedText(child, context);
+          if (ins) {
+            children.push(ins);
+          }
+          break;
+
+        case 'del':
+          // 删除内容
+          const del = this.parseDeletedText(child, context);
+          if (del) {
+            children.push(del);
           }
           break;
 
@@ -641,6 +660,56 @@ export class ParagraphParser {
     return {
       type: 'bookmarkEnd',
       id
+    };
+  }
+
+  /**
+   * 解析新增文本 (修订)
+   *
+   * @param node - w:ins 元素
+   * @param context - 解析上下文
+   * @returns InsertedText 对象
+   */
+  private static parseInsertedText(node: Element, context?: ParagraphParserContext): InsertedText | null {
+    const id = node.getAttribute('w:id');
+    if (!id) return null;
+
+    const author = node.getAttribute('w:author') || '';
+    const date = node.getAttribute('w:date') || '';
+
+    const children = this.parseChildren(node, context);
+
+    return {
+      type: 'insertedText',
+      id,
+      author,
+      date,
+      children
+    };
+  }
+
+  /**
+   * 解析删除文本 (修订)
+   *
+   * @param node - w:del 元素
+   * @param context - 解析上下文
+   * @returns DeletedText 对象
+   */
+  private static parseDeletedText(node: Element, context?: ParagraphParserContext): DeletedText | null {
+    const id = node.getAttribute('w:id');
+    if (!id) return null;
+
+    const author = node.getAttribute('w:author') || '';
+    const date = node.getAttribute('w:date') || '';
+
+    const children = this.parseChildren(node, context);
+
+    return {
+      type: 'deletedText',
+      id,
+      author,
+      date,
+      children
     };
   }
 }
