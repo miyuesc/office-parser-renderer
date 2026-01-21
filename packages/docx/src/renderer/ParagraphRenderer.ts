@@ -10,6 +10,7 @@ import { UnitConverter } from '../utils/UnitConverter';
 import { RunRenderer, RunRenderContext } from './RunRenderer';
 import { DrawingRenderer } from './DrawingRenderer';
 import { ListCounter } from './ListCounter';
+import { OMathRenderer, OMathNode } from '@ai-space/shared';
 import type {
   Paragraph,
   ParagraphProperties,
@@ -17,7 +18,8 @@ import type {
   DocxStyles,
   NumberingDefinition,
   DocxDocument,
-  Drawing
+  Drawing,
+  OMathElement
 } from '../types';
 
 const log = Logger.createTagged('ParagraphRenderer');
@@ -120,6 +122,14 @@ export class ParagraphRenderer {
           document: context?.document,
           images: context?.document?.images
         });
+
+      case 'omath':
+        // 渲染数学公式
+        const omathChild = child as OMathElement;
+        if (omathChild.node) {
+          return OMathRenderer.render(omathChild.node as OMathNode);
+        }
+        return null;
 
       default:
         log.debug(`未处理的子元素类型: ${(child as ParagraphChild).type}`);

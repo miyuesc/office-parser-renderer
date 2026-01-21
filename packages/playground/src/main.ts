@@ -74,31 +74,24 @@ fileInput.addEventListener('change', async e => {
   }
 });
 
-// Auto-load test.xlsx
+// Auto-load test file
 (async () => {
   try {
     console.log('Fetching test file...');
-    // Encode the filename to handle Chinese characters
-    // 1. xlsx
+    // 1. xlsx (uncomment to test xlsx)
     // const res = await fetch('/' + encodeURIComponent('测试xlsx.xlsx'));
-
-    // fallback to unencoded if needed, but standard is encoded
     // if (res.ok) {
     //   const buf = await res.arrayBuffer();
     //   const { XlsxParser, XlsxRenderer } = await import('@ai-space/xlsx');
-
     //   console.group('Auto-Load Process');
     //   console.log('Parsing XLSX...');
     //   const parser = new XlsxParser();
     //   const doc = await parser.parse(buf);
     //   console.log('XLSX AST:', doc);
-
     //   const renderer = new XlsxRenderer(container);
     //   await renderer.render(doc);
     //   console.log('Render Complete');
     //   console.groupEnd();
-    // } else {
-    //   console.error('Failed to fetch /测试xlsx.xlsx', res.status, res.statusText);
     // }
 
     // 2. docx
@@ -114,9 +107,9 @@ fileInput.addEventListener('change', async e => {
       console.log('DOCX AST:', doc);
 
       const renderer = new DocxRenderer(container, {
-        enablePagination: true, // 启用分页
-        useDocumentBackground: true, // 默认使用文档解析的背景色
-        useDocumentWatermark: true // 默认使用文档解析的水印
+        enablePagination: true,
+        useDocumentBackground: true,
+        useDocumentWatermark: true
       });
       await renderer.render(doc);
       console.log('Render Complete');

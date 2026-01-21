@@ -7,6 +7,7 @@
  * - 单位转换工具
  * - 颜色处理工具
  * - DrawingML 解析与形状生成
+ * - Office Math 公式解析与渲染
  */
 
 export * from './zip';
@@ -16,3 +17,4 @@ export * from './utils/ColorUtils';
 export * from './utils/Units';
 export * from './utils/PresetColorMap';
 export * from './drawing';
+export * from './math';

@@ -60,4 +60,48 @@ export class XmlUtils {
     }
     return [];
   }
+
+  /**
+   * 获取单个子元素（getChild 别名）
+   *
+   * @param node - 父节点
+   * @param selector - CSS 选择器
+   * @returns 匹配的元素，未找到则返回 null
+   */
+  static getChild(node: ParentNode, selector: string): Element | null {
+    return this.query(node, selector);
+  }
+
+  /**
+   * 获取所有匹配的子元素（getChildren 别名）
+   *
+   * @param node - 父节点
+   * @param selector - CSS 选择器
+   * @returns 匹配的元素数组
+   */
+  static getChildren(node: ParentNode, selector: string): Element[] {
+    return this.queryAll(node, selector);
+  }
+
+  /**
+   * 获取元素属性值
+   *
+   * @param element - 目标元素
+   * @param attrName - 属性名（可包含命名空间前缀）
+   * @returns 属性值，未找到则返回 null
+   */
+  static getAttribute(element: Element, attrName: string): string | null {
+    // 首先尝试严格匹配
+    let val = element.getAttribute(attrName);
+    if (val !== null) return val;
+
+    // 回退：如果使用了命名空间前缀，尝试仅使用本地名称
+    if (attrName.indexOf(':') !== -1) {
+      const localName = attrName.split(':').pop();
+      if (localName) {
+        return element.getAttribute(localName);
+      }
+    }
+    return null;
+  }
 }
