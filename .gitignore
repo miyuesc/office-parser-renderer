@@ -57,3 +57,4 @@ packages/**/*.pptx
 packages/**/*.jpeg
 packages/**/*.jpg
 *.png
+/tmp-test
