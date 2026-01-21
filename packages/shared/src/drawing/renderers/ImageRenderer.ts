@@ -4,7 +4,7 @@
  * 提供图片元素的统一渲染逻辑，可被 docx/xlsx/pptx 包调用
  */
 
-import type { RenderRect, RenderContext, ImageRenderOptions, StyleResolverInterface } from './types';
+import type { RenderRect, RenderContext, ImageRenderOptions } from './types';
 
 /**
  * 图片渲染器类

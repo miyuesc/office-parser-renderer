@@ -6,16 +6,16 @@
 
 import { ZipService } from '@ai-space/shared';
 import { Logger } from '../utils/Logger';
-import { ErrorHandler, DocxErrorCode } from '../utils/ErrorHandler';
+import { ErrorHandler } from '../utils/ErrorHandler';
 import { DocumentParser } from './DocumentParser';
 import { StylesParser } from './StylesParser';
 import { NumberingParser } from './NumberingParser';
-import { SectionParser } from './SectionParser';
+
 import { HeaderFooterParser } from './HeaderFooterParser';
 import { RelationshipsParser } from './RelationshipsParser';
 import { MediaParser } from './MediaParser';
 import { ChartParser } from './ChartParser';
-import type { DocxDocument, DocxStyles, NumberingDefinition, DocxSection, DocxElement, Drawing } from '../types';
+import type { DocxDocument, NumberingDefinition, DocxSection, DocxElement, Drawing } from '../types';
 
 const log = Logger.createTagged('DocxParser');
 

@@ -52,11 +52,11 @@ export const FlowchartShapes: Record<string, ShapeGenerator> = {
   [ST_ShapeType.flowChartMultidocument]: (w, h) => {
     // Stack of documents
     // Back one: offset up/right? Or up/left?
-    const d1 = `M 0 ${h * 0.2} L ${w * 0.8} ${h * 0.2} L ${w * 0.8} ${h * 0.8} L 0 ${h * 0.8} Z`; // simplified back
+
     // Use proper document path relative to sub-box?
     // Let's just draw main doc front, and partial doc back.
     const off = w * 0.1;
-    const docPath = FlowchartShapes[ST_ShapeType.flowChartDocument](w - off, h - off);
+
     // Shifted doc?
     // Let's draw: Back Rect + Front Document
     const back = `M ${off} 0 L ${w} 0 L ${w} ${h * 0.8} L ${off} ${h * 0.8} L ${off} 0`; // Box
@@ -207,7 +207,6 @@ export const FlowchartShapes: Record<string, ShapeGenerator> = {
 
   // Display (Bullet)
   [ST_ShapeType.flowChartDisplay]: (w, h) => {
-    const r = w * 0.2;
     // Left Triangle, Right Round.
     // M r 0 L w-r 0 A ...
     return `M ${w * 0.2} 0 L ${w * 0.8} 0 A ${w * 0.2} ${h / 2} 0 0 1 ${w * 0.8} ${h} L ${w * 0.2} ${h} L 0 ${h / 2} Z`;

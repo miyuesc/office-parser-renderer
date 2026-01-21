@@ -217,7 +217,7 @@ export class UnitConverter {
   static calculateLineHeight(
     lineValue: number | undefined,
     lineRule: 'auto' | 'exact' | 'atLeast' | undefined,
-    fontSize: number = 12
+    _fontSize: number = 12
   ): string {
     if (lineValue === undefined || lineValue === 0) {
       return '1.2'; // 默认行距

@@ -52,12 +52,10 @@ class XlsxStyleResolverAdapter implements StyleResolverInterface {
  * 形状渲染器类
  */
 export class ShapeRenderer {
-  private styleResolver: XlsxStyleResolver;
   private sharedRenderer: SharedShapeRenderer;
   private adapter: XlsxStyleResolverAdapter;
 
   constructor(styleResolver: XlsxStyleResolver) {
-    this.styleResolver = styleResolver;
     this.adapter = new XlsxStyleResolverAdapter(styleResolver);
     this.sharedRenderer = new SharedShapeRenderer(this.adapter);
   }

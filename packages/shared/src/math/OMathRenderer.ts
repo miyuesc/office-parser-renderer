@@ -23,15 +23,7 @@ import type {
   OMathLimLowNode,
   OMathLimUppNode
 } from './types';
-import {
-  isFractionNode,
-  isSuperscriptNode,
-  isSubscriptNode,
-  isDelimiterNode,
-  isNaryNode,
-  isMatrixNode,
-  isRadicalNode
-} from './types';
+
 import { getMathFontFamily } from './fonts';
 
 // ============================================================================

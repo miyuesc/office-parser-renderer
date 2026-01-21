@@ -8,7 +8,16 @@
 import { Logger } from '../utils/Logger';
 import { UnitConverter } from '../utils/UnitConverter';
 import { ParagraphRenderer, ParagraphRenderContext } from './ParagraphRenderer';
-import type { Table, TableRow, TableCell, TableProperties, TableCellProperties, DocxElement } from '../types';
+import type {
+  Table,
+  TableRow,
+  TableCell,
+  TableProperties,
+  TableCellProperties,
+  DocxElement,
+  TableCellMargins,
+  TableBorders
+} from '../types';
 
 const log = Logger.createTagged('TableRenderer');
 
@@ -207,7 +216,7 @@ export class TableRenderer {
     }
 
     // 单元格边框 logic with inheritance fallback
-    const getBorder = (side: keyof typeof props.borders, fallbackVar: string) => {
+    const getBorder = (side: keyof TableBorders, fallbackVar: string) => {
       if (props.borders && props.borders[side]) {
         return TableRenderer.formatBorder(props.borders[side]!);
       }

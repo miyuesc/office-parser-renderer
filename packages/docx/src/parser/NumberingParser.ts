@@ -7,7 +7,7 @@
 
 import { XmlUtils } from '@ai-space/shared';
 import { Logger } from '../utils/Logger';
-import { UnitConverter } from '../utils/UnitConverter';
+
 import type {
   NumberingDefinition,
   AbstractNumbering,
@@ -537,7 +537,7 @@ export class NumberingParser {
    */
   private static toChinese(num: number): string {
     const digits = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
-    const units = ['', '十', '百', '千'];
+    // const units = ['', '十', '百', '千'];
 
     if (num < 10) return digits[num];
     if (num < 100) {

@@ -5,11 +5,8 @@
  * 应用所有文本格式样式
  */
 
-import { Logger } from '../utils/Logger';
 import { FontManager, UnitConverter, TextStyles } from '@ai-space/shared';
 import type { Run, RunProperties, DocxStyles, DocxTheme } from '../types';
-
-const log = Logger.createTagged('RunRenderer');
 
 /**
  * 渲染上下文接口

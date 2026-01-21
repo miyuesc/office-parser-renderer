@@ -8,7 +8,7 @@
 import { XmlUtils } from '@ai-space/shared';
 import { UnitConverter } from '../utils/UnitConverter';
 import { Logger } from '../utils/Logger';
-import type { Drawing, DrawingShape, DrawingImage, PositionConfig, DrawingTextBody, DocxElement } from '../types';
+import type { Drawing, DrawingShape, DocxElement } from '../types';
 import { ParagraphParser } from './ParagraphParser';
 import { TableParser } from './TableParser';
 

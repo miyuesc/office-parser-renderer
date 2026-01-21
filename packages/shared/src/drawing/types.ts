@@ -236,6 +236,8 @@ export interface OfficePattern {
  * Office 描边接口
  */
 export interface OfficeStroke {
+  /** 描边类型 */
+  type?: 'solid' | 'gradient' | 'pattern' | 'noFill';
   /** 线宽 (pt) */
   width?: number;
   /** 纯色描边颜色（十六进制） */

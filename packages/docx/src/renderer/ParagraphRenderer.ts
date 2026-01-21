@@ -14,10 +14,8 @@ import type {
   Paragraph,
   ParagraphProperties,
   ParagraphChild,
-  DocxStyles,
   NumberingDefinition,
   DocxDocument,
-  Drawing,
   Drawing,
   OMathElement,
   InsertedText,
@@ -116,7 +114,7 @@ export class ParagraphRenderer {
         return null;
 
       case 'field':
-        return this.renderField(child, context);
+        return this.renderField(child);
 
       case 'drawing':
         // 渲染段落内的绘图元素（图片、形状等）
@@ -365,10 +363,7 @@ export class ParagraphRenderer {
    * @param context - 渲染上下文
    * @returns HTMLElement
    */
-  private static renderField(
-    field: { fieldType: string; instruction: string; result?: string },
-    context?: ParagraphRenderContext
-  ): HTMLElement {
+  private static renderField(field: { fieldType: string; instruction: string; result?: string }): HTMLElement {
     const span = document.createElement('span');
     span.className = 'docx-field';
 

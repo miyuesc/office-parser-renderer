@@ -58,7 +58,7 @@ export class PageCalculator {
 
     // 获取第一个分节配置
     const section = this.sections[0] || this.getDefaultSection();
-    const pageConfig = this.resolvePageConfig(section);
+    this.resolvePageConfig(section);
 
     // 简单估算：假设每页可容纳的元素数量
     const estimatedElementsPerPage = 20;
@@ -86,17 +86,6 @@ export class PageCalculator {
    */
   resolvePageConfig(section: DocxSection): ResolvedPageConfig {
     // 转换为像素
-    const widthPx = UnitConverter.twipsToPixels(section.pageSize.width);
-    const heightPx = UnitConverter.twipsToPixels(section.pageSize.height);
-
-    const margins = {
-      top: UnitConverter.twipsToPixels(section.pageMargins.top),
-      right: UnitConverter.twipsToPixels(section.pageMargins.right),
-      bottom: UnitConverter.twipsToPixels(section.pageMargins.bottom),
-      left: UnitConverter.twipsToPixels(section.pageMargins.left),
-      header: UnitConverter.twipsToPixels(section.pageMargins.header),
-      footer: UnitConverter.twipsToPixels(section.pageMargins.footer)
-    };
 
     // 转换为点
     const widthPt = UnitConverter.twipsToPoints(section.pageSize.width);

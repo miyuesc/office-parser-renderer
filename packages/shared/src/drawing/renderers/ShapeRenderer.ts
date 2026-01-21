@@ -5,16 +5,8 @@
  */
 
 import { generatePresetPath } from '../PresetGeometries';
-import type {
-  RenderRect,
-  RenderContext,
-  ShapeRenderOptions,
-  StyleResolverInterface,
-  ShapeTextBody,
-  ShapeTextParagraph,
-  ShapeTextRun
-} from './types';
-import type { OfficeFill, OfficeStroke, OfficeGradient, OfficeEffect } from '../types';
+import type { RenderRect, RenderContext, ShapeRenderOptions, StyleResolverInterface, ShapeTextBody } from './types';
+import type { OfficeEffect } from '../types';
 
 /**
  * 形状渲染器类
@@ -251,7 +243,7 @@ export class ShapeRenderer {
     strokePathEl: SVGPathElement,
     options: ShapeRenderOptions,
     g: SVGGElement,
-    ctx: RenderContext
+    _ctx: RenderContext
   ): void {
     const stroke = options.stroke;
     let strokeColor = 'none';

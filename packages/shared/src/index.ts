@@ -16,7 +16,7 @@ export * from './zip';
 export * from './xml';
 export * from './utils/geometry';
 export * from './utils/ColorUtils';
-export * from './utils/Units';
+export { Units, EMU_PER_CM, EMU_PER_PT, DPI, PX_PER_PT } from './utils/Units';
 export * from './utils/PresetColorMap';
 export * from './drawing';
 export * from './math';

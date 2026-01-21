@@ -1,4 +1,4 @@
-import { ShapeGenerator, ShapeResult, isShapeResult } from './types';
+import { ShapeGenerator, isShapeResult } from './types';
 import { GeoUtils } from './GeoUtils';
 import { Rectangles } from './Rectangles';
 import { SnipShapes } from './SnipShapes';

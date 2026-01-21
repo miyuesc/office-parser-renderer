@@ -245,7 +245,7 @@ export class StylesParser {
     // 收集继承链上的所有属性
     while (currentStyleId && !visited.has(currentStyleId)) {
       visited.add(currentStyleId);
-      const style = styles.styles[currentStyleId];
+      const style: DocxStyle = styles.styles[currentStyleId];
 
       if (style) {
         const props = style[type];
@@ -270,7 +270,7 @@ export class StylesParser {
     // 合并所有属性
     let merged = {} as ParagraphProperties | RunProperties;
     for (const props of propertyChain) {
-      merged = { ...merged, ...props };
+      merged = { ...merged, ...props } as any;
     }
 
     return merged as T extends 'pPr' ? ParagraphProperties : RunProperties;

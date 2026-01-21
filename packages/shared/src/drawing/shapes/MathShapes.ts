@@ -1,6 +1,5 @@
 import { ST_ShapeType } from '@ai-space/definitions/autogen/dml-shapeGeometry';
 import { ShapeGenerator } from './types';
-import { GeoUtils } from './GeoUtils';
 
 export const MathShapes: Record<string, ShapeGenerator> = {
   /**
@@ -111,16 +110,11 @@ export const MathShapes: Record<string, ShapeGenerator> = {
     // Normal vector is (1, 1) rot 90 -> (-1, 1)
     // Offset dist = thick/2
 
-    const diag = Math.sqrt(w * w + h * h); // Assume square mostly
-    const armL = diag / 2; // Length from center
-
     // Simplified: 45 degree cross
-    const r = thick / 2;
+
     // rotated 45 deg offsets: dx = r / sqrt(2) * 1 - (-1) ...
     // offset X = r * cos(45+90) = r * -0.707
     // offset Y = r * sin(45+90) = r * 0.707
-    const ox = r * 0.707; // 45 deg
-    const oy = r * 0.707;
 
     // Actually, just rotate the "+" points by 45 degrees?
     // Points of +:
@@ -149,12 +143,10 @@ export const MathShapes: Record<string, ShapeGenerator> = {
     // p1 = cx + (r,-r) rotated -45?
 
     // Let's just define vertices for a 45-deg rotated +
-    const cos45 = 0.7071,
-      sin45 = 0.7071;
+
     // Half Width of arm
     const hw = thick / 2;
     // Arm Length (from center)
-    const al = (Math.min(w, h) / 2) * 1.414; // Extend to corners
 
     // Function to get point: Start at center, move along axis by dist, move perp by hw
     function getP(axisAngle: number, perpOffset: number, dist: number) {
@@ -166,9 +158,6 @@ export const MathShapes: Record<string, ShapeGenerator> = {
       };
     }
 
-    const angles = [-Math.PI * 0.75, -Math.PI * 0.25, Math.PI * 0.25, Math.PI * 0.75]; // TL, TR, BR, BL
-
-    let d = '';
     // For each arm, we have 2 outer corners.
     // The "inner" corners are where arms meet.
     // Inner radius = hw / sin(45)? No, geometry:

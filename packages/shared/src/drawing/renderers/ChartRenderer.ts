@@ -58,7 +58,7 @@ export class ChartRenderer {
    * @param rect - 渲染区域
    * @param ctx - 渲染上下文
    */
-  renderChart(options: ChartRenderOptions, container: SVGElement, rect: RenderRect, ctx: RenderContext): void {
+  renderChart(options: ChartRenderOptions, container: SVGElement, rect: RenderRect, _ctx: RenderContext): void {
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.setAttribute('transform', `translate(${rect.x}, ${rect.y})`);
 

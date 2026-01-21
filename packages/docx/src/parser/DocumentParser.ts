@@ -10,7 +10,7 @@ import { Logger } from '../utils/Logger';
 import { ParagraphParser, ParagraphParserContext } from './ParagraphParser';
 import { TableParser } from './TableParser';
 import { SectionParser } from './SectionParser';
-import type { DocxElement, DocxSection, Paragraph, Table, SectionBreak } from '../types';
+import type { DocxElement, DocxSection, Paragraph, SectionBreak } from '../types';
 
 const log = Logger.createTagged('DocumentParser');
 
@@ -24,6 +24,8 @@ export interface DocumentParseResult {
   sections: DocxSection[];
   /** 文档最后一个分节属性 */
   lastSection: DocxSection;
+  /** 背景色 */
+  background?: string;
 }
 
 /**
@@ -78,8 +80,6 @@ export class DocumentParser {
       if (sections.length === 0) {
         sections.push(lastSection);
       }
-
-      log.info(`解析文档: ${body.length} 个元素, ${sections.length} 个分节`);
 
       log.info(`解析文档: ${body.length} 个元素, ${sections.length} 个分节`);
 

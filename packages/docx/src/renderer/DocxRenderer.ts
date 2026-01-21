@@ -127,7 +127,7 @@ export class DocxRenderer {
     context: ParagraphRenderContext
   ): DocxRenderResult {
     // 创建页面容器
-    const isCover = true; // For single page mode, we treat it as cover if it's the only page, or just apply logic
+    // For single page mode, we treat it as cover if it's the only page, or just apply logic
     // Actually single page mode usually means just one long page or just testing.
     // But if we want to support "cover page" logic, we should probably treat it as cover.
     const pageContainer = this.createPageContainer(pageConfig, section, this.currentDoc?.background, true);
@@ -138,7 +138,7 @@ export class DocxRenderer {
     const watermarkConfig =
       this.options.watermark || (this.options.useDocumentWatermark !== false ? section.watermark : undefined);
     if (watermarkConfig) {
-      const watermarkLayer = this.createWatermarkLayer(watermarkConfig, pageConfig);
+      const watermarkLayer = this.createWatermarkLayer(watermarkConfig);
       pageContainer.appendChild(watermarkLayer);
     }
 
@@ -249,7 +249,7 @@ export class DocxRenderer {
       const watermarkConfig =
         this.options.watermark || (this.options.useDocumentWatermark !== false ? currentSection.watermark : undefined);
       if (watermarkConfig) {
-        const watermarkLayer = this.createWatermarkLayer(watermarkConfig, currentPageConfig);
+        const watermarkLayer = this.createWatermarkLayer(watermarkConfig);
         pageContainer.appendChild(watermarkLayer);
       }
 
@@ -326,7 +326,7 @@ export class DocxRenderer {
    * @param pageConfig - 页面配置
    * @returns HTMLElement
    */
-  private createWatermarkLayer(config: WatermarkConfig, pageConfig: ResolvedPageConfig): HTMLElement {
+  private createWatermarkLayer(config: WatermarkConfig): HTMLElement {
     const layer = document.createElement('div');
     layer.className = 'docx-watermark';
 

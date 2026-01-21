@@ -10,8 +10,6 @@ import {
   TWIPS_PER_INCH,
   POINTS_PER_INCH,
   DEFAULT_DPI,
-  PT_TO_PX,
-  TWIPS_TO_PX,
   PRESET_PAGE_SIZES,
   DEFAULT_MARGINS
 } from './constants';
@@ -228,7 +226,7 @@ export class UnitConverter {
   static calculateLineHeight(
     lineValue: number | undefined,
     lineRule: 'auto' | 'exact' | 'atLeast' | undefined,
-    fontSize: number = 12
+    _fontSize: number = 12
   ): string {
     if (lineValue === undefined || lineValue === 0) {
       return '1.2'; // 默认行距

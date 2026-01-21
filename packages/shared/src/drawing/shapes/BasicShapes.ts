@@ -23,7 +23,7 @@ export const BasicShapes: Record<string, ShapeGenerator> = {
   },
   [ST_ShapeType.nonIsoscelesTrapezoid]: (w, h, adj) => {
     const adj1 = adj?.['adj1'] ?? 25000; // Top Left
-    const adj2 = adj?.['adj2'] ?? 25000; // Bottom Right shift?
+
     // Standard: Top edge starts at adj1, length?
     // Actually usually: L1 at top, L2 at bottom. Vertices.
     // Let's assume Top-Left indented, Top-Right indented?
@@ -188,7 +188,7 @@ export const BasicShapes: Record<string, ShapeGenerator> = {
     );
   },
 
-  [ST_ShapeType.bevel]: (w, h, adj) => {
+  [ST_ShapeType.bevel]: (w, h, _adj) => {
     const d = Math.min(w, h) * 0.15;
     // Beveled Rect
     return (

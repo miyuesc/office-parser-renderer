@@ -11,6 +11,7 @@ import type { XlsxWorkbook } from '../types';
 export interface RenderContext {
   defs: SVGDefsElement;
   counter: number;
+  theme?: Record<string, unknown>;
 }
 
 /** 颜色修饰器参数 */

@@ -111,17 +111,17 @@ export class HeaderFooterParser {
         // 这可能需要更新 context 的定义或 DocxDocument 的结构来支持局部关系
         // 目前简单起见，我们将这些关系合并到 document.relationships 中（如果有的话），或者作为临时上下文传递
         // 但更安全的方式是 Update ParagraphParserContext to carry local relationships
-        relationships: fileRels
+        relationships: fileRels.reduce(
+          (acc, rel) => {
+            acc[rel.id] = rel.target;
+            return acc;
+          },
+          {} as Record<string, string>
+        )
       };
 
       // 如果 context.document 存在，尝试将局部关系也合并进去，以便 DrawingParser.parse 能查到
       // FIXME: 这是一种临时变通，理想情况下 DrawingParser 应该接受 localRelationships
-      if (context?.document && fileRels.length > 0) {
-        // 创建一个新的 document 引用，包含合并后的关系（避免污染全局 document）
-        // 但由于 document 对象比较大，浅拷贝可能不够。
-        // 实际上 DrawingParser.parse 使用 relationships 参数（如果有）。
-        // 让我们查看 ParagraphParser.parse 的签名，它接受 context
-      }
 
       const xml = decoder.decode(data);
       const content = this.parseContent(xml, type, fileContext);

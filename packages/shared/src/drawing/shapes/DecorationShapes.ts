@@ -11,7 +11,7 @@ export const DecorationShapes: Record<string, ShapeGenerator> = {
    */
   [ST_ShapeType.wave]: (w, h, adj) => {
     const adj1 = adj?.['adj1'] ?? 12500;
-    const adj2 = adj?.['adj2'] ?? 0;
+
     const amp = h * (adj1 / 100000);
 
     return (
@@ -32,9 +32,8 @@ export const DecorationShapes: Record<string, ShapeGenerator> = {
    */
   [ST_ShapeType.doubleWave]: (w, h, adj) => {
     const adj1 = adj?.['adj1'] ?? 6500;
-    const adj2 = adj?.['adj2'] ?? 0;
+
     const amp = h * (adj1 / 100000);
-    const offset = w * (adj2 / 100000);
 
     // 上边波浪线（从左开始，先下后上）
     // 下边波浪线（相位相反，先上后下）
@@ -291,7 +290,7 @@ export const DecorationShapes: Record<string, ShapeGenerator> = {
   /**
    * 左右丝带
    */
-  [ST_ShapeType.leftRightRibbon]: (w, h, adj) => {
+  [ST_ShapeType.leftRightRibbon]: (w, h, _adj) => {
     const foldW = w * 0.2;
     const bandH = h * 0.6;
     const notchD = h * 0.15;

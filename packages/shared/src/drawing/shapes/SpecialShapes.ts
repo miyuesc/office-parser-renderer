@@ -10,7 +10,7 @@ export const SpecialShapes: Record<string, ShapeGenerator> = {
     const inner = `M ${thick} ${thick} L ${thick} ${h - thick} L ${w - thick} ${h - thick} L ${w - thick} ${thick} Z`;
     return outer + ' ' + inner;
   },
-  [ST_ShapeType.halfFrame]: (w, h, adj) => {
+  [ST_ShapeType.halfFrame]: (w, h, _adj) => {
     const thick = Math.min(w, h) * 0.15;
     // Top and Left sides only
     return `M 0 0 L ${w} 0 L ${w} ${thick} L ${thick} ${thick} L ${thick} ${h} L 0 ${h} Z`;
@@ -27,7 +27,7 @@ export const SpecialShapes: Record<string, ShapeGenerator> = {
     } ${fold} L ${w} ${fold}`;
   },
 
-  [ST_ShapeType.teardrop]: (w, h, adj) => {
+  [ST_ShapeType.teardrop]: (w, h, _adj) => {
     const r = Math.min(w, h) / 2;
     const cx = w / 2;
     const cy = h - r;
@@ -47,7 +47,7 @@ export const SpecialShapes: Record<string, ShapeGenerator> = {
     } ${h * 0.4} L ${w * 0.2} ${h * 0.4} Z`;
   },
 
-  [ST_ShapeType.sun]: (w, h, adj) => {
+  [ST_ShapeType.sun]: (w, h, _adj) => {
     const innerRatio = 0.7;
     const cx = w / 2;
     const cy = h / 2;
@@ -69,7 +69,7 @@ export const SpecialShapes: Record<string, ShapeGenerator> = {
     return d;
   },
 
-  [ST_ShapeType.moon]: (w, h, adj) => {
+  [ST_ShapeType.moon]: (w, h, _adj) => {
     return `M ${w * 0.5} 0 A ${w * 0.5} ${h * 0.5} 0 1 0 ${w * 0.5} ${h} A ${w * 0.35} ${h * 0.5} 0 1 1 ${w * 0.5} 0 Z`;
   },
 
@@ -99,14 +99,14 @@ export const SpecialShapes: Record<string, ShapeGenerator> = {
     );
   },
 
-  [ST_ShapeType.plaque]: (w, h, adj) => {
+  [ST_ShapeType.plaque]: (w, h, _adj) => {
     const r = Math.min(w, h) * 0.16;
     return `M ${r} 0 L ${w - r} 0 A ${r} ${r} 0 0 0 ${w} ${r} L ${w} ${h - r} A ${r} ${r} 0 0 0 ${
       w - r
     } ${h} L ${r} ${h} A ${r} ${r} 0 0 0 0 ${h - r} L 0 ${r} A ${r} ${r} 0 0 0 ${r} 0 Z`;
   },
 
-  [ST_ShapeType.donut]: (w, h, adj) => {
+  [ST_ShapeType.donut]: (w, h, _adj) => {
     const innerRatio = 0.75;
     const rx = w / 2;
     const ry = h / 2;
@@ -120,7 +120,7 @@ export const SpecialShapes: Record<string, ShapeGenerator> = {
     );
   },
 
-  [ST_ShapeType.noSmoking]: (w, h, adj) => {
+  [ST_ShapeType.noSmoking]: (w, h, _adj) => {
     const cx = w / 2;
     const cy = h / 2;
     const r = Math.min(w, h) / 2;
@@ -146,8 +146,6 @@ export const SpecialShapes: Record<string, ShapeGenerator> = {
   },
 
   [ST_ShapeType.blockArc]: (w, h, adj) => {
-    const adj1 = adj?.['adj1'] ?? 180; // 起始角度
-    const adj2 = adj?.['adj2'] ?? 0; // 结束角度
     const adj3 = adj?.['adj3'] ?? 25000; // 厚度
 
     const cx = w / 2;
@@ -171,13 +169,12 @@ export const SpecialShapes: Record<string, ShapeGenerator> = {
     const rx = w / 2,
       ry = h / 2;
     // Face
-    const face = GeoUtils.ellipse(cx, cy, rx, ry);
+
     // Eyes
     const eyeR = rx * 0.1;
-    const le = GeoUtils.ellipse(cx - rx * 0.4, cy - ry * 0.2, eyeR, eyeR);
-    const re = GeoUtils.ellipse(cx + rx * 0.4, cy - ry * 0.2, eyeR, eyeR);
+
     // Smile (Arc)
-    const smile = `M ${cx - rx * 0.5} ${cy + ry * 0.3} Q ${cx} ${h * 0.8} ${cx + rx * 0.5} ${cy + ry * 0.3}`;
+
     // Note: smile is a stroke, face is fill.
     // Usually Smiley is 1 path?
     // If filled, eyes and smile are holes.

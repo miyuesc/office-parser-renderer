@@ -10,15 +10,15 @@ import {
 import { CellStyleUtils } from './CellStyleUtils';
 import { NumberFormatUtils } from '../utils/NumberFormatUtils';
 // 虽然没有被显式使用，但这是预设路径生成逻辑的导入，保留以防未来需要直接调用
-import { generatePresetPath, FontManager } from '@ai-space/shared';
+import { FontManager } from '@ai-space/shared';
 
 // 导入拆分的子模块
-import { StyleResolver, RenderContext } from './StyleResolver';
-import { ChartRenderer, RenderRect } from './ChartRenderer';
+import { StyleResolver } from './StyleResolver';
+import { ChartRenderer } from './ChartRenderer';
 import { ShapeRenderer } from './ShapeRenderer';
 import { ImageRenderer } from './ImageRenderer';
 import { ConnectorRenderer } from './ConnectorRenderer';
-import { DEFAULT_COL_WIDTH, DEFAULT_ROW_HEIGHT, EMU_TO_PX, DEFAULT_CUSTOM_PATH_VIEWBOX } from './constants';
+import { DEFAULT_COL_WIDTH, DEFAULT_ROW_HEIGHT, EMU_TO_PX } from './constants';
 
 /**
  * XLSX 渲染器主类

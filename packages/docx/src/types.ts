@@ -225,7 +225,6 @@ export type ParagraphChild =
   | BookmarkStart
   | BookmarkEnd
   | Hyperlink
-  | Hyperlink
   | OMathElement
   | InsertedText
   | DeletedText;
@@ -925,60 +924,6 @@ export interface DrawingEffect {
   dir?: number;
   color?: string;
   alpha?: number;
-}
-
-/**
- * 锚点定位接口（用于浮动图形）
- */
-export interface AnchorPosition {
-  /** 是否允许与文字重叠 */
-  allowOverlap?: boolean;
-  /** 是否在文字后面 */
-  behindDoc?: boolean;
-  /** 水平定位 */
-  horizontal: PositionConfig;
-  /** 垂直定位 */
-  vertical: PositionConfig;
-  /** 文字环绕 */
-  wrap?: WrapConfig;
-  /** Z 轴顺序 */
-  relativeHeight?: number;
-}
-
-/**
- * 位置配置接口
- */
-export interface PositionConfig {
-  /** 相对于 */
-  relativeTo:
-    | 'character'
-    | 'column'
-    | 'insideMargin'
-    | 'leftMargin'
-    | 'margin'
-    | 'outsideMargin'
-    | 'page'
-    | 'rightMargin'
-    | 'paragraph'
-    | 'line'
-    | 'topMargin'
-    | 'bottomMargin';
-  /** 对齐方式 */
-  align?: 'left' | 'right' | 'center' | 'inside' | 'outside' | 'top' | 'bottom';
-  /** 偏移量 (EMU) */
-  posOffset?: number;
-}
-
-/**
- * 文字环绕配置接口
- */
-export interface WrapConfig {
-  type: 'none' | 'square' | 'tight' | 'through' | 'topAndBottom';
-  /** 文字与图形的距离 (EMU) */
-  distT?: number;
-  distB?: number;
-  distL?: number;
-  distR?: number;
 }
 
 // ============================================================================

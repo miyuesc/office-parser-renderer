@@ -162,12 +162,10 @@ export const ArrowShapes: Record<string, ShapeGenerator> = {
     const adj1 = adj?.['adj1'] ?? 25000; // 箭头宽度
     const adj2 = adj?.['adj2'] ?? 25000; // 茎宽度
     const adj3 = adj?.['adj3'] ?? 25000; // 箭头高度
-    const adj4 = adj?.['adj4'] ?? 43750; // 弯曲位置
 
     const arrowW = w * (adj1 / 100000); // 箭头头部宽度
     const stemW = h * (adj2 / 100000); // 茎宽度
     const arrowH = h * (adj3 / 100000); // 箭头头部高度
-    const bendPos = w * (adj4 / 100000); // 弯曲 X 位置
 
     // 圆角半径 - 基于茎宽度
     const cornerR = stemW * 0.8;
@@ -176,8 +174,6 @@ export const ArrowShapes: Record<string, ShapeGenerator> = {
     const arrowCenterX = w - arrowW / 2;
 
     // 内外轨道的 X 坐标
-    const outerBendX = bendPos;
-    const innerBendX = bendPos + stemW;
 
     // 从左下开始，顺时针绘制，使用贝塞尔曲线实现圆角
     return (
@@ -423,7 +419,7 @@ export const ArrowShapes: Record<string, ShapeGenerator> = {
   /**
    * 弯曲向上箭头
    */
-  [ST_ShapeType.bentUpArrow]: (w, h, adj) => {
+  [ST_ShapeType.bentUpArrow]: (w, h, _adj) => {
     const stemW = Math.min(w, h) * 0.2;
     const arrowH = h * 0.25;
     const arrowW = w * 0.35;
@@ -444,7 +440,7 @@ export const ArrowShapes: Record<string, ShapeGenerator> = {
   /**
    * 左上箭头
    */
-  [ST_ShapeType.leftUpArrow]: (w, h, adj) => {
+  [ST_ShapeType.leftUpArrow]: (w, h, _adj) => {
     const stemW = Math.min(w, h) * 0.18;
     const arrowSize = Math.min(w, h) * 0.3;
 
@@ -495,7 +491,7 @@ export const ArrowShapes: Record<string, ShapeGenerator> = {
   /**
    * 条纹右箭头
    */
-  [ST_ShapeType.stripedRightArrow]: (w, h, adj) => {
+  [ST_ShapeType.stripedRightArrow]: (w, h, _adj) => {
     const neckH = h * 0.5;
     const headW = w * 0.3;
     const stripeW = w * 0.035;
@@ -604,7 +600,6 @@ export const ArrowShapes: Record<string, ShapeGenerator> = {
     // 获取调整参数
     const adj1 = adj?.['adj1'] ?? 12500;
     const adj2 = adj?.['adj2'] ?? 12500;
-    const adj5 = adj?.['adj5'] ?? 25000;
 
     const cx = w / 2;
     const cy = h / 2;
@@ -622,8 +617,6 @@ export const ArrowShapes: Record<string, ShapeGenerator> = {
     const arrowL = outerR * 0.2;
 
     // 从右侧开始（0°），顺时针画约 270° 的弧，箭头在顶部
-    const startAngle = 0;
-    const endAngle = -Math.PI * 0.75; // 约 -135° (顺时针到左上)
 
     // 外弧起点（右侧）
     const outerStartX = cx + outerR;
@@ -700,8 +693,6 @@ export const ArrowShapes: Record<string, ShapeGenerator> = {
     const adj1 = adj?.['adj1'] ?? 25000;
     const adj2 = adj?.['adj2'] ?? 25000;
     const adj3 = adj?.['adj3'] ?? 25000;
-    const adj4 = adj?.['adj4'] ?? 43750;
-    const adj5 = adj?.['adj5'] ?? 75000;
 
     const arrowW = w * (adj1 / 100000); // 箭头头部宽度
     const stemW = w * (adj2 / 100000); // 茎宽度
@@ -801,7 +792,6 @@ export const ArrowShapes: Record<string, ShapeGenerator> = {
     // 获取调整参数
     const adj1 = adj?.['adj1'] ?? 12500;
     const adj2 = adj?.['adj2'] ?? 12500;
-    const adj5 = adj?.['adj5'] ?? 25000;
 
     const cx = w / 2;
     const cy = h / 2;
@@ -870,7 +860,6 @@ export const ArrowShapes: Record<string, ShapeGenerator> = {
     // 获取调整参数
     const adj1 = adj?.['adj1'] ?? 12500;
     const adj2 = adj?.['adj2'] ?? 12500;
-    const adj5 = adj?.['adj5'] ?? 25000;
 
     const cx = w / 2;
     const cy = h / 2;

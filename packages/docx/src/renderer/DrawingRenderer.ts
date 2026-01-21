@@ -8,8 +8,7 @@
 import {
   ImageRenderer as SharedImageRenderer,
   ShapeRenderer as SharedShapeRenderer,
-  ChartRenderer as SharedChartRenderer,
-  emuToPt
+  ChartRenderer as SharedChartRenderer
 } from '@ai-space/shared';
 import type {
   RenderRect,
@@ -20,21 +19,11 @@ import type {
   ChartRenderOptions,
   ColorDef
 } from '@ai-space/shared';
-import { Logger } from '../utils/Logger';
+
 import { UnitConverter } from '../utils/UnitConverter';
-import type {
-  Drawing,
-  DrawingImage,
-  DrawingShape,
-  DrawingChart,
-  DocxDocument,
-  AnchorPosition,
-  DocxElement
-} from '../types';
+import type { Drawing, DrawingImage, DrawingShape, DrawingChart, DocxDocument, AnchorPosition } from '../types';
 import { ParagraphRenderer } from './ParagraphRenderer';
 import { TableRenderer } from './TableRenderer';
-
-const log = Logger.createTagged('DrawingRenderer');
 
 /**
  * 绘图渲染上下文接口
@@ -51,11 +40,7 @@ export interface DrawingRenderContext {
  * 实现 StyleResolverInterface 接口
  */
 class DocxStyleResolver implements StyleResolverInterface {
-  private context: DrawingRenderContext;
-
-  constructor(context: DrawingRenderContext) {
-    this.context = context;
-  }
+  constructor(_context: DrawingRenderContext) {}
 
   /**
    * 解析颜色值
@@ -115,7 +100,7 @@ class DocxStyleResolver implements StyleResolverInterface {
   resolveFill(
     fill: { type?: string; color?: string; gradient?: unknown; opacity?: number } | undefined,
     ctx: RenderContext,
-    rect: RenderRect | null,
+    _rect: RenderRect | null,
     asCSS?: boolean
   ): string {
     if (!fill) return 'none';
@@ -387,7 +372,7 @@ export class DrawingRenderer {
       path: shape.path,
       pathWidth: shape.pathWidth,
       pathHeight: shape.pathHeight,
-      fill: shape.fill,
+      fill: shape.fill as any,
       stroke: shape.stroke
         ? {
             width: shape.stroke.width,

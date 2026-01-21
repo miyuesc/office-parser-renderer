@@ -4,7 +4,7 @@
  * 定义形状、图表、图片渲染所需的通用接口
  */
 
-import type { OfficeFill, OfficeStroke, OfficeEffect, OfficeGradient } from '../types';
+import type { OfficeFill, OfficeStroke, OfficeEffect } from '../types';
 
 /**
  * 渲染区域接口

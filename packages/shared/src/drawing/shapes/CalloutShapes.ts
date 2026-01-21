@@ -11,7 +11,7 @@ export const CalloutShapes: Record<string, ShapeGenerator> = {
   // Wedge 系列 - 一体式形状，正常填充
   [ST_ShapeType.wedgeRectCallout]: (w, h, adj) => {
     const adj1 = adj?.['adj1'] ?? 66667; // tail X position
-    const adj2 = adj?.['adj2'] ?? 150000; // tail Y position (beyond box)
+
     const bh = h * 0.75; // box height
     const tailX = w * (adj1 / 100000);
     const tailY = h;
@@ -23,7 +23,7 @@ export const CalloutShapes: Record<string, ShapeGenerator> = {
     );
   },
 
-  [ST_ShapeType.wedgeRoundRectCallout]: (w, h, adj) => {
+  [ST_ShapeType.wedgeRoundRectCallout]: (w, h, _adj) => {
     const r = Math.min(w, h) * 0.1;
     const bh = h * 0.75;
     const tailX = w * 0.5;
@@ -82,7 +82,7 @@ export const CalloutShapes: Record<string, ShapeGenerator> = {
     );
   },
 
-  [ST_ShapeType.cloudCallout]: (w, h, adj) => {
+  [ST_ShapeType.cloudCallout]: (w, h, _adj) => {
     // 云朵形状 + 尖角
     const cloud =
       `M ${w * 0.2} ${h * 0.55} ` +

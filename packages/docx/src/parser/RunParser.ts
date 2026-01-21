@@ -6,7 +6,7 @@
  */
 
 import { XmlUtils } from '@ai-space/shared';
-import { Logger } from '../utils/Logger';
+
 import type {
   Run,
   RunProperties,
@@ -19,9 +19,6 @@ import type {
   ParagraphChild
 } from '../types';
 import { FillParser } from '@ai-space/shared/src/drawing/parsers/FillParser';
-import { ShapePropertiesParser } from '@ai-space/shared/src/drawing/parsers/ShapePropertiesParser';
-
-const log = Logger.createTagged('RunParser');
 
 /**
  * 文本运行解析器类
@@ -429,7 +426,7 @@ export class RunParser {
       const w = parseInt(textOutlineNode.getAttribute('w') || '0', 10);
       const cap = textOutlineNode.getAttribute('cap');
       const cmpd = textOutlineNode.getAttribute('cmpd');
-      const algn = textOutlineNode.getAttribute('algn'); // stroke alignment?
+      // const algn = textOutlineNode.getAttribute('algn'); // stroke alignment?
 
       // 解析填充 (轮廓颜色)
       const lnFill = FillParser.parseFill(textOutlineNode);
