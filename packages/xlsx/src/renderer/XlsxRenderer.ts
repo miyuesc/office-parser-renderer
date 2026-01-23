@@ -35,8 +35,15 @@ export interface XlsxRenderOptions {
 
 /**
  * XLSX 渲染器主类
- * 负责协调整个工作簿的渲染过程，包括工作表布局和绘图元素（形状、图表、图片等）。
- * 它将具体的渲染任务委托给专用的子渲染器模块。
+ *
+ * 核心逻辑：
+ * 负责将解析后的 XlsxWorkbook 数据渲染为 Web 界面。
+ * 主要工作流：
+ * 1. 样式准备：初始化 StyleResolver，准备颜色和样式上下文。
+ * 2. 布局构建：创建 Flex 布局结构，包含内容区和底部标签栏。
+ * 3. 单元格渲染：使用 HTML Table 渲染网格数据，精确计算列宽行高。
+ * 4. 绘图层叠加：在表格上方创建 SVG 层，渲染浮动的形状、图片和图表。
+ * 5. 交互处理：处理标签切换、滚动等交互逻辑。
  */
 export class XlsxRenderer {
   /** 渲染容器 DOM 元素 */
@@ -88,7 +95,14 @@ export class XlsxRenderer {
 
   /**
    * 渲染工作簿入口方法
-   * @param workbook 解析后的 XLSX 工作簿数据
+   *
+   * 核心逻辑：
+   * 1. 保存工作簿引用。
+   * 2. 将工作簿上下文注入到样式解析器 (StyleResolver)，以便子渲染器能访问全局样式。
+   * 3. 重置当前激活的 Sheet 索引为 0。
+   * 4. 调用 `renderLayout` 开始构建界面。
+   *
+   * @param workbook - 解析后的 XLSX 工作簿数据
    */
   async render(workbook: XlsxWorkbook) {
     this.workbook = workbook;
@@ -101,8 +115,13 @@ export class XlsxRenderer {
 
   /**
    * 滚动到指定单元格
-   * @param row 目标行索引（0-based）
-   * @param col 目标列索引（0-based）
+   *
+   * 核心逻辑：
+   * 根据目标单元格的行列索引，累加计算其之前所有行的高度和所有列的宽度，
+   * 得出目标像素坐标 (top, left)，然后调用容器的 scrollTo 方法平滑滚动。
+   *
+   * @param row - 目标行索引（0-based）
+   * @param col - 目标列索引（0-based）
    */
   public scrollTo(row: number, col: number) {
     if (!this.contentContainer) return;
@@ -120,9 +139,13 @@ export class XlsxRenderer {
 
   /**
    * 渲染整体布局结构
-   * 包括：
-   * 1. 顶部/中部的工作表内容区域（支持滚动）
-   * 2. 底部的标签栏（Tabs Bar）
+   *
+   * 核心逻辑：
+   * 1. 样式注入：如果不禁用，自动注入 XLSX 基础 CSS。
+   * 2. 容器重置：清空主容器，设置 Flex 列式布局。
+   * 3. 内容区：创建可滚动的 `div` 作为 Sheet 内容容器。
+   * 4. 标签栏：创建底部 Tabs Bar，绑定点击事件以切换当前的 SheetIndex。
+   * 5. 触发渲染：调用 `renderSheet` 渲染当前选中的工作表内容。
    */
   private renderLayout() {
     if (!this.workbook) return;
@@ -159,7 +182,18 @@ export class XlsxRenderer {
 
   /**
    * 渲染单个工作表的内容
-   * @param container 内容区域容器
+   *
+   * 核心逻辑：
+   * 1. 维度计算：扫描所有单元格和浮动元素（图表、形状），确定表格的最大行列边界。
+   * 2. 列宽设置：创建 `<colgroup>`，将 Excel 列宽单位转换为像素宽度。
+   * 3. 表格构建：
+   *    - 创建 HTML Table。
+   *    - 遍历行：设置行高，处理隐藏行。
+   *    - 遍历单元格：处理合并单元格 (rowSpan/colSpan)，应用样式 (字体、背景、边框)，格式化数值 (NumberFormat)。
+   * 4. 绘图层包装：创建一个相对定位的包装容器 (`div.xlsx-render-area`)。
+   * 5. 触发绘图：调用 `renderDrawings` 在表格上方渲染 SVG 层。
+   *
+   * @param container - 内容区域容器
    */
   private renderSheet(container: HTMLElement) {
     if (!this.workbook) return;
@@ -360,9 +394,20 @@ export class XlsxRenderer {
 
   /**
    * 渲染所有绘图对象（Drawing Objects）
-   * 建立一个 SVG 覆盖层，将所有浮动元素渲染到该层上。
-   * @param sheet 当前工作表数据
-   * @param container 容器 DOM
+   *
+   * 核心逻辑：
+   * 1. 建立坐标系：计算累积的列宽和行高数组，用于将 Excel 锚点坐标 (Anchor) 转换为像素坐标。
+   * 2. 创建 SVG 层：创建一个全覆盖的绝对定位 SVG 元素，置于表格上方 (z-index: 10)。
+   * 3. 元素遍历与渲染：
+   *    - 形状 (Shapes)：调用 `shapeRenderer`。
+   *    - 图片 (Images)：调用 `imageRenderer`。
+   *    - 组合 (Groups)：递归处理组合形状。
+   *    - 连接线 (Connectors)：调用 `connectorRenderer`。
+   *    - 图表 (Charts)：调用 `chartRenderer`。
+   * 4. 坐标转换：使用辅助函数 `getRect` 将 EMU 单位的锚点转换为 SVG 的 x, y, width, height。
+   *
+   * @param sheet - 当前工作表数据
+   * @param container - 承载 SVG 的容器 DOM（通常是 .xlsx-render-area）
    */
   private renderDrawings(sheet: XlsxSheet, container: HTMLElement) {
     // 如果没有任何绘图对象，直接返回

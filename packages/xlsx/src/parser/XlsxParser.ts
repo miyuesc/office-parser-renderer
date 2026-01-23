@@ -16,15 +16,26 @@ export class XlsxParser {
   /**
    * 解析 XLSX 文件
    *
-   * @param buffer - XLSX 文件的 ArrayBuffer
-   * @returns 解析后的工作簿对象
+   * 核心逻辑：
+   * 1. 文件解压：使用 ZipService 读取 XLSX (ZIP) 文件内容。
+   * 2. 共享字符串：解析 `xl/sharedStrings.xml`，构建全局共享字符串表，这是 Excel 存储文本的高效方式。
+   * 3. 样式表：解析 `xl/styles.xml`，获取字体、填充、边框、数字格式等样式信息。
+   * 4. 主题：解析 `xl/theme/theme1.xml`，获取颜色主题方案。
+   * 5. 工作簿结构：解析 `xl/workbook.xml` 获取工作表列表 (Sheets) 和定义的名称。
+   * 6. 工作表内容：遍历每个 Sheet，解析其 XML 内容 (`xl/worksheets/sheetN.xml`)，处理单元格数据、合并单元格等。
+   * 7. 绘图对象：解析每个 Sheet 关联的绘图部分 (`xl/drawings/drawingN.xml`)，处理图片、形状、图表。
+   * 8. 资源关联：通过 `_rels` 关系文件解决图片、图表等外部资源的引用路径。
+   *
+   * @param buffer - XLSX 文件的原始二进制数据 (ArrayBuffer)
+   * @returns Promise<XlsxWorkbook> - 解析完成的工作簿对象，包含所有 Sheet 数据、样式和资源
    */
   async parse(buffer: ArrayBuffer): Promise<XlsxWorkbook> {
     const files = await ZipService.load(buffer);
     const decoder = new TextDecoder();
     const getXml = (path: string) => (files[path] ? decoder.decode(files[path]) : null);
 
-    // 1. 解析共享字符串
+    // 1. 解析共享字符串 (Shared Strings)
+    // Excel 将重复出现的文本存储在单独的表中，单元格通过索引引用，以减小文件体积
     const sharedStrings: string[] = [];
     const ssXml = getXml('xl/sharedStrings.xml');
     if (ssXml) {
@@ -37,21 +48,23 @@ export class XlsxParser {
       });
     }
 
-    // 2. 解析样式
+    // 2. 解析样式 (Styles)
+    // 包含数字格式 (numFmts)、字体 (fonts)、填充 (fills)、边框 (borders) 和单元格样式引用 (cellXfs)
     let styles: XlsxStyles = { fonts: [], fills: [], borders: [], cellXfs: [], numFmts: {} };
     const stylesXml = getXml('xl/styles.xml');
     if (stylesXml) {
       styles = StyleParser.parse(stylesXml);
     }
 
-    // 3. 解析主题
+    // 3. 解析主题 (Theme)
+    // 主要用于颜色引用 (clrScheme)
     let theme;
     const themeXml = getXml('xl/theme/theme1.xml'); // 标准路径
     if (themeXml) {
       theme = ThemeParser.parse(themeXml);
     }
 
-    // 4. 解析工作簿和工作表
+    // 4. 解析工作簿和工作表列表 (Workbook & Sheets)
     let sheets: XlsxSheet[] = [];
     const wbXml = getXml('xl/workbook.xml');
     const relsXml = getXml('xl/_rels/workbook.xml.rels');
@@ -60,7 +73,7 @@ export class XlsxParser {
       const { sheets: parsedSheets } = WorkbookParser.parse(wbXml, relsXml);
       sheets = parsedSheets;
 
-      // 5. 解析每个工作表
+      // 5. 解析每个工作表的内容 (Sheet Content)
       for (const sheet of sheets) {
         if (!sheet.id) continue;
 
@@ -77,7 +90,8 @@ export class XlsxParser {
             const parsedSheet = WorksheetParser.parse(sheetXml, sheet);
             Object.assign(sheet, parsedSheet);
 
-            // 6. 处理绘图（如果存在）
+            // 6. 处理绘图 (Drawings: Shapes, Images, Charts)
+            // 绘图内容存储在单独的 XML 中，通过 relationships 关联
             if (sheet.drawingId) {
               const pathParts = sheetPath.split('/');
               const fileName = pathParts.pop();
@@ -157,7 +171,7 @@ export class XlsxParser {
                       }
                       sheet.images = images;
 
-                      // 8. 解析图表
+                      // 8. 解析图表 (Charts)
                       if (chartRefs.length > 0) {
                         const charts: OfficeChart[] = [];
                         for (const chartRef of chartRefs) {

@@ -35,9 +35,16 @@ export class DocumentParser {
   /**
    * 解析文档 XML
    *
-   * @param xml - document.xml 内容
-   * @param context - 解析上下文
-   * @returns 文档解析结果
+   * 核心逻辑：
+   * 1. 根节点解析：解析 XML 字符串为 DOM 树。
+   * 2. 页面背景：提取文档背景色配置（如 <w:background>）。
+   * 3. 主体定位：查找 `w:body` 节点。
+   * 4. 递归解析：调用 `parseBody` 递归处理 Body 内部的所有子节点（段落、表格、结构化标签等）。
+   * 5. 分节处理：提取并追加最后一个分节属性 (sectPr)，确保文档完整的分节结构。
+   *
+   * @param xml - document.xml 的内容字符串
+   * @param context - 解析上下文，包含编号、样式等引用
+   * @returns DocumentParseResult - 文档解析结果，包含解析出的元素树和分节信息
    */
   static parse(xml: string, context?: ParagraphParserContext): DocumentParseResult {
     const body: DocxElement[] = [];
@@ -95,9 +102,16 @@ export class DocumentParser {
   /**
    * 解析文档主体
    *
-   * @param bodyNode - body 元素
+   * 核心逻辑：
+   * 递归遍历 XML 节点，根据标签名分发解析任务：
+   * - `w:p`: 解析段落，并检查段落属性中是否包含分节符。
+   * - `w:tbl`: 解析表格。
+   * - `w:sdt`: 递归解析结构化文档标签内容。
+   * - `w:customXml`: 递归解析自定义 XML 内容。
+   *
+   * @param bodyNode - XML 元素节点 (如 w:body, w:sdtContent)
    * @param context - 解析上下文
-   * @returns 元素和分节列表
+   * @returns { elements, sections } - 解析出的文档元素列表和分节列表
    */
   public static parseBody(
     bodyNode: Element,
@@ -172,12 +186,17 @@ export class DocumentParser {
   }
 
   /**
-   * 解析文档从 ZIP 文件
+   * 从 ZIP 文件中解析文档
    *
-   * @param files - ZIP 文件映射
+   * 核心逻辑：
+   * 1. 从解压后的文件映射中读取 `word/document.xml`。
+   * 2. 将二进制数据解码为文本字符串。
+   * 3. 调用 `parse` 方法进行解析。
+   *
+   * @param files - ZIP 包中的文件映射 (路径 -> 数据)
    * @param decoder - 文本解码器
    * @param context - 解析上下文
-   * @returns 文档解析结果
+   * @returns DocumentParseResult - 文档解析结果
    */
   static parseFromFiles(
     files: Record<string, Uint8Array>,

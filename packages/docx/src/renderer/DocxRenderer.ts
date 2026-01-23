@@ -46,6 +46,12 @@ const DEFAULT_OPTIONS: DocxRenderOptions = {
 
 /**
  * DOCX 渲染器类
+ *
+ * 核心逻辑：
+ * 负责将结构化的 DocxDocument 对象渲染为浏览器可显示的 DOM 结构。
+ * 支持两种模式：
+ * 1. 单页模式 (Single Page)：所有内容在一个连续的容器中渲染，类似 Web 视图。
+ * 2. 分页模式 (Pagination)：模拟真实打印分页，精确计算元素高度并进行分页处理。
  */
 export class DocxRenderer {
   /** 渲染容器 */
@@ -72,10 +78,16 @@ export class DocxRenderer {
   }
 
   /**
-   * 渲染文档
+   * 渲染文档（入口方法）
    *
-   * @param doc - 解析后的文档对象
-   * @returns 渲染结果
+   * 核心逻辑：
+   * 1. 初始化：清空容器，重置状态。
+   * 2. 配置解析：解析文档首页的分节配置，确定页面尺寸等基准信息。
+   * 3. 上下文构建：创建用于渲染段落、列表的上下文对象 (ParagraphRenderContext)。
+   * 4. 模式分发：根据 `options.enablePagination` 决定调用单页渲染还是多页分页渲染。
+   *
+   * @param doc - 解析后的文档对象 (DocxDocument)
+   * @returns Promise<DocxRenderResult> - 渲染结果信息，包含生成的所有页面元素
    */
   async render(doc: DocxDocument): Promise<DocxRenderResult> {
     Logger.group('渲染 DOCX 文档');
@@ -122,7 +134,22 @@ export class DocxRenderer {
   }
 
   /**
-   * 单页渲染模式（不分页，所有内容在一个容器中）
+   * 单页渲染模式（不分页）
+   *
+   * 核心逻辑：
+   * 1. 创建页面容器：创建一个单一的、连续的页面容器，高度不限。
+   * 2. 渲染背景与水印：如果配置启用，应用文档背景色和水印层。
+   * 3. 渲染组件：依次渲染页眉、页脚（除封面外）。
+   * 4. 内容流渲染：
+   *    - 遍历文档 Body 中的所有元素。
+   *    - 遇到分节符 (Section Break) 时，应用新的分栏配置创建新的内容区块。
+   *    - 调用 `renderElement` 将元素渲染到底层 DOM 并通过 `appendChild` 加入文档流。
+   *
+   * @param doc - 文档对象
+   * @param section - 初始分节
+   * @param pageConfig - 初始页面配置
+   * @param context - 渲染上下文
+   * @returns DocxRenderResult - 渲染结果
    */
   private renderSinglePage(
     doc: DocxDocument,
@@ -265,6 +292,25 @@ export class DocxRenderer {
 
   /**
    * 多页渲染模式（启用分页）
+   *
+   * 核心逻辑：
+   * 1. 预渲染测量：
+   *    - 创建一个不可见的测量容器。
+   *    - 将所有元素预渲染到该容器中，获取其实际渲染高度。
+   * 2. 分页计算：
+   *    - 初始化 `PageCalculator`。
+   *    - 遍历预渲染元素列表，累加高度。
+   *    - 当高度超过内容区域高度时，触发分页断点。
+   * 3. 实际页面生成：
+   *    - 根据计算出的分页点 (Page Breaks)，创建多个页面容器。
+   *    - 将预渲染的 DOM 节点（克隆或移动）分配到对应的页面中。
+   *    - 为每一页独立渲染页眉和页脚（支持奇偶页不同）。
+   *
+   * @param doc - 文档对象
+   * @param section - 初始分节
+   * @param pageConfig - 初始页面配置
+   * @param context - 渲染上下文
+   * @returns DocxRenderResult - 渲染结果，包含多个页面元素
    */
   private renderWithPagination(
     doc: DocxDocument,
@@ -418,23 +464,29 @@ export class DocxRenderer {
   /**
    * 渲染单个元素
    *
-   * @param element - 文档元素
-   * @param context - 渲染上下文
-   * @returns HTMLElement 或 null
+   * 核心逻辑：
+   * 根据元素类型 (paragraph, table, drawing, etc.) 分发给对应的专用渲染器。
+   *
+   * @param element - 文档元素对象
+   * @param context - 渲染上下文，包含样式、列表状态等
+   * @returns HTMLElement | null - 渲染生成的 DOM 节点，如果是分节符等非可视元素可能返回特殊的占位符或 null
    */
   private renderElement(element: DocxElement, context: ParagraphRenderContext): HTMLElement | null {
     let rendered: HTMLElement | null = null;
 
     switch (element.type) {
       case 'paragraph':
+        // 渲染段落
         rendered = ParagraphRenderer.render(element, context);
         break;
 
       case 'table':
+        // 渲染表格
         rendered = TableRenderer.render(element, context);
         break;
 
       case 'drawing':
+        // 渲染绘图元素（图表、图片、形状）
         rendered = DrawingRenderer.render(element, {
           document: context.document,
           images: context.document?.images,

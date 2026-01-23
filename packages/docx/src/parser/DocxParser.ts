@@ -26,10 +26,17 @@ export class DocxParser {
   /**
    * 解析 DOCX 文件
    *
-   * 支持多种输入格式：File、ArrayBuffer、Uint8Array
+   * 核心逻辑：
+   * 1. 统一输入：将 File、ArrayBuffer 等多种输入格式统一转换为 ArrayBuffer。
+   * 2. 解压文件：使用 ZipService 解压 DOCX (ZIP) 包，获取内部 XML 文件映射。
+   * 3. 解析依赖：优先解析 `_rels` 关系文件，建立资源索引。
+   * 4. 全局配置：解析样式表 (Styles)、列表编号 (Numbering)、主题 (Theme) 等全局配置。
+   * 5. 文档内容：解析主文档 (document.xml) 结构，生成虚拟 DOM 树。
+   * 6. 辅助内容：解析页眉页脚、脚注尾注、媒体资源。
+   * 7. 组装对象：将所有解析后的数据组装成统一的 `DocxDocument` 对象返回。
    *
-   * @param input - 输入数据
-   * @returns 解析后的文档对象
+   * @param input - 输入数据，支持浏览器 File 对象、二进制 ArrayBuffer 或 Uint8Array。
+   * @returns Promise<DocxDocument> - 解析完成的文档对象，包含正文、样式、图片映射等所有文档数据。
    */
   async parse(input: File | ArrayBuffer | Uint8Array): Promise<DocxDocument> {
     Logger.group('解析 DOCX 文件');
@@ -124,8 +131,11 @@ export class DocxParser {
   /**
    * 标准化输入数据
    *
-   * @param input - 输入数据
-   * @returns ArrayBuffer
+   * 核心逻辑：
+   * 判断输入数据的类型（ArrayBuffer, Uint8Array, File），将其统一转换为 ArrayBuffer 格式。
+   *
+   * @param input - 输入数据 (File | ArrayBuffer | Uint8Array)
+   * @returns Promise<ArrayBuffer> - 标准化后的二进制缓冲数据
    */
   private async normalizeInput(input: File | ArrayBuffer | Uint8Array): Promise<ArrayBuffer> {
     if (input instanceof ArrayBuffer) {
@@ -146,8 +156,13 @@ export class DocxParser {
   /**
    * 填充页眉页脚内容到分节配置
    *
-   * @param sections - 分节列表
-   * @param headerFooterResult - 页眉页脚解析结果
+   * 核心逻辑：
+   * 遍历文档的每个分节 (Section)，根据分节属性中定义的页眉/页脚 ID (headerId/footerId)，
+   * 从已解析的页眉页脚集合中查找对应的内容，并将其注入到分节对象中。
+   * 支持首页 (First)、偶数页 (Even) 和默认 (Default) 三种类型的页眉页脚。
+   *
+   * @param sections - 文档的分节列表
+   * @param headerFooterResult - 页眉页脚的解析结果映射表
    */
   private fillHeaderFooterContent(
     sections: DocxSection[],
@@ -207,8 +222,13 @@ export class DocxParser {
   /**
    * 解析文档并提取纯文本
    *
-   * @param input - 输入数据
-   * @returns 纯文本字符串
+   * 核心逻辑：
+   * 1. 调用 `parse` 方法完全解析文档。
+   * 2. 遍历解析后的文档 Body，递归提取所有段落和文本运行 (Run) 中的文本内容。
+   * 3. 将所有文本拼接为字符串返回。
+   *
+   * @param input - 输入数据 (File | ArrayBuffer | Uint8Array)
+   * @returns Promise<string> - 文档中的纯文本内容
    */
   async extractText(input: File | ArrayBuffer | Uint8Array): Promise<string> {
     const doc = await this.parse(input);
@@ -218,8 +238,11 @@ export class DocxParser {
   /**
    * 获取文档页面配置
    *
+   * 核心逻辑：
+   * 解析文档并仅返回分节信息，包含页面大小 (PageSize)、页边距 (Margins)、分栏 (Columns) 等设置。
+   *
    * @param input - 输入数据
-   * @returns 分节配置数组
+   * @returns Promise<DocxSection[]> - 分节配置数组
    */
   async getPageSettings(input: File | ArrayBuffer | Uint8Array): Promise<DocxSection[]> {
     const doc = await this.parse(input);
@@ -228,12 +251,17 @@ export class DocxParser {
 
   /**
    * 解析图表数据
-   * 遍历文档中的 Drawing 元素，加载并解析图表 XML
    *
-   * @param elements - 文档元素列表
-   * @param files - ZIP 文件映射
+   * 核心逻辑：
+   * 1. 递归遍历文档元素树（包括段落、表格、表格单元格）。
+   * 2. 查找包含图表引用的 Drawing 元素。
+   * 3. 通过关系 ID (rId) 在 `relationships` 中查找对应的图表 XML 文件路径。
+   * 4. 读取并解析图表 XML，将解析结果合并回 Drawing 元素的 chart 属性中。
+   *
+   * @param elements - 当前层级的文档元素列表
+   * @param files - 所有解压后的文件数据映射
    * @param decoder - 文本解码器
-   * @param relationships - 关系映射
+   * @param relationships - 文档的关系映射表 (rId -> Target)
    */
   private parseChartData(
     elements: DocxElement[],
@@ -273,9 +301,13 @@ export class DocxParser {
   /**
    * 解析图表文件路径
    *
-   * @param rId - 图表关系 ID
-   * @param relationships - 关系映射
-   * @returns 图表文件路径
+   * 核心逻辑：
+   * 根据关系 ID 查找目标路径。如果路径是相对路径（不以 / 开头），则自动拼接 'word/' 前缀，
+   * 确保能正确在 ZIP 包中找到文件。
+   *
+   * @param rId - 图表的关系 ID
+   * @param relationships - 关系映射表
+   * @returns string | null - 图表文件的完整路径，若未找到关系则返回 null
    */
   private resolveChartPath(rId: string, relationships: Record<string, string>): string | null {
     const target = relationships[rId];
