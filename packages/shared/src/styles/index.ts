@@ -20,3 +20,6 @@ export { AlignmentStyles } from './AlignmentStyles';
 // 边框样式
 export { BorderStyles } from './BorderStyles';
 export type { BorderConfig } from './BorderStyles';
+
+// 样式工具
+export { StyleUtils } from './StyleUtils';

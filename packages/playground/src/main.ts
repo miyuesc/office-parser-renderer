@@ -1,8 +1,14 @@
 // import { DocxParser, DocxRenderer } from '@ai-space/docx';
 import { DocxParser, DocxRenderer } from '../../docx/src/index';
 import { PptxParser, PptxRenderer } from '@ai-space/pptx';
-import { XlsxParser, XlsxRenderer } from '@ai-space/xlsx';
+// 直接从源文件导入以便测试最新的修改
+import { XlsxParser, XlsxRenderer } from '../../xlsx/src/index';
 import { renderShapeGallery } from './shape-gallery';
+
+// 引入 CSS 样式文件（替代内联样式注入）
+import '../../docx/src/styles/docx.css';
+import '../../xlsx/src/styles/xlsx.css';
+import '../../shared/src/styles/common.css';
 
 const fileInput = document.getElementById('fileInput') as HTMLInputElement;
 const container = document.getElementById('container') as HTMLElement;
@@ -35,7 +41,8 @@ async function loadDocx(url: string) {
     const renderer = new DocxRenderer(container, {
       enablePagination: true,
       useDocumentBackground: true,
-      useDocumentWatermark: true
+      useDocumentWatermark: true,
+      injectStyles: false // 使用外部 CSS 文件
     });
     await renderer.render(doc);
     console.log('Render Complete');
@@ -65,7 +72,7 @@ async function loadXlsx(url: string) {
     const doc = await parser.parse(buf);
     console.log('XLSX AST:', doc);
 
-    const renderer = new XlsxRenderer(container);
+    const renderer = new XlsxRenderer(container, { injectStyles: false });
     await renderer.render(doc);
     console.log('Render Complete');
     console.groupEnd();
@@ -105,7 +112,8 @@ fileInput.addEventListener('change', async e => {
       const renderer = new DocxRenderer(container, {
         enablePagination: true,
         useDocumentBackground: true,
-        useDocumentWatermark: true
+        useDocumentWatermark: true,
+        injectStyles: false // 使用外部 CSS 文件
       });
       await renderer.render(doc);
     } else if (name.endsWith('.pptx')) {
@@ -120,7 +128,7 @@ fileInput.addEventListener('change', async e => {
       const doc = await parser.parse(arrayBuffer);
       console.log('XLSX AST:', doc);
 
-      const renderer = new XlsxRenderer(container);
+      const renderer = new XlsxRenderer(container, { injectStyles: false });
       await renderer.render(doc);
 
       // Sheet Switcher
@@ -148,5 +156,6 @@ fileInput.addEventListener('change', async e => {
   }
 });
 
-// 自动加载默认测试文档 (DOCX)
-loadDocx(TEST_DOCX_PATH);
+// 自动加载默认测试文档
+// loadDocx(TEST_DOCX_PATH);
+loadXlsx(TEST_XLSX_PATH);

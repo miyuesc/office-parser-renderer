@@ -208,4 +208,72 @@ export class StyleInjector {
   static isInjected(): boolean {
     return this.injected || !!document.getElementById(this.STYLE_ID);
   }
+
+  /**
+   * 获取 CSS 样式内容
+   *
+   * 用于外部获取样式内容（如服务端渲染）
+   *
+   * @returns CSS 样式字符串
+   */
+  static getStyleContent(): string {
+    return `
+      .docx-container {
+        font-family: '宋体', 'SimSun', 'Microsoft YaHei', sans-serif;
+        font-size: 12pt;
+        line-height: 1.2;
+        color: #000;
+        background-color: #808080;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+      }
+      .docx-page { page-break-after: always; flex-shrink: 0; }
+      .docx-page:last-child { page-break-after: auto; }
+      .docx-paragraph { margin: 0; padding: 0; word-wrap: break-word; overflow-wrap: break-word; }
+      .docx-run { white-space: pre-wrap; }
+      .docx-table { border-collapse: collapse; margin: 10px 0; }
+      .docx-table-cell { vertical-align: top; }
+      .docx-hyperlink { color: #0563C1; text-decoration: underline; cursor: pointer; }
+      .docx-image, .docx-drawing { display: inline-block; vertical-align: middle; }
+      .docx-image-content { max-width: 100%; height: auto; }
+      .docx-list-marker { display: inline-block; min-width: 20px; margin-right: 8px; }
+      .docx-header { position: absolute; top: 0; left: 0; right: 0; box-sizing: border-box; z-index: 1; }
+      .docx-footer { position: absolute; bottom: 0; left: 0; right: 0; box-sizing: border-box; z-index: 1; }
+      .docx-content { position: relative; z-index: 1; }
+      .docx-watermark { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; pointer-events: none; z-index: 0; overflow: hidden; }
+      .docx-measure-container { position: absolute; visibility: hidden; pointer-events: none; }
+      .docx-corner-mark { position: absolute; width: 30px; height: 30px; pointer-events: none; z-index: 2; }
+      .docx-corner-mark.top-left { border-top: 1px solid #999; border-left: 1px solid #999; }
+      .docx-corner-mark.top-right { border-top: 1px solid #999; border-right: 1px solid #999; }
+      .docx-corner-mark.bottom-left { border-bottom: 1px solid #999; border-left: 1px solid #999; }
+      .docx-corner-mark.bottom-right { border-bottom: 1px solid #999; border-right: 1px solid #999; }
+      @media print { .docx-container { background-color: white; padding: 0; gap: 0; } .docx-page { box-shadow: none; margin: 0; } }
+    `;
+  }
+
+  /**
+   * 加载外部 CSS 文件
+   *
+   * @param cssUrl - CSS 文件 URL
+   * @returns Promise
+   */
+  static async loadExternalStyles(cssUrl: string): Promise<void> {
+    // 检查是否已加载
+    const existingLink = document.querySelector(`link[href="${cssUrl}"]`);
+    if (existingLink) {
+      return;
+    }
+
+    return new Promise((resolve, reject) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = cssUrl;
+      link.onload = () => resolve();
+      link.onerror = () => reject(new Error(`Failed to load CSS: ${cssUrl}`));
+      document.head.appendChild(link);
+    });
+  }
 }

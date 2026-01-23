@@ -40,7 +40,8 @@ const DEFAULT_OPTIONS: DocxRenderOptions = {
   enablePagination: false,
   debug: false,
   useDocumentBackground: true,
-  useDocumentWatermark: true
+  useDocumentWatermark: true,
+  injectStyles: true // 默认自动注入样式，设为 false 时需手动引入 CSS
 };
 
 /**
@@ -245,8 +246,10 @@ export class DocxRenderer {
     // 回调
     this.options.onPageRender?.(0, pageContainer);
 
-    // 应用样式表
-    StyleInjector.injectStyles();
+    // 应用样式表（可通过选项禁用，改为手动引入 CSS）
+    if (this.options.injectStyles !== false) {
+      StyleInjector.injectStyles();
+    }
 
     const result: DocxRenderResult = {
       totalPages: 1,
@@ -395,8 +398,10 @@ export class DocxRenderer {
       pageElements.push(page);
     }
 
-    // 应用样式表
-    StyleInjector.injectStyles();
+    // 应用样式表（可通过选项禁用，改为手动引入 CSS）
+    if (this.options.injectStyles !== false) {
+      StyleInjector.injectStyles();
+    }
 
     const result: DocxRenderResult = {
       totalPages,

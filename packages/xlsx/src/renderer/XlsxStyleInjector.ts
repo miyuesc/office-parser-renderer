@@ -44,6 +44,12 @@ export class XlsxStyleInjector {
         box-sizing: border-box;
       }
 
+      .xlsx-content {
+        position: relative;
+        flex: 1;
+        overflow: auto;
+      }
+
       .xlsx-container table {
         border-collapse: collapse;
         table-layout: fixed;
@@ -96,5 +102,43 @@ export class XlsxStyleInjector {
    */
   static isInjected(): boolean {
     return this.injected || !!document.getElementById(this.STYLE_ID);
+  }
+
+  /**
+   * 获取 CSS 样式内容
+   *
+   * @returns CSS 样式字符串
+   */
+  static getStyleContent(): string {
+    return `
+      .xlsx-container { font-family: 'Calibri', 'Segoe UI', 'Arial', sans-serif; font-size: 11pt; line-height: 1.2; color: #000; position: relative; }
+      .xlsx-container * { box-sizing: border-box; }
+      .xlsx-content { position: relative; flex: 1; overflow: auto; }
+      .xlsx-container table { border-collapse: collapse; table-layout: fixed; }
+      .xlsx-container td { padding: 2px 4px; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .xlsx-container > div:last-child { flex-shrink: 0; min-height: 32px; }
+      .xlsx-container svg { pointer-events: none; overflow: visible; }
+      .xlsx-container svg g { pointer-events: all; }
+    `;
+  }
+
+  /**
+   * 加载外部 CSS 文件
+   *
+   * @param cssUrl - CSS 文件 URL
+   * @returns Promise
+   */
+  static async loadExternalStyles(cssUrl: string): Promise<void> {
+    const existingLink = document.querySelector(`link[href="${cssUrl}"]`);
+    if (existingLink) return;
+
+    return new Promise((resolve, reject) => {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = cssUrl;
+      link.onload = () => resolve();
+      link.onerror = () => reject(new Error(`Failed to load CSS: ${cssUrl}`));
+      document.head.appendChild(link);
+    });
   }
 }

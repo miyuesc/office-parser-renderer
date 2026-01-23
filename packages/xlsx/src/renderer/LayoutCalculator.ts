@@ -5,7 +5,12 @@
  */
 
 import type { XlsxSheet } from '../types';
-import { DEFAULT_COL_WIDTH, DEFAULT_ROW_HEIGHT, EMU_TO_PX } from './constants';
+import { DEFAULT_COL_WIDTH, DEFAULT_ROW_HEIGHT } from './constants';
+
+// Excel 列宽（字符单位）到像素的转换因子
+const CHAR_WIDTH_TO_PX = 7.5;
+// 行高（Points）到像素的转换因子
+const PT_TO_PX = 96 / 72; // = 1.333...
 
 /**
  * 布局计算器类
@@ -17,8 +22,11 @@ export class LayoutCalculator {
    * 遍历所有绘图对象以确定需要渲染的最大行和列范围
    * 同时填充 colWidths 和 rowHeights 数组
    *
+   * 注意：返回的 colWidths 和 rowHeights 都是像素值，
+   * 与表格渲染使用相同的转换逻辑
+   *
    * @param sheet - 工作表数据
-   * @returns 布局度量结果
+   * @returns 布局度量结果（均为像素值）
    */
   static calculateLayoutMetrics(sheet: XlsxSheet): {
     maxRow: number;
@@ -26,8 +34,15 @@ export class LayoutCalculator {
     colWidths: number[];
     rowHeights: number[];
   } {
-    let maxRow = (sheet.rows || []).length;
-    let maxCol = (sheet.columns || []).length;
+    // 获取行数据的最大行索引（sheet.rows 是 Record<number, XlsxRow>）
+    const rowKeys = Object.keys(sheet.rows || {}).map(Number);
+    let maxRow = rowKeys.length > 0 ? Math.max(...rowKeys) : 0;
+
+    // 获取列定义的最大列索引（sheet.cols 是 XlsxColumn[]）
+    let maxCol = 0;
+    (sheet.cols || []).forEach((col: { max: number }) => {
+      if (col.max > maxCol) maxCol = col.max;
+    });
 
     const colWidths: number[] = [];
     const rowHeights: number[] = [];
@@ -38,10 +53,10 @@ export class LayoutCalculator {
       for (const item of list) {
         const anchor = item.anchor;
         if (!anchor) continue;
-        const toCol = anchor.to?.col ?? anchor.col;
-        const toRow = anchor.to?.row ?? anchor.row;
-        if (toCol !== undefined && toCol + 1 > maxCol) maxCol = toCol + 1;
-        if (toRow !== undefined && toRow + 1 > maxRow) maxRow = toRow + 1;
+        const toCol = anchor.to?.col ?? anchor.from?.col ?? 0;
+        const toRow = anchor.to?.row ?? anchor.from?.row ?? 0;
+        if (toCol + 1 > maxCol) maxCol = toCol + 1;
+        if (toRow + 1 > maxRow) maxRow = toRow + 1;
       }
     };
 
@@ -49,20 +64,37 @@ export class LayoutCalculator {
     check(sheet.shapes);
     check(sheet.connectors);
     check(sheet.charts);
-    check(sheet.groups);
+    check(sheet.groupShapes);
 
-    // 填充列宽数组
+    // 辅助函数：根据列索引（1-based）查找列定义
+    const getColDef = (idx: number) => {
+      return (sheet.cols || []).find(col => idx >= col.min && idx <= col.max);
+    };
+
+    // 填充列宽数组（转换为像素）
+    // 使用与 renderSheet 相同的转换逻辑：width * 7.5
     for (let c = 0; c < maxCol; c++) {
-      const colDef = (sheet.columns || []).find(col => col.min <= c + 1 && col.max >= c + 1);
-      const w = colDef?.width ?? DEFAULT_COL_WIDTH;
-      colWidths.push(w);
+      const colDef = getColDef(c + 1); // 列索引是 1-based
+      if (colDef?.width) {
+        // Excel 列宽（字符单位）转换为像素
+        colWidths.push(colDef.width * CHAR_WIDTH_TO_PX);
+      } else {
+        // 默认列宽（已经是像素）
+        colWidths.push(DEFAULT_COL_WIDTH);
+      }
     }
 
-    // 填充行高数组
+    // 填充行高数组（转换为像素）
+    // 使用与 renderSheet 相同的转换逻辑：height * 1.33
     for (let r = 0; r < maxRow; r++) {
-      const rowDef = (sheet.rows || []).find(row => row.r === r + 1);
-      const h = rowDef?.ht ?? DEFAULT_ROW_HEIGHT;
-      rowHeights.push(h);
+      const rowDef = sheet.rows?.[r + 1]; // 行索引是 1-based
+      if (rowDef?.height) {
+        // 行高（Points）转换为像素
+        rowHeights.push(rowDef.height * PT_TO_PX);
+      } else {
+        // 默认行高（已经是像素）
+        rowHeights.push(DEFAULT_ROW_HEIGHT);
+      }
     }
 
     return { maxRow, maxCol, colWidths, rowHeights };

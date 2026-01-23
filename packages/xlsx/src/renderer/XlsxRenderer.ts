@@ -26,6 +26,14 @@ import { ConnectorRenderer } from './ConnectorRenderer';
 import { DEFAULT_COL_WIDTH, DEFAULT_ROW_HEIGHT, EMU_TO_PX } from './constants';
 
 /**
+ * XLSX 渲染选项接口
+ */
+export interface XlsxRenderOptions {
+  /** 是否自动注入样式（默认 true），设为 false 时需手动引入 CSS */
+  injectStyles?: boolean;
+}
+
+/**
  * XLSX 渲染器主类
  * 负责协调整个工作簿的渲染过程，包括工作表布局和绘图元素（形状、图表、图片等）。
  * 它将具体的渲染任务委托给专用的子渲染器模块。
@@ -53,12 +61,17 @@ export class XlsxRenderer {
   /** 缓存的列宽信息（索引 -> 像素宽度） */
   private colWidths: number[] = [];
 
+  /** 渲染选项 */
+  private options: XlsxRenderOptions;
+
   /**
    * 构造函数
    * @param container 用于挂载渲染结果的 DOM 容器
+   * @param options 渲染选项
    */
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, options?: XlsxRenderOptions) {
     this.container = container;
+    this.options = options || {};
 
     // 初始化各个子渲染器
     // StyleResolver 用于解析颜色、填充、滤镜等样式
@@ -114,8 +127,10 @@ export class XlsxRenderer {
   private renderLayout() {
     if (!this.workbook) return;
 
-    // 注入 XLSX 专用样式
-    XlsxStyleInjector.injectStyles();
+    // 注入 XLSX 专用样式（可通过选项禁用，改为手动引入 CSS）
+    if (this.options.injectStyles !== false) {
+      XlsxStyleInjector.injectStyles();
+    }
 
     // 清空容器并设置基础 Flexbox 布局
     this.container.innerHTML = '';
@@ -326,10 +341,21 @@ export class XlsxRenderer {
       table.appendChild(tr);
     }
 
-    container.appendChild(table);
+    // 创建内层渲染区域包装器
+    // 这个包装器使用 position: relative 作为 table 和 SVG 的共同定位基准
+    // 使用 width: fit-content 确保其宽度与表格一致
+    const renderArea = document.createElement('div');
+    renderArea.className = 'xlsx-render-area';
+    renderArea.style.position = 'relative';
+    renderArea.style.width = 'fit-content';
+    renderArea.style.minWidth = '100%';
+
+    renderArea.appendChild(table);
+    container.appendChild(renderArea);
 
     // 渲染浮动绘图层（图片、形状、连接符、图表）
-    this.renderDrawings(sheet, container);
+    // 使用 renderArea 作为容器，确保 SVG 与表格使用相同的坐标系
+    this.renderDrawings(sheet, renderArea);
   }
 
   /**
@@ -348,13 +374,15 @@ export class XlsxRenderer {
     this.rowHeights = rowHeights;
 
     // 辅助函数：计算指定列和偏移量的左侧像素位置
+    // colWidths 数组索引从 0 开始，对应 Excel 的第 1 列
     const getLeft = (col: number, off: number) => {
       let left = 0;
-      for (let c = 0; c < col; c++) left += colWidths[c + 1] || DEFAULT_COL_WIDTH;
+      for (let c = 0; c < col; c++) left += colWidths[c] || DEFAULT_COL_WIDTH;
       return left + off * EMU_TO_PX;
     };
 
     // 辅助函数：计算指定行和偏移量的顶部像素位置
+    // rowHeights 数组索引从 0 开始，对应 Excel 的第 1 行
     const getTop = (row: number, off: number) => {
       let top = 0;
       for (let r = 0; r < row; r++) top += rowHeights[r] || DEFAULT_ROW_HEIGHT;
@@ -484,12 +512,14 @@ export class XlsxRenderer {
   private getRect(anchor: any) {
     if (!anchor || anchor.type !== 'absolute') return { x: 0, y: 0, w: 0, h: 0 };
 
+    // colWidths 数组索引从 0 开始，对应 Excel 的第 1 列
     const getLeft = (col: number, off: number) => {
       let left = 0;
-      for (let c = 0; c < col; c++) left += this.colWidths[c + 1] || DEFAULT_COL_WIDTH;
+      for (let c = 0; c < col; c++) left += this.colWidths[c] || DEFAULT_COL_WIDTH;
       return left + off * EMU_TO_PX;
     };
 
+    // rowHeights 数组索引从 0 开始，对应 Excel 的第 1 行
     const getTop = (row: number, off: number) => {
       let top = 0;
       for (let r = 0; r < row; r++) top += this.rowHeights[r] || DEFAULT_ROW_HEIGHT;
