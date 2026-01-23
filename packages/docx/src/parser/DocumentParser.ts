@@ -76,10 +76,8 @@ export class DocumentParser {
       const lastSectPr = XmlUtils.query(bodyNode, 'w\\:sectPr, sectPr');
       const lastSection = lastSectPr ? SectionParser.parse(lastSectPr) : SectionParser.getDefault();
 
-      // 如果没有中间分节，添加最后一个分节
-      if (sections.length === 0) {
-        sections.push(lastSection);
-      }
+      // 始终添加最后一个分节（因为它定义了最后一部分内容的属性）
+      sections.push(lastSection);
 
       log.info(`解析文档: ${body.length} 个元素, ${sections.length} 个分节`);
 

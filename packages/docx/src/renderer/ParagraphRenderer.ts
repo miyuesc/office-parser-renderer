@@ -36,6 +36,8 @@ export interface ParagraphRenderContext extends RunRenderContext {
   document?: DocxDocument;
   /** 默认制表符宽度（像素） */
   defaultTabWidth?: number;
+  /** 当前分节配置 */
+  section?: any;
 }
 
 /**
@@ -120,7 +122,8 @@ export class ParagraphRenderer {
         // 渲染段落内的绘图元素（图片、形状等）
         return DrawingRenderer.render(child as Drawing, {
           document: context?.document,
-          images: context?.document?.images
+          images: context?.document?.images,
+          section: context?.section
         });
 
       case 'omath':

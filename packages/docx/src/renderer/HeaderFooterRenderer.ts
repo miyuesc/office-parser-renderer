@@ -5,7 +5,7 @@
  */
 
 import { Logger } from '../utils/Logger';
-import { UnitConverter } from '../utils/UnitConverter';
+import { UnitConverter } from '@ai-space/shared';
 import { ParagraphRenderer, ParagraphRenderContext } from './ParagraphRenderer';
 import { TableRenderer } from './TableRenderer';
 import { DrawingRenderer } from './DrawingRenderer';
@@ -39,7 +39,11 @@ export class HeaderFooterRenderer {
     headerFooter: DocxHeaderFooter | undefined,
     section: DocxSection,
     context?: HeaderFooterRenderContext
-  ): HTMLElement {
+  ): HTMLElement | null {
+    if (!headerFooter) {
+      return null;
+    }
+
     const container = document.createElement('div');
     container.className = 'docx-header';
 
@@ -66,7 +70,11 @@ export class HeaderFooterRenderer {
     headerFooter: DocxHeaderFooter | undefined,
     section: DocxSection,
     context?: HeaderFooterRenderContext
-  ): HTMLElement {
+  ): HTMLElement | null {
+    if (!headerFooter) {
+      return null;
+    }
+
     const container = document.createElement('div');
     container.className = 'docx-footer';
 

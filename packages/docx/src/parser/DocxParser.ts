@@ -104,7 +104,9 @@ export class DocxParser {
         styles,
         numbering,
         relationships,
-        images
+        images,
+        // 文档背景色（如果有的话需要加上 # 前缀）
+        background: documentResult.background ? `#${documentResult.background}` : undefined
       };
 
       Logger.timeEnd('解析耗时');

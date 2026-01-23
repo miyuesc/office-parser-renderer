@@ -6,7 +6,7 @@
  */
 
 import { XmlUtils } from '@ai-space/shared';
-import { UnitConverter } from '../utils/UnitConverter';
+import { UnitConverter } from '@ai-space/shared';
 import { Logger } from '../utils/Logger';
 import type { Drawing, DrawingShape, DocxElement } from '../types';
 import { ParagraphParser } from './ParagraphParser';
@@ -178,16 +178,49 @@ export class VmlParser {
     }
 
     // 解析定位
+    // VML 形状通常是绝对定位，即使 style 中没有显式写 position:absolute
+    // 只要有定位相关的属性，就尝试解析
     let position: any = undefined;
-    if (styles.position === 'absolute' || styles.position === 'relative') {
-      let left = styles.left ? UnitConverter.pointsToEmu(parseFloat(styles.left)) : 0;
-      let top = styles.top ? UnitConverter.pointsToEmu(parseFloat(styles.top)) : 0;
-      const zIndex = styles['z-index'] ? parseInt(styles['z-index'], 10) : undefined;
+    const isPositioned =
+      styles.position === 'absolute' ||
+      styles.position === 'relative' ||
+      styles.left ||
+      styles.top ||
+      styles['margin-left'] ||
+      styles['margin-top'] ||
+      styles['z-index'] ||
+      styles['mso-position-horizontal'] ||
+      styles['mso-position-horizontal-relative'] ||
+      styles['mso-position-vertical'] ||
+      styles['mso-position-vertical-relative'];
 
-      // Handle margin-left/top (common in Word VML)
+    if (isPositioned) {
+      const zIndex = styles['z-index'] ? parseInt(styles['z-index'], 10) : undefined;
+      const isBehindDoc = zIndex !== undefined && zIndex < 0;
+
+      // 解析水平定位
+      // 注意：VML 元素中，当未明确指定 mso-position-horizontal-relative 时，
+      // margin-left 通常是相对于边距/列的偏移，而不是相对于页面边缘
+      const hRelative = styles['mso-position-horizontal-relative'] || 'margin';
+      const hAlign = styles['mso-position-horizontal'] || 'left';
+
+      let left = 0;
+      if (styles.left) {
+        left = UnitConverter.pointsToEmu(parseFloat(styles.left));
+      }
       // Word often uses left:0 with margin-left setting the actual offset
       if (styles['margin-left']) {
         left += UnitConverter.pointsToEmu(parseFloat(styles['margin-left']));
+      }
+
+      // 解析垂直定位
+      // 同样，默认使用 margin 作为参照
+      const vRelative = styles['mso-position-vertical-relative'] || 'margin';
+      const vAlign = styles['mso-position-vertical'] || 'top';
+
+      let top = 0;
+      if (styles.top) {
+        top = UnitConverter.pointsToEmu(parseFloat(styles.top));
       }
       if (styles['margin-top']) {
         top += UnitConverter.pointsToEmu(parseFloat(styles['margin-top']));
@@ -196,14 +229,15 @@ export class VmlParser {
       position = {
         allowOverlap: true,
         relativeHeight: zIndex,
+        behindDoc: isBehindDoc,
         horizontal: {
-          relativeTo: 'page', // VML usually relative to page or anchor
-          align: 'left',
+          relativeTo: hRelative,
+          align: hAlign !== 'absolute' ? hAlign : undefined,
           posOffset: left
         },
         vertical: {
-          relativeTo: 'page',
-          align: 'top',
+          relativeTo: vRelative,
+          align: vAlign !== 'absolute' ? vAlign : undefined,
           posOffset: top
         }
       };
@@ -226,7 +260,7 @@ export class VmlParser {
     styleStr.split(';').forEach(part => {
       const [key, value] = part.split(':');
       if (key && value) {
-        styles[key.trim()] = value.trim();
+        styles[key.trim().toLowerCase()] = value.trim().toLowerCase();
       }
     });
     return styles;

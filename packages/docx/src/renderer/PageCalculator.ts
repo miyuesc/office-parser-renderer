@@ -6,7 +6,7 @@
  */
 
 import { Logger } from '../utils/Logger';
-import { UnitConverter } from '../utils/UnitConverter';
+import { UnitConverter } from '@ai-space/shared';
 import type { DocxDocument, DocxSection, DocxElement, ResolvedPageConfig } from '../types';
 
 const log = Logger.createTagged('PageCalculator');

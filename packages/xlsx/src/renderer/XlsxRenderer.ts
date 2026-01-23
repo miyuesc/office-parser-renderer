@@ -9,12 +9,17 @@ import {
 } from '../types';
 import { CellStyleUtils } from './CellStyleUtils';
 import { NumberFormatUtils } from '../utils/NumberFormatUtils';
+import { ShapeRenderer as SharedShapeRenderer } from '@ai-space/shared'; // Renamed to avoid conflict
+import { ChartRenderer } from './ChartRenderer';
+import { LayoutCalculator } from './LayoutCalculator';
+import { SheetLayoutManager } from './SheetLayoutManager';
+import { XlsxStyleInjector } from './XlsxStyleInjector';
 // 虽然没有被显式使用，但这是预设路径生成逻辑的导入，保留以防未来需要直接调用
 import { FontManager } from '@ai-space/shared';
 
 // 导入拆分的子模块
 import { StyleResolver } from './StyleResolver';
-import { ChartRenderer } from './ChartRenderer';
+import { ChartRenderer as LocalChartRenderer } from './ChartRenderer'; // Renamed to avoid conflict
 import { ShapeRenderer } from './ShapeRenderer';
 import { ImageRenderer } from './ImageRenderer';
 import { ConnectorRenderer } from './ConnectorRenderer';
@@ -110,7 +115,7 @@ export class XlsxRenderer {
     if (!this.workbook) return;
 
     // 注入 XLSX 专用样式
-    this.injectStyles();
+    XlsxStyleInjector.injectStyles();
 
     // 清空容器并设置基础 Flexbox 布局
     this.container.innerHTML = '';
@@ -118,61 +123,20 @@ export class XlsxRenderer {
     this.container.style.display = 'flex';
     this.container.style.flexDirection = 'column';
     this.container.style.height = '100%';
-    this.container.style.overflow = 'hidden'; // 防止外层容器溢出
-    this.container.style.backgroundColor = '#f3f2f1'; // Excel 风格的灰色背景
+    this.container.style.overflow = 'hidden';
+    this.container.style.backgroundColor = '#f3f2f1';
 
-    // 1. 工作表内容区域
-    const contentArea = document.createElement('div');
-    contentArea.style.flex = '1';
-    contentArea.style.minHeight = '0'; // 关键样式：允许 Flex 子项收缩
-    contentArea.style.overflow = 'auto'; // 内部滚动
-    contentArea.style.position = 'relative';
-    contentArea.style.backgroundColor = '#ffffff';
+    // 1. 创建工作表内容区域
+    const contentArea = SheetLayoutManager.createContentContainer();
     this.container.appendChild(contentArea);
     this.contentContainer = contentArea;
 
-    // 2. 底部标签栏
-    const tabsBar = document.createElement('div');
-    tabsBar.style.height = '32px';
-    tabsBar.style.backgroundColor = '#f3f2f1';
-    tabsBar.style.display = 'flex';
-    tabsBar.style.alignItems = 'flex-end';
-    tabsBar.style.paddingLeft = '10px';
-    tabsBar.style.borderTop = '1px solid #c8c8c8';
-    this.container.appendChild(tabsBar);
-
-    // 渲染所有工作表的标签
-    this.workbook.sheets.forEach((sheet, index) => {
-      // 跳过隐藏的工作表
-      if (sheet.state === 'hidden' || sheet.state === 'veryHidden') return;
-
-      const tab = document.createElement('div');
-      tab.textContent = sheet.name;
-      tab.style.padding = '5px 15px';
-      tab.style.marginRight = '2px';
-      tab.style.cursor = 'pointer';
-      tab.style.fontSize = '12px';
-      tab.style.userSelect = 'none';
-
-      // 高亮当前选中的工作表
-      if (index === this.currentSheetIndex) {
-        tab.style.backgroundColor = '#ffffff';
-        tab.style.borderBottom = '1px solid #ffffff'; // 遮挡底部边框以模拟连通效果
-        tab.style.color = '#107c41'; // Excel 绿色
-        tab.style.fontWeight = 'bold';
-      } else {
-        tab.style.backgroundColor = 'transparent';
-        tab.style.color = '#444';
-      }
-
-      // 点击切换工作表
-      tab.onclick = () => {
-        this.currentSheetIndex = index;
-        this.renderLayout(); // 重新渲染整个布局
-      };
-
-      tabsBar.appendChild(tab);
+    // 2. 创建底部标签栏
+    const tabsBar = SheetLayoutManager.createTabBar(this.workbook, this.currentSheetIndex, index => {
+      this.currentSheetIndex = index;
+      this.renderLayout();
     });
+    this.container.appendChild(tabsBar);
 
     // 渲染当前激活的工作表内容
     this.renderSheet(contentArea);
@@ -284,13 +248,13 @@ export class XlsxRenderer {
       // 遍历该行的每一列
       for (let c = 1; c <= maxCol; c++) {
         // 检查该单元格是否被合并单元格覆盖（且不是起始单元格）
-        if (this.isMerged(rIdx, c, sheet.merges)) continue;
+        if (LayoutCalculator.isMerged(rIdx, c, sheet.merges)) continue;
 
         const cell = cells[c];
         const td = document.createElement('td');
 
         // 处理合并单元格的起始位置
-        const merge = this.getMergeStart(rIdx, c, sheet.merges);
+        const merge = LayoutCalculator.getMergeStart(rIdx, c, sheet.merges);
         if (merge) {
           td.colSpan = merge.e.c - merge.s.c + 1;
           td.rowSpan = merge.e.r - merge.s.r + 1;
@@ -379,7 +343,7 @@ export class XlsxRenderer {
     if (!sheet.images?.length && !sheet.shapes?.length && !sheet.connectors?.length && !sheet.charts?.length) return;
 
     // 1. 计算布局指标（缓存列宽和行高，用于坐标转换）
-    const { colWidths, rowHeights } = this.calculateLayoutMetrics(sheet);
+    const { colWidths, rowHeights } = LayoutCalculator.calculateLayoutMetrics(sheet);
     this.colWidths = colWidths;
     this.rowHeights = rowHeights;
 
@@ -538,149 +502,5 @@ export class XlsxRenderer {
     const y2 = getTop(anchor.to.row, anchor.to.rowOff);
 
     return { x: x1, y: y1, w: Math.max(0, x2 - x1), h: Math.max(0, y2 - y1) };
-  }
-
-  /**
-   * 计算布局指标（列宽和行高度量）
-   * 遍历所有绘图对象以确定需要渲染的最大行和列范围。
-   * 同时填充 colWidths 和 rowHeights 数组。
-   */
-  private calculateLayoutMetrics(sheet: XlsxSheet) {
-    const colWidths: number[] = [];
-    const rowHeights: number[] = [];
-    let maxR = 0;
-    let maxC = 0;
-
-    // 检查所有浮动元素，扩展渲染范围
-    const check = (list: any[] | undefined) => {
-      if (!list) return;
-      list.forEach(i => {
-        if (i.anchor) {
-          if (i.anchor.to) {
-            maxR = Math.max(maxR, i.anchor.to.row);
-            maxC = Math.max(maxC, i.anchor.to.col);
-          } else {
-            maxR = Math.max(maxR, i.anchor.from.row + 5); // 预估大小
-            maxC = Math.max(maxC, i.anchor.from.col + 5);
-          }
-        }
-      });
-    };
-    check(sheet.images);
-    check(sheet.shapes);
-    check(sheet.connectors);
-
-    // 填充列宽信息
-    if (sheet.cols) {
-      sheet.cols.forEach(c => {
-        // Excel 列宽转换像素近似值
-        const w = c.width * 7.5;
-        // 覆盖该定义范围内的所有列
-        for (let k = c.min; k <= c.max; k++) colWidths[k] = w;
-      });
-    }
-
-    // 填充行高信息
-    if (sheet.rows) {
-      Object.values(sheet.rows).forEach(r => {
-        if (r.height)
-          rowHeights[r.index] = r.height * 1.33; // Pt to Px
-        else rowHeights[r.index] = 20;
-      });
-    }
-
-    return { colWidths, rowHeights };
-  }
-
-  /**
-   * 判断单元格是否处于被合并状态（非左上角的主单元格）
-   * 如果返回 true，则该单元格在渲染时应该被跳过。
-   */
-  private isMerged(r: number, c: number, merges: any[]): boolean {
-    // Return true if (r, c) is INSIDE a merge block but NOT the top-left cell
-    for (const m of merges) {
-      // 检查范围: s.r <= r <= e.r && s.c <= c <= e.c
-      if (r >= m.s.r && r <= m.e.r && c >= m.s.c && c <= m.e.c) {
-        // 如果是起始单元格，不算被合并覆盖（它需要渲染）
-        if (r === m.s.r && c === m.s.c) return false;
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /**
-   * 获取合并单元格的起始定义
-   * 如果当前单元格是一个合并块的左上角，返回该合并定义。
-   */
-  private getMergeStart(r: number, c: number, merges: any[]): any | null {
-    for (const m of merges) {
-      if (r === m.s.r && c === m.s.c) return m;
-    }
-    return null;
-  }
-
-  /**
-   * 注入 XLSX 专用样式表
-   * 使用命名空间隔离，避免与 DOCX 样式冲突
-   */
-  private injectStyles(): void {
-    // 注入字体 CSS 样式
-    FontManager.injectFontStyles();
-
-    const styleId = 'xlsx-renderer-styles';
-
-    // 检查是否已注入
-    if (document.getElementById(styleId)) {
-      return;
-    }
-
-    const style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = `
-      /* XLSX 渲染器专用样式 - 使用 xlsx-container 命名空间隔离 */
-      .xlsx-container {
-        font-family: 'Calibri', 'Segoe UI', 'Arial', sans-serif;
-        font-size: 11pt;
-        line-height: 1.2;
-        color: #000;
-        position: relative;
-      }
-
-      .xlsx-container * {
-        box-sizing: border-box;
-      }
-
-      .xlsx-container table {
-        border-collapse: collapse;
-        table-layout: fixed;
-      }
-
-      .xlsx-container td {
-        padding: 2px 4px;
-        vertical-align: middle;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      /* Sheet 标签栏样式 - 确保不被其他样式覆盖 */
-      .xlsx-container > div:last-child {
-        flex-shrink: 0;
-        min-height: 32px;
-      }
-
-      /* 确保 SVG 覆盖层正确显示 */
-      .xlsx-container svg {
-        pointer-events: none;
-        overflow: visible;
-      }
-
-      .xlsx-container svg g {
-        pointer-events: all;
-      }
-    `;
-
-    document.head.appendChild(style);
   }
 }

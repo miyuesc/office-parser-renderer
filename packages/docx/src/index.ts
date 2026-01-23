@@ -32,6 +32,6 @@ export { DrawingRenderer } from './renderer/DrawingRenderer';
 export { ListCounter } from './renderer/ListCounter';
 
 // 工具导出
-export { UnitConverter } from './utils/UnitConverter';
+export { UnitConverter } from '@ai-space/shared';
 export { Logger, LogLevel, TaggedLogger } from './utils/Logger';
 export { ErrorHandler, DocxError, DocxErrorCode } from './utils/ErrorHandler';

@@ -20,7 +20,7 @@ import type {
   ColorDef
 } from '@ai-space/shared';
 
-import { UnitConverter } from '../utils/UnitConverter';
+import { UnitConverter } from '@ai-space/shared';
 import type { Drawing, DrawingImage, DrawingShape, DrawingChart, DocxDocument, AnchorPosition } from '../types';
 import { ParagraphRenderer } from './ParagraphRenderer';
 import { TableRenderer } from './TableRenderer';
@@ -33,6 +33,8 @@ export interface DrawingRenderContext {
   document?: DocxDocument;
   /** 图片 URL 映射 */
   images?: Record<string, string>;
+  /** 当前分节配置 (用于定位计算) */
+  section?: any;
 }
 
 /**
@@ -226,7 +228,7 @@ export class DrawingRenderer {
     }
 
     if (element && drawing.position) {
-      this.applyPositioning(element, drawing.position);
+      this.applyPositioning(element, drawing.position, context?.section);
     }
 
     return element;
@@ -235,51 +237,129 @@ export class DrawingRenderer {
   /**
    * 应用锚定位置样式
    */
-  private static applyPositioning(element: HTMLElement, pos: AnchorPosition): void {
+  private static applyPositioning(element: HTMLElement, pos: AnchorPosition, section?: any): void {
     element.style.position = 'absolute';
 
     // Z-Index
     if (pos.behindDoc) {
+      element.style.zIndex = '0'; // 0 is behind text (default text z-index is 1 usually, or auto)
+      // Actually standard flow is z-index auto (0 stack).
+      // If we want behind text, -1 might be hidden by page background if page background is on container.
+      // But we checked docx-page has background. docx-content is transparent.
+      // So -1 should be fine if page container allows it.
+      // However, usually -1 goes behind the stacking context.
+      // Let's try zIndex 0 and ensure text is zIndex 1.
+      // Or just -1.
       element.style.zIndex = '-1';
     } else {
       // ensure it is above text if not behind
-      element.style.zIndex = '1';
+      element.style.zIndex = '10'; // Safe value above normal text
+    }
+
+    // Explicit relativeHeight (zIndex)
+    if (pos.relativeHeight !== undefined) {
+      element.style.zIndex = String(pos.relativeHeight);
+    }
+
+    // Get margins (in EMUs) - 用于 margin 相对定位
+    let marginLeftEmu = 0;
+    let marginTopEmu = 0;
+
+    if (section && section.pageMargins) {
+      // twips -> emu: 1 twip = 635 emu
+      marginLeftEmu = section.pageMargins.left * 635;
+      marginTopEmu = section.pageMargins.top * 635;
     }
 
     // Horizontal
     if (pos.horizontal) {
       const h = pos.horizontal;
+      let left = 0;
+
       if (h.posOffset !== undefined) {
-        element.style.left = `${UnitConverter.emuToPixels(h.posOffset)}px`;
-      } else if (h.align) {
-        // rough support for alignment
+        left = h.posOffset;
+      }
+
+      // 处理相对定位
+      // 容器 .docx-content 有 padding (页边距)，absolute 元素相对于 padding box 定位
+      // padding box 的 (0,0) 对应页面的 (marginLeft, marginTop)
+      if (h.relativeTo === 'page') {
+        // 相对于页面：需要减去左边距，以抵消容器 padding
+        left -= marginLeftEmu;
+      } else if (h.relativeTo === 'margin' || h.relativeTo === 'column') {
+        // 相对于边距/栏：直接使用 posOffset (因为容器原点就在边距处)
+      }
+
+      if (h.align) {
+        // 对齐处理
         if (h.align === 'center') {
-          element.style.left = '50%';
-          element.style.transform = 'translateX(-50%)';
+          if (h.relativeTo === 'page' && section && section.pageSize) {
+            const pageWidthEmu = section.pageSize.width * 635;
+            left = pageWidthEmu / 2;
+            element.style.transform = 'translateX(-50%)';
+          } else if (
+            (h.relativeTo === 'margin' || h.relativeTo === 'column') &&
+            section &&
+            section.pageSize &&
+            section.pageMargins
+          ) {
+            // 相对于边距居中
+            const contentWidth = section.pageSize.width * 635 - marginLeftEmu - (section.pageMargins.right || 0) * 635;
+            left = marginLeftEmu + contentWidth / 2;
+            element.style.transform = 'translateX(-50%)';
+          }
         } else if (h.align === 'right') {
-          element.style.right = '0';
-        } else {
-          element.style.left = '0';
+          if (h.relativeTo === 'page' && section && section.pageSize) {
+            const pageWidthEmu = section.pageSize.width * 635;
+            left = pageWidthEmu;
+            element.style.transform = 'translateX(-100%)';
+          }
         }
       }
+
+      // 移除边界限制，允许负定位 (例如覆盖整个页面的背景图)
+      // if (left < 0) { left = 0; }
+
+      element.style.left = `${UnitConverter.emuToPixels(left)}px`;
     }
 
     // Vertical
     if (pos.vertical) {
       const v = pos.vertical;
+      let top = 0;
+
       if (v.posOffset !== undefined) {
-        element.style.top = `${UnitConverter.emuToPixels(v.posOffset)}px`;
-      } else if (v.align) {
-        if (v.align === 'center') {
-          element.style.top = '50%';
-          const currentTransform = element.style.transform;
-          element.style.transform = currentTransform ? `${currentTransform} translateY(-50%)` : 'translateY(-50%)';
-        } else if (v.align === 'bottom') {
-          element.style.bottom = '0';
-        } else {
-          element.style.top = '0';
+        top = v.posOffset;
+      }
+
+      // 处理相对定位
+      if (v.relativeTo === 'page') {
+        // 相对于页面：需要减去上边距
+        top -= marginTopEmu;
+      } else if (v.relativeTo === 'margin' || v.relativeTo === 'paragraph') {
+        // 相对于边距：直接使用 posOffset
+      }
+
+      if (v.align) {
+        if (v.align === 'bottom') {
+          if (v.relativeTo === 'page' && section && section.pageSize) {
+            const pageHeightEmu = section.pageSize.height * 635;
+            top = pageHeightEmu;
+            element.style.transform = (element.style.transform || '') + ' translateY(-100%)';
+          }
+        } else if (v.align === 'center') {
+          if (v.relativeTo === 'page' && section && section.pageSize) {
+            const pageHeightEmu = section.pageSize.height * 635;
+            top = pageHeightEmu / 2;
+            element.style.transform = (element.style.transform || '') + ' translateY(-50%)';
+          }
         }
       }
+
+      // 移除边界限制
+      // if (top < 0) { top = 0; }
+
+      element.style.top = `${UnitConverter.emuToPixels(top)}px`;
     }
   }
 

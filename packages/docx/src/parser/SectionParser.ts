@@ -7,7 +7,7 @@
 
 import { XmlUtils } from '@ai-space/shared';
 import { Logger } from '../utils/Logger';
-import { UnitConverter } from '../utils/UnitConverter';
+import { UnitConverter } from '@ai-space/shared';
 import type { DocxSection, PageSize, PageMargins, ColumnConfig, LineNumberConfig } from '../types';
 
 const log = Logger.createTagged('SectionParser');
@@ -193,9 +193,13 @@ export class SectionParser {
    * @returns 分栏配置
    */
   private static parseColumns(colsNode: Element): ColumnConfig {
+    // 解析分栏数量，默认为 1
     const num = parseInt(colsNode.getAttribute('w:num') || '1', 10);
+    // 解析栏间距（twips），默认 720 twips（约 0.5 英寸）
     const space = parseInt(colsNode.getAttribute('w:space') || '720', 10);
+    // 是否等宽，默认为 true
     const equalWidth = colsNode.getAttribute('w:equalWidth') !== '0';
+    // 是否显示分隔线
     const sep = colsNode.getAttribute('w:sep') === '1';
 
     const config: ColumnConfig = {
@@ -205,7 +209,7 @@ export class SectionParser {
       sep
     };
 
-    // 解析非等宽列
+    // 解析非等宽列的具体配置
     if (!equalWidth) {
       const colNodes = XmlUtils.queryAll(colsNode, 'w\\:col, col');
       if (colNodes.length > 0) {
@@ -215,6 +219,15 @@ export class SectionParser {
         }));
       }
     }
+
+    // 输出详细的分栏配置日志
+    log.debug('解析分栏配置', {
+      num: config.num,
+      space: config.space,
+      equalWidth: config.equalWidth,
+      sep: config.sep,
+      cols: config.cols
+    });
 
     return config;
   }

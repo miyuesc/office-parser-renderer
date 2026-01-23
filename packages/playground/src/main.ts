@@ -1,4 +1,5 @@
-import { DocxParser, DocxRenderer } from '@ai-space/docx';
+// import { DocxParser, DocxRenderer } from '@ai-space/docx';
+import { DocxParser, DocxRenderer } from '../../docx/src/index';
 import { PptxParser, PptxRenderer } from '@ai-space/pptx';
 import { XlsxParser, XlsxRenderer } from '@ai-space/xlsx';
 import { renderShapeGallery } from './shape-gallery';
@@ -26,7 +27,7 @@ async function loadDocx(url: string) {
     const buf = await res.arrayBuffer();
 
     console.group('DOCX Load Process');
-    console.log('Parsing DOCX...');
+    console.log('Parsing DOCX... [HMR Trigger]');
     const parser = new DocxParser();
     const doc = await parser.parse(buf);
     console.log('DOCX AST:', doc);

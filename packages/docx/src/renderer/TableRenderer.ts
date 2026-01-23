@@ -6,7 +6,7 @@
  */
 
 import { Logger } from '../utils/Logger';
-import { UnitConverter } from '../utils/UnitConverter';
+import { UnitConverter } from '@ai-space/shared';
 import { ParagraphRenderer, ParagraphRenderContext } from './ParagraphRenderer';
 import type {
   Table,
