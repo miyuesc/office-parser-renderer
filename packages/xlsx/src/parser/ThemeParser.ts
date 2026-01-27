@@ -35,9 +35,9 @@ export class ThemeParser {
 
           let colorVal = '000000';
           if (srgbClr) {
-            colorVal = srgbClr.getAttribute('val') || '000000';
+            colorVal = '#' + (srgbClr.getAttribute('val') || '000000');
           } else if (sysClr) {
-            colorVal = sysClr.getAttribute('lastClr') || '000000';
+            colorVal = '#' + (sysClr.getAttribute('lastClr') || '000000');
           }
 
           // 同时存储数字索引和名称

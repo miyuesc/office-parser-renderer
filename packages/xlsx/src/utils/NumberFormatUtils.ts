@@ -14,7 +14,7 @@ export class NumberFormatUtils {
    * @param date1904 - 是否使用 1904 日期系统
    * @returns 格式化后的字符串
    */
-  static format(value: any, formatCode: string, date1904 = false): string {
+  static format(value: unknown, formatCode: string, date1904 = false): string {
     if (value === null || value === undefined) return '';
     if (typeof value !== 'number') return String(value);
     if (!formatCode || formatCode === 'General') return String(value);
@@ -69,7 +69,7 @@ export class NumberFormatUtils {
     const cleaned = fmt.replace(/"[^"]*"/g, '');
     // 检查标准日期标记，排除 "General" 或纯数字字符
     // y: 年, m: 月/分, d: 日, h: 时, s: 秒, a/p: am/pm
-    return /[ymdhs]/.test(cleaned.toLowerCase()) && !/^[0#\.,]+$/.test(cleaned);
+    return /[ymdhs]/.test(cleaned.toLowerCase()) && !/^[0#.,]+$/.test(cleaned);
   }
 
   /**
@@ -260,8 +260,8 @@ export class NumberFormatUtils {
     // 尝试保留非格式字符串
     // 这是复杂的正则
     // 快速方案：如果 fmt 以字符开头
-    const prefix = fmt.match(/^[^#0\.]+/)?.[0] || '';
-    const suffix = fmt.match(/[^#0\.]+$/)?.[0] || '';
+    const prefix = fmt.match(/^[^#0.]+/)?.[0] || '';
+    const suffix = fmt.match(/[^#0.]+$/)?.[0] || '';
 
     // 从字符串中移除格式字符用于逻辑处理
     return prefix.replace(/"/g, '') + ret + suffix.replace(/"/g, '');

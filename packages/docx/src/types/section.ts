@@ -147,6 +147,6 @@ export interface DocxHeaderFooter {
   content: DocxElement[];
 }
 
+import type { DocxElement } from './paragraph';
+
 // 前向声明以避免循环依赖
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface DocxElement {}

@@ -7,8 +7,8 @@
  * - sysClr: 系统颜色
  * - prstClr: 预设颜色
  */
-import { XmlUtils } from '../../xml';
-import { PresetColorMap } from '../../utils/PresetColorMap';
+import { XmlUtils } from '../../core/xml';
+import { PresetColorMap } from '../../core/utils/PresetColorMap';
 
 export class ColorParser {
   /**
@@ -27,7 +27,7 @@ export class ColorParser {
     // srgbClr - 直接 RGB 颜色
     const srgb = XmlUtils.query(node, 'a\\:srgbClr');
     if (srgb) {
-      let val = srgb.getAttribute('val')!;
+      const val = srgb.getAttribute('val')!;
       return this.applyModifiers('#' + val, srgb);
     }
 

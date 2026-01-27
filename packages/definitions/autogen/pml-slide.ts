@@ -1,3 +1,4 @@
+import { CT_ExtensionList } from './common-types';
 import { CT_AudioCD, CT_AudioFile, CT_QuickTimeFile, CT_VideoFile } from './dml-audioVideo';
 import { CT_EmbeddedWAVAudioFile, CT_Transform2D, ST_BlackWhiteMode } from './dml-baseTypes';
 import {
@@ -25,12 +26,9 @@ import { CT_TextBody, CT_TextListStyle } from './dml-text';
 import { CT_SlideTiming, CT_SlideTransition } from './pml-animationInfo';
 import { CT_CustomerDataList, CT_ExtensionListModify, ST_Direction } from './pml-baseTypes';
 import { CT_ControlList } from './pml-embedding';
-import { CT_ExtensionList } from './sml-baseTypes';
-
 /**
  * pml-slide.xsd
  */
-
 /** Placeholder IDs */
 export enum ST_PlaceholderType {
   /** Title */
@@ -66,7 +64,6 @@ export enum ST_PlaceholderType {
   /** Picture */
   pic = 'pic'
 }
-
 /** Placeholder Size */
 export enum ST_PlaceholderSize {
   /** Full */
@@ -76,7 +73,6 @@ export enum ST_PlaceholderSize {
   /** Quarter */
   quarter = 'quarter'
 }
-
 /** Slide Layout Type */
 export enum ST_SlideLayoutType {
   /** Slide Layout Type Enumeration ( Title ) */
@@ -152,10 +148,8 @@ export enum ST_SlideLayoutType {
   /** Picture and Caption */
   picTx = 'picTx'
 }
-
 /** Slide Layout ID */
 export type ST_SlideLayoutId = number;
-
 /** Slide Number Placeholder */
 export interface CT_HeaderFooter {
   sldNum?: boolean;
@@ -164,7 +158,6 @@ export interface CT_HeaderFooter {
   dt?: boolean;
   extLst?: CT_ExtensionListModify;
 }
-
 /** Placeholder Type */
 export interface CT_Placeholder {
   type?: ST_PlaceholderType;
@@ -174,7 +167,6 @@ export interface CT_Placeholder {
   hasCustomPrompt?: boolean;
   extLst?: CT_ExtensionListModify;
 }
-
 /** Placeholder Shape */
 export interface CT_ApplicationNonVisualDrawingProps {
   isPhoto?: boolean;
@@ -188,14 +180,12 @@ export interface CT_ApplicationNonVisualDrawingProps {
   custDataLst?: CT_CustomerDataList;
   extLst?: CT_ExtensionList;
 }
-
 /** Non-Visual Drawing Properties */
 export interface CT_ShapeNonVisual {
   cNvPr: CT_NonVisualDrawingProps;
   cNvSpPr: CT_NonVisualDrawingShapeProps;
   nvPr: CT_ApplicationNonVisualDrawingProps;
 }
-
 /** Non-Visual Properties for a Shape */
 export interface CT_Shape {
   useBgFill?: boolean;
@@ -205,14 +195,12 @@ export interface CT_Shape {
   txBody?: CT_TextBody;
   extLst?: CT_ExtensionListModify;
 }
-
 /** Non-Visual Drawing Properties */
 export interface CT_ConnectorNonVisual {
   cNvPr: CT_NonVisualDrawingProps;
   cNvCxnSpPr: CT_NonVisualConnectorProperties;
   nvPr: CT_ApplicationNonVisualDrawingProps;
 }
-
 /** Non-Visual Properties for a Connection Shape */
 export interface CT_Connector {
   nvCxnSpPr: CT_ConnectorNonVisual;
@@ -220,14 +208,12 @@ export interface CT_Connector {
   style?: CT_ShapeStyle;
   extLst?: CT_ExtensionListModify;
 }
-
 /** Non-Visual Picture Drawing Properties */
 export interface CT_PictureNonVisual {
   cNvPr: CT_NonVisualDrawingProps;
   cNvPicPr: CT_NonVisualPictureProperties;
   nvPr: CT_ApplicationNonVisualDrawingProps;
 }
-
 /** Non-Visual Properties for a Picture */
 export interface CT_Picture {
   nvPicPr: CT_PictureNonVisual;
@@ -236,14 +222,12 @@ export interface CT_Picture {
   style?: CT_ShapeStyle;
   extLst?: CT_ExtensionListModify;
 }
-
 /** Non-Visual Drawing Properties */
 export interface CT_GraphicalObjectFrameNonVisual {
   cNvPr: CT_NonVisualDrawingProps;
   cNvGraphicFramePr: CT_NonVisualGraphicFrameProperties;
   nvPr: CT_ApplicationNonVisualDrawingProps;
 }
-
 /** Non-Visual Properties for a Graphic Frame */
 export interface CT_GraphicalObjectFrame {
   nvGraphicFramePr: CT_GraphicalObjectFrameNonVisual;
@@ -251,14 +235,12 @@ export interface CT_GraphicalObjectFrame {
   graphic: any;
   extLst?: CT_ExtensionListModify;
 }
-
 /** Non-visual Drawing Properties */
 export interface CT_GroupShapeNonVisual {
   cNvPr: CT_NonVisualDrawingProps;
   cNvGrpSpPr: CT_NonVisualGroupDrawingShapeProps;
   nvPr: CT_ApplicationNonVisualDrawingProps;
 }
-
 /** Non-Visual Properties for a Group Shape */
 export interface CT_GroupShape {
   nvGrpSpPr: CT_GroupShapeNonVisual;
@@ -270,7 +252,6 @@ export interface CT_GroupShape {
   pic: CT_Picture;
   extLst?: CT_ExtensionListModify;
 }
-
 /** Shade to Title */
 export interface CT_BackgroundProperties {
   shadeToTitle?: boolean;
@@ -284,12 +265,10 @@ export interface CT_BackgroundProperties {
   effectDag?: CT_EffectContainer;
   extLst?: CT_ExtensionList;
 }
-
 /** Black and White Mode */
 export interface CT_Background {
   bwMode?: ST_BlackWhiteMode;
 }
-
 /** Slide Background */
 export interface CT_CommonSlideData {
   name?: string;
@@ -299,7 +278,6 @@ export interface CT_CommonSlideData {
   controls?: CT_ControlList;
   extLst?: CT_ExtensionList;
 }
-
 /** Common slide data for slides */
 export interface CT_Slide {
   show?: boolean;
@@ -309,7 +287,6 @@ export interface CT_Slide {
   timing?: CT_SlideTiming;
   extLst?: CT_ExtensionListModify;
 }
-
 /** Common slide data for slide layouts */
 export interface CT_SlideLayout {
   matchingName?: string;
@@ -323,7 +300,6 @@ export interface CT_SlideLayout {
   hf?: CT_HeaderFooter;
   extLst?: CT_ExtensionListModify;
 }
-
 /** Slide Master Title Text Style */
 export interface CT_SlideMasterTextStyles {
   titleStyle?: CT_TextListStyle;
@@ -331,18 +307,15 @@ export interface CT_SlideMasterTextStyles {
   otherStyle?: CT_TextListStyle;
   extLst?: CT_ExtensionList;
 }
-
 /** ID Tag */
 export interface CT_SlideLayoutIdListEntry {
   id?: ST_SlideLayoutId | string;
   extLst?: CT_ExtensionList;
 }
-
 /** Slide Layout Id */
 export interface CT_SlideLayoutIdList {
   sldLayoutId?: CT_SlideLayoutIdListEntry[];
 }
-
 /** Common slide data for slide masters */
 export interface CT_SlideMaster {
   preserve?: boolean;
@@ -355,7 +328,6 @@ export interface CT_SlideMaster {
   txStyles?: CT_SlideMasterTextStyles;
   extLst?: CT_ExtensionListModify;
 }
-
 /** Common slide data for handout master */
 export interface CT_HandoutMaster {
   cSld: CT_CommonSlideData;
@@ -363,7 +335,6 @@ export interface CT_HandoutMaster {
   hf?: CT_HeaderFooter;
   extLst?: CT_ExtensionListModify;
 }
-
 /** Common Slide Data */
 export interface CT_NotesMaster {
   cSld: CT_CommonSlideData;
@@ -372,7 +343,6 @@ export interface CT_NotesMaster {
   notesStyle?: CT_TextListStyle;
   extLst?: CT_ExtensionListModify;
 }
-
 /** Common slide data for notes slides */
 export interface CT_NotesSlide {
   cSld: CT_CommonSlideData;

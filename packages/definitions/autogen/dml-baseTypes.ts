@@ -1,3 +1,4 @@
+import { ST_Guid } from './common-types';
 /**
  * dml-baseTypes.xsd
  */
@@ -447,7 +448,6 @@ export enum ST_RectAlignment {
 }
 
 /** GUID Method */
-export type ST_Guid = string;
 
 /** Black and White Mode */
 export enum ST_BlackWhiteMode {

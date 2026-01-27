@@ -1,3 +1,4 @@
+import { CT_Empty } from './common-types';
 /**
  * shared-documentPropertiesVariantTypes.xsd
  */
@@ -97,8 +98,6 @@ export type ST_Clsid = string;
 
 /** Format Simple Type */
 export type ST_Format = string;
-
-export interface CT_Empty {}
 
 export interface CT_Null {}
 

@@ -1,9 +1,7 @@
-import { ST_Guid } from './wml';
-
+import { ST_Guid } from './common-types';
 /**
  * dml-graphicalObjectAnimation.xsd
  */
-
 /** Chart Animation Build Step */
 export enum ST_ChartBuildStep {
   /** Category */
@@ -19,7 +17,6 @@ export enum ST_ChartBuildStep {
   /** Grid and Legend */
   gridLegend = 'gridLegend'
 }
-
 /** Diagram Animation Build Steps */
 export enum ST_DgmBuildStep {
   /** Shape */
@@ -27,13 +24,11 @@ export enum ST_DgmBuildStep {
   /** Background */
   bg = 'bg'
 }
-
 /** Animation Build Type */
 export enum ST_AnimationBuildType {
   /** Animate At Once */
   allAtOnce = 'allAtOnce'
 }
-
 /** Diagram only Animation Types */
 export enum ST_AnimationDgmOnlyBuildType {
   /** Elements One-by-One */
@@ -43,10 +38,8 @@ export enum ST_AnimationDgmOnlyBuildType {
   /** Each Level at Once */
   lvlAtOnce = 'lvlAtOnce'
 }
-
 /** Diagram Animation Build Type */
 export type ST_AnimationDgmBuildType = string;
-
 /** Chart only Animation Types */
 export enum ST_AnimationChartOnlyBuildType {
   /** Series */
@@ -58,41 +51,34 @@ export enum ST_AnimationChartOnlyBuildType {
   /** Category Element */
   categoryEl = 'categoryEl'
 }
-
 /** Chart Animation Build Type */
 export type ST_AnimationChartBuildType = string;
-
 /** Identifier */
 export interface CT_AnimationDgmElement {
   id?: ST_Guid;
   bldStep?: ST_DgmBuildStep;
 }
-
 /** Series Index */
 export interface CT_AnimationChartElement {
   seriesIdx?: number;
   categoryIdx?: number;
   bldStep: ST_ChartBuildStep;
 }
-
 /** Diagram to Animate */
 export interface CT_AnimationElementChoice {
   dgm: CT_AnimationDgmElement;
   chart: CT_AnimationChartElement;
 }
-
 /** Build */
 export interface CT_AnimationDgmBuildProperties {
   bld?: ST_AnimationDgmBuildType;
   rev?: boolean;
 }
-
 /** Build */
 export interface CT_AnimationChartBuildProperties {
   bld?: ST_AnimationChartBuildType;
   animBg?: boolean;
 }
-
 /** Build Diagram */
 export interface CT_AnimationGraphicalObjectBuildProperties {
   bldDgm?: CT_AnimationDgmBuildProperties;

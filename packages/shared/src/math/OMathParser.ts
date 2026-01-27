@@ -5,7 +5,7 @@
  * 转换为内部 OMathNode 结构
  */
 
-import { XmlUtils } from '../xml';
+import { XmlUtils } from '../core/xml';
 import type {
   OMathNode,
   OMathNodeProps,
@@ -25,7 +25,7 @@ import type {
   OMathFuncNode,
   OMathGroupCharNode,
   OMathLimLowNode,
-  OMathLimUppNode
+  OMathLimUppNode,
 } from './types';
 
 // ============================================================================
@@ -96,7 +96,7 @@ export class OMathParser {
     return {
       type: 'oMathPara',
       children,
-      props: Object.keys(props).length > 0 ? props : undefined
+      props: Object.keys(props).length > 0 ? props : undefined,
     };
   }
 
@@ -107,7 +107,7 @@ export class OMathParser {
     const children = this.parseChildren(node);
     return {
       type: 'oMath',
-      children
+      children,
     };
   }
 
@@ -241,7 +241,7 @@ export class OMathParser {
     return {
       type: 'run',
       text,
-      props: Object.keys(props).length > 0 ? props : undefined
+      props: Object.keys(props).length > 0 ? props : undefined,
     };
   }
 
@@ -294,7 +294,8 @@ export class OMathParser {
     if (fPr) {
       const typeEl = XmlUtils.getChild(fPr, 'm\\:type');
       if (typeEl) {
-        const val = XmlUtils.getAttribute(typeEl, 'm\\:val') || XmlUtils.getAttribute(typeEl, 'val');
+        const val =
+          XmlUtils.getAttribute(typeEl, 'm\\:val') || XmlUtils.getAttribute(typeEl, 'val');
         if (val) {
           props.fractionType = val as OMathNodeProps['fractionType'];
         }
@@ -317,7 +318,7 @@ export class OMathParser {
       type: 'fraction',
       numerator,
       denominator,
-      props: Object.keys(props).length > 0 ? props : undefined
+      props: Object.keys(props).length > 0 ? props : undefined,
     };
   }
 
@@ -331,7 +332,9 @@ export class OMathParser {
   private static parseSuperscript(node: Element): OMathSuperscriptNode {
     // 基础元素 m:e
     const eEl = XmlUtils.getChild(node, 'm\\:e');
-    const base: OMathNode = eEl ? { type: 'oMath', children: this.parseChildren(eEl) } : { type: 'text', text: '' };
+    const base: OMathNode = eEl
+      ? { type: 'oMath', children: this.parseChildren(eEl) }
+      : { type: 'text', text: '' };
 
     // 上标 m:sup
     const supEl = XmlUtils.getChild(node, 'm\\:sup');
@@ -342,7 +345,7 @@ export class OMathParser {
     return {
       type: 'superscript',
       base,
-      superscript
+      superscript,
     };
   }
 
@@ -352,7 +355,9 @@ export class OMathParser {
   private static parseSubscript(node: Element): OMathSubscriptNode {
     // 基础元素 m:e
     const eEl = XmlUtils.getChild(node, 'm\\:e');
-    const base: OMathNode = eEl ? { type: 'oMath', children: this.parseChildren(eEl) } : { type: 'text', text: '' };
+    const base: OMathNode = eEl
+      ? { type: 'oMath', children: this.parseChildren(eEl) }
+      : { type: 'text', text: '' };
 
     // 下标 m:sub
     const subEl = XmlUtils.getChild(node, 'm\\:sub');
@@ -363,7 +368,7 @@ export class OMathParser {
     return {
       type: 'subscript',
       base,
-      subscript
+      subscript,
     };
   }
 
@@ -373,7 +378,9 @@ export class OMathParser {
   private static parseSubSup(node: Element): OMathSubSupNode {
     // 基础元素 m:e
     const eEl = XmlUtils.getChild(node, 'm\\:e');
-    const base: OMathNode = eEl ? { type: 'oMath', children: this.parseChildren(eEl) } : { type: 'text', text: '' };
+    const base: OMathNode = eEl
+      ? { type: 'oMath', children: this.parseChildren(eEl) }
+      : { type: 'text', text: '' };
 
     // 下标 m:sub
     const subEl = XmlUtils.getChild(node, 'm\\:sub');
@@ -391,7 +398,7 @@ export class OMathParser {
       type: 'subSup',
       base,
       subscript,
-      superscript
+      superscript,
     };
   }
 
@@ -401,7 +408,9 @@ export class OMathParser {
   private static parsePreSub(node: Element): OMathPreSubNode {
     // 基础元素 m:e
     const eEl = XmlUtils.getChild(node, 'm\\:e');
-    const base: OMathNode = eEl ? { type: 'oMath', children: this.parseChildren(eEl) } : { type: 'text', text: '' };
+    const base: OMathNode = eEl
+      ? { type: 'oMath', children: this.parseChildren(eEl) }
+      : { type: 'text', text: '' };
 
     // 下标 m:sub
     const subEl = XmlUtils.getChild(node, 'm\\:sub');
@@ -419,7 +428,7 @@ export class OMathParser {
       type: 'preSub',
       base,
       subscript,
-      superscript
+      superscript,
     };
   }
 
@@ -439,21 +448,24 @@ export class OMathParser {
       // 起始字符 m:begChr
       const begChr = XmlUtils.getChild(dPr, 'm\\:begChr');
       if (begChr) {
-        const val = XmlUtils.getAttribute(begChr, 'm\\:val') || XmlUtils.getAttribute(begChr, 'val');
+        const val =
+          XmlUtils.getAttribute(begChr, 'm\\:val') || XmlUtils.getAttribute(begChr, 'val');
         props.beginChar = val || '(';
       }
 
       // 结束字符 m:endChr
       const endChr = XmlUtils.getChild(dPr, 'm\\:endChr');
       if (endChr) {
-        const val = XmlUtils.getAttribute(endChr, 'm\\:val') || XmlUtils.getAttribute(endChr, 'val');
+        const val =
+          XmlUtils.getAttribute(endChr, 'm\\:val') || XmlUtils.getAttribute(endChr, 'val');
         props.endChar = val || ')';
       }
 
       // 分隔符 m:sepChr
       const sepChr = XmlUtils.getChild(dPr, 'm\\:sepChr');
       if (sepChr) {
-        const val = XmlUtils.getAttribute(sepChr, 'm\\:val') || XmlUtils.getAttribute(sepChr, 'val');
+        const val =
+          XmlUtils.getAttribute(sepChr, 'm\\:val') || XmlUtils.getAttribute(sepChr, 'val');
         props.sepChar = val || '|';
       }
 
@@ -475,14 +487,14 @@ export class OMathParser {
     for (const eEl of eElements) {
       elements.push({
         type: 'oMath',
-        children: this.parseChildren(eEl)
+        children: this.parseChildren(eEl),
       });
     }
 
     return {
       type: 'delimiter',
       elements,
-      props
+      props,
     };
   }
 
@@ -509,21 +521,24 @@ export class OMathParser {
       // 上下限位置 m:limLoc
       const limLoc = XmlUtils.getChild(naryPr, 'm\\:limLoc');
       if (limLoc) {
-        const val = XmlUtils.getAttribute(limLoc, 'm\\:val') || XmlUtils.getAttribute(limLoc, 'val');
+        const val =
+          XmlUtils.getAttribute(limLoc, 'm\\:val') || XmlUtils.getAttribute(limLoc, 'val');
         props.limLoc = val as OMathNodeProps['limLoc'];
       }
 
       // 隐藏上标 m:supHide
       const supHide = XmlUtils.getChild(naryPr, 'm\\:supHide');
       if (supHide) {
-        const val = XmlUtils.getAttribute(supHide, 'm\\:val') || XmlUtils.getAttribute(supHide, 'val');
+        const val =
+          XmlUtils.getAttribute(supHide, 'm\\:val') || XmlUtils.getAttribute(supHide, 'val');
         props.supHide = val !== 'off' && val !== '0';
       }
 
       // 隐藏下标 m:subHide
       const subHide = XmlUtils.getChild(naryPr, 'm\\:subHide');
       if (subHide) {
-        const val = XmlUtils.getAttribute(subHide, 'm\\:val') || XmlUtils.getAttribute(subHide, 'val');
+        const val =
+          XmlUtils.getAttribute(subHide, 'm\\:val') || XmlUtils.getAttribute(subHide, 'val');
         props.subHide = val !== 'off' && val !== '0';
       }
 
@@ -550,14 +565,16 @@ export class OMathParser {
 
     // 主体 m:e
     const eEl = XmlUtils.getChild(node, 'm\\:e');
-    const element: OMathNode = eEl ? { type: 'oMath', children: this.parseChildren(eEl) } : { type: 'text', text: '' };
+    const element: OMathNode = eEl
+      ? { type: 'oMath', children: this.parseChildren(eEl) }
+      : { type: 'text', text: '' };
 
     return {
       type: 'nary',
       subscript,
       superscript,
       element,
-      props
+      props,
     };
   }
 
@@ -583,7 +600,8 @@ export class OMathParser {
           if (mcPr) {
             const count = XmlUtils.getChild(mcPr, 'm\\:count');
             if (count) {
-              const val = XmlUtils.getAttribute(count, 'm\\:val') || XmlUtils.getAttribute(count, 'val');
+              const val =
+                XmlUtils.getAttribute(count, 'm\\:val') || XmlUtils.getAttribute(count, 'val');
               if (val) {
                 props.columnCount = parseInt(val, 10);
               }
@@ -609,7 +627,7 @@ export class OMathParser {
     return {
       type: 'matrix',
       rows,
-      props
+      props,
     };
   }
 
@@ -624,13 +642,13 @@ export class OMathParser {
     for (const eEl of eElements) {
       cells.push({
         type: 'oMath',
-        children: this.parseChildren(eEl)
+        children: this.parseChildren(eEl),
       });
     }
 
     return {
       type: 'matrixRow',
-      cells
+      cells,
     };
   }
 
@@ -650,7 +668,8 @@ export class OMathParser {
       // 隐藏根指数 m:degHide
       const degHide = XmlUtils.getChild(radPr, 'm\\:degHide');
       if (degHide) {
-        const val = XmlUtils.getAttribute(degHide, 'm\\:val') || XmlUtils.getAttribute(degHide, 'val');
+        const val =
+          XmlUtils.getAttribute(degHide, 'm\\:val') || XmlUtils.getAttribute(degHide, 'val');
         props.degHide = val !== 'off' && val !== '0';
       }
     }
@@ -662,13 +681,15 @@ export class OMathParser {
 
     // 被开方数 m:e
     const eEl = XmlUtils.getChild(node, 'm\\:e');
-    const radicand: OMathNode = eEl ? { type: 'oMath', children: this.parseChildren(eEl) } : { type: 'text', text: '' };
+    const radicand: OMathNode = eEl
+      ? { type: 'oMath', children: this.parseChildren(eEl) }
+      : { type: 'text', text: '' };
 
     return {
       type: 'radical',
       radicand,
       degree,
-      props: Object.keys(props).length > 0 ? props : undefined
+      props: Object.keys(props).length > 0 ? props : undefined,
     };
   }
 
@@ -694,12 +715,14 @@ export class OMathParser {
 
     // 基础元素 m:e
     const eEl = XmlUtils.getChild(node, 'm\\:e');
-    const base: OMathNode = eEl ? { type: 'oMath', children: this.parseChildren(eEl) } : { type: 'text', text: '' };
+    const base: OMathNode = eEl
+      ? { type: 'oMath', children: this.parseChildren(eEl) }
+      : { type: 'text', text: '' };
 
     return {
       type: 'accent',
       base,
-      props
+      props,
     };
   }
 
@@ -724,12 +747,14 @@ export class OMathParser {
 
     // 基础元素 m:e
     const eEl = XmlUtils.getChild(node, 'm\\:e');
-    const base: OMathNode = eEl ? { type: 'oMath', children: this.parseChildren(eEl) } : { type: 'text', text: '' };
+    const base: OMathNode = eEl
+      ? { type: 'oMath', children: this.parseChildren(eEl) }
+      : { type: 'text', text: '' };
 
     return {
       type: 'bar',
       base,
-      props
+      props,
     };
   }
 
@@ -743,7 +768,7 @@ export class OMathParser {
 
     return {
       type: 'box',
-      children
+      children,
     };
   }
 
@@ -757,7 +782,7 @@ export class OMathParser {
 
     return {
       type: 'borderBox',
-      children
+      children,
     };
   }
 
@@ -773,12 +798,14 @@ export class OMathParser {
 
     // 参数 m:e
     const eEl = XmlUtils.getChild(node, 'm\\:e');
-    const argument: OMathNode = eEl ? { type: 'oMath', children: this.parseChildren(eEl) } : { type: 'text', text: '' };
+    const argument: OMathNode = eEl
+      ? { type: 'oMath', children: this.parseChildren(eEl) }
+      : { type: 'text', text: '' };
 
     return {
       type: 'func',
       functionName,
-      argument
+      argument,
     };
   }
 
@@ -805,19 +832,22 @@ export class OMathParser {
 
       const vertJc = XmlUtils.getChild(groupChrPr, 'm\\:vertJc');
       if (vertJc) {
-        const val = XmlUtils.getAttribute(vertJc, 'm\\:val') || XmlUtils.getAttribute(vertJc, 'val');
+        const val =
+          XmlUtils.getAttribute(vertJc, 'm\\:val') || XmlUtils.getAttribute(vertJc, 'val');
         props.vertJc = val as OMathNodeProps['vertJc'];
       }
     }
 
     // 基础元素 m:e
     const eEl = XmlUtils.getChild(node, 'm\\:e');
-    const base: OMathNode = eEl ? { type: 'oMath', children: this.parseChildren(eEl) } : { type: 'text', text: '' };
+    const base: OMathNode = eEl
+      ? { type: 'oMath', children: this.parseChildren(eEl) }
+      : { type: 'text', text: '' };
 
     return {
       type: 'groupChar',
       base,
-      props
+      props,
     };
   }
 
@@ -827,7 +857,9 @@ export class OMathParser {
   private static parseLimLow(node: Element): OMathLimLowNode {
     // 基础元素 m:e
     const eEl = XmlUtils.getChild(node, 'm\\:e');
-    const base: OMathNode = eEl ? { type: 'oMath', children: this.parseChildren(eEl) } : { type: 'text', text: '' };
+    const base: OMathNode = eEl
+      ? { type: 'oMath', children: this.parseChildren(eEl) }
+      : { type: 'text', text: '' };
 
     // 下限 m:lim
     const limEl = XmlUtils.getChild(node, 'm\\:lim');
@@ -838,7 +870,7 @@ export class OMathParser {
     return {
       type: 'limLow',
       base,
-      limit
+      limit,
     };
   }
 
@@ -848,7 +880,9 @@ export class OMathParser {
   private static parseLimUpp(node: Element): OMathLimUppNode {
     // 基础元素 m:e
     const eEl = XmlUtils.getChild(node, 'm\\:e');
-    const base: OMathNode = eEl ? { type: 'oMath', children: this.parseChildren(eEl) } : { type: 'text', text: '' };
+    const base: OMathNode = eEl
+      ? { type: 'oMath', children: this.parseChildren(eEl) }
+      : { type: 'text', text: '' };
 
     // 上限 m:lim
     const limEl = XmlUtils.getChild(node, 'm\\:lim');
@@ -859,7 +893,7 @@ export class OMathParser {
     return {
       type: 'limUpp',
       base,
-      limit
+      limit,
     };
   }
 
@@ -873,7 +907,7 @@ export class OMathParser {
 
     return {
       type: 'phantom',
-      children
+      children,
     };
   }
 
@@ -888,13 +922,13 @@ export class OMathParser {
     for (const eEl of eElements) {
       children.push({
         type: 'oMath',
-        children: this.parseChildren(eEl)
+        children: this.parseChildren(eEl),
       });
     }
 
     return {
       type: 'eqArr',
-      children
+      children,
     };
   }
 }

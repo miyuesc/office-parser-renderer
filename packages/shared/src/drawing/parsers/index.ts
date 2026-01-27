@@ -11,3 +11,5 @@ export * from './CustomGeometryParser';
 export * from './TextBodyParser';
 export * from './ShapeStyleParser';
 export * from './ShapePropertiesParser';
+export * from './ChartParser';
+export * from './DrawingMLParser';

@@ -4,7 +4,8 @@
  * 负责计算 XLSX 工作表的布局度量，包括列宽、行高和合并单元格处理
  */
 
-import type { XlsxSheet } from '../types';
+import type { XlsxSheet, XlsxColumn, XlsxMergeCell } from '../types';
+import type { OfficeAnchor } from '@ai-space/shared';
 import { DEFAULT_COL_WIDTH, DEFAULT_ROW_HEIGHT } from './constants';
 
 // Excel 列宽（字符单位）到像素的转换因子
@@ -40,7 +41,7 @@ export class LayoutCalculator {
 
     // 获取列定义的最大列索引（sheet.cols 是 XlsxColumn[]）
     let maxCol = 0;
-    (sheet.cols || []).forEach((col: { max: number }) => {
+    (sheet.cols || []).forEach((col: XlsxColumn) => {
       if (col.max > maxCol) maxCol = col.max;
     });
 
@@ -48,7 +49,7 @@ export class LayoutCalculator {
     const rowHeights: number[] = [];
 
     // 检查所有浮动元素，扩展渲染范围
-    const check = (list: any[] | undefined) => {
+    const check = (list: { anchor: OfficeAnchor }[] | undefined) => {
       if (!list) return;
       for (const item of list) {
         const anchor = item.anchor;
@@ -68,7 +69,7 @@ export class LayoutCalculator {
 
     // 辅助函数：根据列索引（1-based）查找列定义
     const getColDef = (idx: number) => {
-      return (sheet.cols || []).find(col => idx >= col.min && idx <= col.max);
+      return (sheet.cols || []).find((col) => idx >= col.min && idx <= col.max);
     };
 
     // 填充列宽数组（转换为像素）
@@ -110,7 +111,7 @@ export class LayoutCalculator {
    * @param merges - 合并单元格定义数组
    * @returns 是否被合并
    */
-  static isMerged(r: number, c: number, merges: any[]): boolean {
+  static isMerged(r: number, c: number, merges: XlsxMergeCell[]): boolean {
     if (!merges) return false;
     for (const m of merges) {
       const { s, e } = m;
@@ -134,7 +135,7 @@ export class LayoutCalculator {
    * @param merges - 合并单元格定义数组
    * @returns 合并定义或 null
    */
-  static getMergeStart(r: number, c: number, merges: any[]): any | null {
+  static getMergeStart(r: number, c: number, merges: XlsxMergeCell[]): XlsxMergeCell | null {
     if (!merges) return null;
     for (const m of merges) {
       if (m.s.r === r && m.s.c === c) {

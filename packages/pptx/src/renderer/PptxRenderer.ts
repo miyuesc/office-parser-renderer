@@ -1,4 +1,4 @@
-import { PptxDocument } from '../types';
+import { PptxDocument, Shape, TextBox, Picture } from '../types';
 
 export class PptxRenderer {
   private container: HTMLElement;
@@ -28,14 +28,14 @@ export class PptxRenderer {
       if (elem.type === 'shape') {
         this.renderShape(elem);
       } else if (elem.type === 'textbox') {
-        this.renderShape(elem as any);
+        this.renderShape(elem);
       } else if (elem.type === 'picture') {
         this.renderImage(elem);
       }
     }
   }
 
-  private renderShape(elem: import('../types').Shape) {
+  private renderShape(elem: Shape | TextBox) {
     const { x, y, w, h, fill, outline } = elem.props;
 
     const div = document.createElement('div');
@@ -46,7 +46,7 @@ export class PptxRenderer {
     div.style.height = `${h}px`;
     div.style.boxSizing = 'border-box'; // Ensure border is included in size
 
-    if (elem.geometry === 'ellipse') {
+    if (elem.type === 'shape' && elem.geometry === 'ellipse') {
       div.style.borderRadius = '50%';
     }
 
@@ -64,8 +64,8 @@ export class PptxRenderer {
     }
 
     // Handle Text content for Textbox/Shape
-    if ((elem as any).text) {
-      div.textContent = (elem as any).text;
+    if (elem.type === 'textbox' && elem.text) {
+      div.textContent = elem.text;
       div.style.display = 'flex';
       div.style.alignItems = 'center'; // Center vert
       div.style.justifyContent = 'center'; // Center horiz

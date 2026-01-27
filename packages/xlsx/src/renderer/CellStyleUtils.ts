@@ -3,7 +3,13 @@
  *
  * 将 XLSX 单元格样式转换为 CSS 样式
  */
-import { ColorUtils, FontManager, AlignmentStyles, BorderStyles, DEFAULT_FONT_SIZE_PT } from '@ai-space/shared';
+import {
+  ColorUtils,
+  FontManager,
+  AlignmentStyles,
+  BorderStyles,
+  DEFAULT_FONT_SIZE_PT,
+} from '@ai-space/shared';
 import { XlsxWorkbook, XlsxColor } from '../types';
 
 /**
@@ -19,7 +25,7 @@ export class CellStyleUtils {
    */
   static getCss(
     workbook: XlsxWorkbook,
-    styleIndex?: number
+    styleIndex?: number,
   ): { css: Partial<CSSStyleDeclaration>; fontClassName?: string } {
     if (styleIndex === undefined) return { css: {} };
 
@@ -42,7 +48,8 @@ export class CellStyleUtils {
       if (font.b) css.fontWeight = 'bold';
       if (font.i) css.fontStyle = 'italic';
       if (font.u) css.textDecoration = 'underline';
-      if (font.strike) css.textDecoration = (css.textDecoration ? css.textDecoration + ' ' : '') + 'line-through';
+      if (font.strike)
+        css.textDecoration = (css.textDecoration ? css.textDecoration + ' ' : '') + 'line-through';
 
       const color = this.resolveColor(font.color, workbook);
       if (color) css.color = color;
@@ -54,7 +61,8 @@ export class CellStyleUtils {
       if (fill.patternType !== 'none') {
         const fg = this.resolveColor(fill.fgColor, workbook);
         if (fg) css.backgroundColor = fg;
-        else if (fill.bgColor) css.backgroundColor = this.resolveColor(fill.bgColor, workbook) || '';
+        else if (fill.bgColor)
+          css.backgroundColor = this.resolveColor(fill.bgColor, workbook) || '';
       }
     }
 
@@ -95,7 +103,10 @@ export class CellStyleUtils {
    * @param workbook - 工作簿对象
    * @returns CSS 边框字符串
    */
-  private static getBorderCss(side: { style?: string; color?: XlsxColor }, workbook: XlsxWorkbook): string {
+  private static getBorderCss(
+    side: { style?: string; color?: XlsxColor },
+    workbook: XlsxWorkbook,
+  ): string {
     if (!side || side.style === 'none') return 'none';
 
     const style = BorderStyles.mapBorderStyle(side.style || 'thin');
@@ -138,7 +149,10 @@ export class CellStyleUtils {
    * @param workbook - 工作簿对象
    * @returns 十六进制颜色字符串
    */
-  static resolveColor(xlsxColor: XlsxColor | undefined, workbook: XlsxWorkbook): string | undefined {
+  static resolveColor(
+    xlsxColor: XlsxColor | undefined,
+    workbook: XlsxWorkbook,
+  ): string | undefined {
     if (!xlsxColor) return undefined;
 
     let hex: string | undefined;
@@ -152,7 +166,7 @@ export class CellStyleUtils {
       // 主题颜色查找
       const key = String(xlsxColor.theme);
       if (workbook.theme.colorScheme[key]) {
-        hex = '#' + workbook.theme.colorScheme[key];
+        hex = workbook.theme.colorScheme[key];
       }
     } else if (xlsxColor.auto) {
       hex = '#000000';

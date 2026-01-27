@@ -12,13 +12,9 @@
  * - 样式工具（文本、对齐、边框等）
  */
 
-export * from './zip';
-export * from './xml';
-export * from './utils/geometry';
-export * from './utils/ColorUtils';
-export * from './utils/PresetColorMap';
+export * from './core';
+export * from './types';
 export * from './drawing';
 export * from './math';
 export * from './fonts';
-export * from './fonts/FontManager';
 export * from './styles';

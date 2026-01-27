@@ -1,9 +1,7 @@
-import { CT_ExtensionList, ST_Xstring } from './sml-baseTypes';
-
+import { CT_ExtensionList, ST_Xstring } from './common-types';
 /**
  * sml-queryTable.xsd
  */
-
 /** Grow Shrink Type */
 export enum ST_GrowShrinkType {
   /** Insert &amp; Delete On Refresh */
@@ -13,7 +11,6 @@ export enum ST_GrowShrinkType {
   /** Overwrite &amp; Clear On Refresh */
   overwriteClear = 'overwriteClear'
 }
-
 /** QueryTable Refresh Information */
 export interface CT_QueryTable {
   name: ST_Xstring;
@@ -34,7 +31,6 @@ export interface CT_QueryTable {
   queryTableRefresh?: CT_QueryTableRefresh;
   extLst?: CT_ExtensionList;
 }
-
 /** Query table fields */
 export interface CT_QueryTableRefresh {
   preserveSortFilterLayout?: boolean;
@@ -49,24 +45,20 @@ export interface CT_QueryTableRefresh {
   sortState?: any;
   extLst?: any;
 }
-
 /** Deleted Field */
 export interface CT_QueryTableDeletedFields {
   count?: number;
   deletedField: CT_DeletedField[];
 }
-
 /** Deleted Fields Name */
 export interface CT_DeletedField {
   name: ST_Xstring;
 }
-
 /** QueryTable Field */
 export interface CT_QueryTableFields {
   count?: number;
   queryTableField?: CT_QueryTableField[];
 }
-
 /** Future Feature Data Storage Area */
 export interface CT_QueryTableField {
   id: number;

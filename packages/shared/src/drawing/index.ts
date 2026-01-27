@@ -9,8 +9,7 @@
  * - 渲染器
  */
 
-export * from './types';
-export * from './DrawingMLParser';
 export * from './ThemeEnums';
-export * from './PresetGeometries';
+export * from './shapes';
 export * from './renderers';
+export * from './parsers';

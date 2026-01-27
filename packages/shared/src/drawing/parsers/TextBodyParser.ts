@@ -3,7 +3,7 @@
  *
  * 解析 DrawingML 中的文本体定义 (a:txBody)
  */
-import { XmlUtils } from '../../xml';
+import { XmlUtils } from '../../core/xml';
 import { OfficeTextBody, OfficeParagraph, OfficeRun } from '../types';
 import { FillParser } from './FillParser';
 import { EffectParser } from './EffectParser';

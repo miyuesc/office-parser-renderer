@@ -2,7 +2,7 @@
 import { DocxParser, DocxRenderer } from '../../docx/src/index';
 import { PptxParser, PptxRenderer } from '@ai-space/pptx';
 // 直接从源文件导入以便测试最新的修改
-import { XlsxParser, XlsxRenderer } from '../../xlsx/src/index';
+import { XlsxParser, XlsxRenderer, XlsxSheet } from '../../xlsx/src/index';
 import { renderShapeGallery } from './shape-gallery';
 
 // 引入 CSS 样式文件（替代内联样式注入）
@@ -34,24 +34,26 @@ async function loadDocx(url: string) {
 
     console.group('DOCX Load Process');
     console.log('Parsing DOCX... [HMR Trigger]');
-    const parser = new DocxParser();
-    const doc = await parser.parse(buf);
+    console.log('Parsing DOCX... [HMR Trigger]');
+    // const parser = new DocxParser();
+    // const doc = await parser.parse(buf);
+    const doc = await DocxParser.parseAsync(buf);
     console.log('DOCX AST:', doc);
 
     const renderer = new DocxRenderer(container, {
       enablePagination: true,
       useDocumentBackground: true,
       useDocumentWatermark: true,
-      injectStyles: false // 使用外部 CSS 文件
+      injectStyles: false, // 使用外部 CSS 文件
     });
     await renderer.render(doc);
     console.log('Render Complete');
     console.groupEnd();
 
     status.textContent = 'DOCX Rendered!';
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('DOCX load error:', err);
-    status.textContent = 'Error: ' + err.message;
+    status.textContent = 'Error: ' + (err instanceof Error ? err.message : String(err));
   }
 }
 
@@ -78,9 +80,9 @@ async function loadXlsx(url: string) {
     console.groupEnd();
 
     status.textContent = 'XLSX Rendered!';
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('XLSX load error:', err);
-    status.textContent = 'Error: ' + err.message;
+    status.textContent = 'Error: ' + (err instanceof Error ? err.message : String(err));
   }
 }
 
@@ -95,7 +97,7 @@ galleryBtn.addEventListener('click', () => {
 });
 
 // 文件选择事件
-fileInput.addEventListener('change', async e => {
+fileInput.addEventListener('change', async (e) => {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
 
@@ -113,7 +115,7 @@ fileInput.addEventListener('change', async e => {
         enablePagination: true,
         useDocumentBackground: true,
         useDocumentWatermark: true,
-        injectStyles: false // 使用外部 CSS 文件
+        injectStyles: false, // 使用外部 CSS 文件
       });
       await renderer.render(doc);
     } else if (name.endsWith('.pptx')) {
@@ -130,29 +132,11 @@ fileInput.addEventListener('change', async e => {
 
       const renderer = new XlsxRenderer(container, { injectStyles: false });
       await renderer.render(doc);
-
-      // Sheet Switcher
-      if (doc.sheets && doc.sheets.length > 1) {
-        const controls = document.createElement('div');
-        controls.style.marginBottom = '10px';
-
-        doc.sheets.forEach((sheet, index) => {
-          const btn = document.createElement('button');
-          btn.textContent = sheet.name || `Sheet ${index + 1}`;
-          btn.style.marginRight = '5px';
-          btn.onclick = () => {
-            renderer.render(doc);
-          };
-          controls.appendChild(btn);
-        });
-
-        container.parentElement?.insertBefore(controls, container);
-      }
     }
     status.textContent = 'Rendered!';
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error(err);
-    status.textContent = 'Error: ' + err.message;
+    status.textContent = 'Error: ' + (err instanceof Error ? err.message : String(err));
   }
 });
 

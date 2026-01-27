@@ -1,9 +1,8 @@
-import { ST_CellRef, ST_Xstring } from './sml-baseTypes';
-
+import { ST_Xstring } from './common-types';
+import { ST_CellRef } from './sml-baseTypes';
 /**
  * sml-volatileDependencies.xsd
  */
-
 /** Volatile Dependency Types */
 export enum ST_VolDepType {
   /** Real Time Data */
@@ -11,7 +10,6 @@ export enum ST_VolDepType {
   /** OLAP Formulas */
   olapFunctions = 'olapFunctions'
 }
-
 /** Volatile Dependency Value Types */
 export enum ST_VolValueType {
   /** Boolean */
@@ -23,25 +21,21 @@ export enum ST_VolValueType {
   /** String */
   s = 's'
 }
-
 /** Volatile Dependency Type */
 export interface CT_VolTypes {
   volType: CT_VolType[];
   extLst?: any;
 }
-
 /** Main */
 export interface CT_VolType {
   type: ST_VolDepType;
   main: CT_VolMain[];
 }
-
 /** Topic */
 export interface CT_VolMain {
   first: ST_Xstring;
   tp: CT_VolTopic[];
 }
-
 /** Topic Value */
 export interface CT_VolTopic {
   t?: ST_VolValueType;
@@ -49,7 +43,6 @@ export interface CT_VolTopic {
   stp?: ST_Xstring[];
   tr: CT_VolTopicRef[];
 }
-
 /** Reference */
 export interface CT_VolTopicRef {
   r: ST_CellRef;

@@ -13,3 +13,6 @@ export * from './styles';
 
 // 工作簿与工作表相关类型
 export * from './workbook';
+
+// 共享类型
+export * from './shared';

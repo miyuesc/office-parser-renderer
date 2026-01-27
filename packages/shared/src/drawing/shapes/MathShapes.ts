@@ -1,5 +1,5 @@
-import { ST_ShapeType } from '@ai-space/definitions/autogen/dml-shapeGeometry';
-import { ShapeGenerator } from './types';
+import { ST_ShapeType } from '@ai-space/definitions/dml-shapeGeometry';
+import { ShapeGenerator } from '../../types/shapes';
 
 export const MathShapes: Record<string, ShapeGenerator> = {
   /**
@@ -154,7 +154,7 @@ export const MathShapes: Record<string, ShapeGenerator> = {
       const by = cy + Math.sin(axisAngle) * dist;
       return {
         x: bx + Math.cos(axisAngle + Math.PI / 2) * perpOffset,
-        y: by + Math.sin(axisAngle + Math.PI / 2) * perpOffset
+        y: by + Math.sin(axisAngle + Math.PI / 2) * perpOffset,
       };
     }
 
@@ -249,14 +249,14 @@ export const MathShapes: Record<string, ShapeGenerator> = {
 
       // TL Arm (NW)
       getP(-Math.PI * 0.75, -hw, rOut),
-      getP(-Math.PI * 0.75, hw, rOut)
+      getP(-Math.PI * 0.75, hw, rOut),
     ];
 
     return (
       `M ${poly[0].x} ${poly[0].y} ` +
       poly
         .slice(1)
-        .map(p => `L ${p.x} ${p.y}`)
+        .map((p) => `L ${p.x} ${p.y}`)
         .join(' ') +
       ' Z'
     );
@@ -320,5 +320,5 @@ export const MathShapes: Record<string, ShapeGenerator> = {
     d += ` M 0 ${cy + gap / 2} L ${w} ${cy + gap / 2} L ${w} ${cy + gap / 2 + thick} L 0 ${cy + gap / 2 + thick} Z`;
 
     return d;
-  }
+  },
 };

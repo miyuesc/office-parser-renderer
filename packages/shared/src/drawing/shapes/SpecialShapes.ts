@@ -1,5 +1,5 @@
-import { ST_ShapeType } from '@ai-space/definitions/autogen/dml-shapeGeometry';
-import { ShapeGenerator } from './types';
+import { ST_ShapeType } from '@ai-space/definitions/dml-shapeGeometry';
+import { ShapeGenerator } from '../../types/shapes';
 import { GeoUtils } from './GeoUtils';
 
 export const SpecialShapes: Record<string, ShapeGenerator> = {
@@ -239,7 +239,7 @@ export const SpecialShapes: Record<string, ShapeGenerator> = {
       { x: 0.0, y: 0.42 },
       { x: 0.2, y: 0.35 },
       { x: 0.05, y: 0.15 },
-      { x: 0.32, y: 0.22 }
+      { x: 0.32, y: 0.22 },
     ];
 
     let d = '';
@@ -283,7 +283,7 @@ export const SpecialShapes: Record<string, ShapeGenerator> = {
       { x: 0.05, y: 0.2 },
       { x: 0.25, y: 0.25 },
       { x: 0.2, y: 0.05 },
-      { x: 0.38, y: 0.18 }
+      { x: 0.38, y: 0.18 },
     ];
 
     let d = '';
@@ -293,5 +293,5 @@ export const SpecialShapes: Record<string, ShapeGenerator> = {
       d += (i === 0 ? 'M ' : 'L ') + `${x} ${y} `;
     });
     return d + 'Z';
-  }
+  },
 };

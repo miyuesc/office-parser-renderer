@@ -4,7 +4,6 @@
  * 提供统一的形状、图表、图片渲染功能
  */
 
-export * from './types';
 export { ImageRenderer } from './ImageRenderer';
 export { ShapeRenderer } from './ShapeRenderer';
 export { ChartRenderer } from './ChartRenderer';

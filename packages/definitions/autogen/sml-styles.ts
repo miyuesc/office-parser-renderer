@@ -1,9 +1,8 @@
-import { CT_ExtensionList, ST_UnsignedIntHex, ST_Xstring } from './sml-baseTypes';
-
+import { CT_ExtensionList, ST_Xstring } from './common-types';
+import { ST_UnsignedIntHex } from './sml-baseTypes';
 /**
  * sml-styles.xsd
  */
-
 /** Border Line Styles */
 export enum ST_BorderStyle {
   /** None */
@@ -35,7 +34,6 @@ export enum ST_BorderStyle {
   /** Slant Dash Dot */
   slantDashDot = 'slantDashDot'
 }
-
 /** Pattern Type */
 export enum ST_PatternType {
   /** None */
@@ -77,7 +75,6 @@ export enum ST_PatternType {
   /** Gray 0.0625 */
   gray0625 = 'gray0625'
 }
-
 /** Gradient Type */
 export enum ST_GradientType {
   /** Linear Gradient */
@@ -85,7 +82,6 @@ export enum ST_GradientType {
   /** Path */
   path = 'path'
 }
-
 /** Horizontal Alignment Type */
 export enum ST_HorizontalAlignment {
   /** General Horizontal Alignment */
@@ -105,7 +101,6 @@ export enum ST_HorizontalAlignment {
   /** Distributed Horizontal Alignment */
   distributed = 'distributed'
 }
-
 /** Vertical Alignment Types */
 export enum ST_VerticalAlignment {
   /** Align Top */
@@ -119,25 +114,18 @@ export enum ST_VerticalAlignment {
   /** Distributed Vertical Alignment */
   distributed = 'distributed'
 }
-
 /** Number Format Id */
 export type ST_NumFmtId = string;
-
 /** Font Id */
 export type ST_FontId = string;
-
 /** Fill Id */
 export type ST_FillId = string;
-
 /** Border Id */
 export type ST_BorderId = string;
-
 /** Cell Style Format Id */
 export type ST_CellStyleXfId = string;
-
 /** Format Id */
 export type ST_DxfId = string;
-
 /** Table Style Type */
 export enum ST_TableStyleType {
   /** Whole Table Style */
@@ -197,7 +185,6 @@ export enum ST_TableStyleType {
   /** Page Field Values Style */
   pageFieldValues = 'pageFieldValues'
 }
-
 /** Vertical Alignment Run Types */
 export enum ST_VerticalAlignRun {
   /** Baseline */
@@ -207,7 +194,6 @@ export enum ST_VerticalAlignRun {
   /** Subscript */
   subscript = 'subscript'
 }
-
 /** Font scheme Styles */
 export enum ST_FontScheme {
   /** None */
@@ -217,7 +203,6 @@ export enum ST_FontScheme {
   /** Minor Font */
   minor = 'minor'
 }
-
 /** Underline Types */
 export enum ST_UnderlineValues {
   /** Single Underline */
@@ -231,7 +216,6 @@ export enum ST_UnderlineValues {
   /** None */
   none = 'none'
 }
-
 /** Number Formats */
 export interface CT_Stylesheet {
   numFmts?: CT_NumFmts;
@@ -246,7 +230,6 @@ export interface CT_Stylesheet {
   colors?: CT_Colors;
   extLst?: CT_ExtensionList;
 }
-
 /** Horizontal Alignment */
 export interface CT_CellAlignment {
   horizontal?: ST_HorizontalAlignment;
@@ -259,13 +242,11 @@ export interface CT_CellAlignment {
   shrinkToFit?: boolean;
   readingOrder?: number;
 }
-
 /** Border */
 export interface CT_Borders {
   count?: number;
   border?: CT_Border[];
 }
-
 /** Left Border */
 export interface CT_Border {
   diagonalUp?: boolean;
@@ -279,44 +260,37 @@ export interface CT_Border {
   vertical?: CT_BorderPr;
   horizontal?: CT_BorderPr;
 }
-
 /** Color */
 export interface CT_BorderPr {
   style?: ST_BorderStyle;
   color?: CT_Color;
 }
-
 /** Cell Locked */
 export interface CT_CellProtection {
   locked?: boolean;
   hidden?: boolean;
 }
-
 /** Font */
 export interface CT_Fonts {
   count?: number;
   font?: CT_Font[];
 }
-
 /** Fill */
 export interface CT_Fills {
   count?: number;
   fill?: CT_Fill[];
 }
-
 /** Pattern */
 export interface CT_Fill {
   patternFill?: CT_PatternFill;
   gradientFill?: CT_GradientFill;
 }
-
 /** Foreground Color */
 export interface CT_PatternFill {
   patternType?: ST_PatternType;
   fgColor?: CT_Color;
   bgColor?: CT_Color;
 }
-
 /** Automatic */
 export interface CT_Color {
   auto?: boolean;
@@ -325,7 +299,6 @@ export interface CT_Color {
   theme?: number;
   tint?: number;
 }
-
 /** Gradient Stop */
 export interface CT_GradientFill {
   type?: ST_GradientType;
@@ -336,37 +309,31 @@ export interface CT_GradientFill {
   bottom?: number;
   stop?: CT_GradientStop[];
 }
-
 /** Color */
 export interface CT_GradientStop {
   position: number;
   color: CT_Color;
 }
-
 /** Number Formats */
 export interface CT_NumFmts {
   count?: number;
   numFmt?: CT_NumFmt[];
 }
-
 /** Number Format Id */
 export interface CT_NumFmt {
   numFmtId: ST_NumFmtId;
   formatCode: ST_Xstring;
 }
-
 /** Formatting Elements */
 export interface CT_CellStyleXfs {
   count?: number;
   xf: CT_Xf[];
 }
-
 /** Format */
 export interface CT_CellXfs {
   count?: number;
   xf: CT_Xf[];
 }
-
 /** Alignment */
 export interface CT_Xf {
   numFmtId?: ST_NumFmtId;
@@ -386,13 +353,11 @@ export interface CT_Xf {
   protection?: CT_CellProtection;
   extLst?: CT_ExtensionList;
 }
-
 /** Cell Style */
 export interface CT_CellStyles {
   count?: number;
   cellStyle: CT_CellStyle[];
 }
-
 /** Future Feature Data Storage Area */
 export interface CT_CellStyle {
   name?: ST_Xstring;
@@ -403,13 +368,11 @@ export interface CT_CellStyle {
   customBuiltin?: boolean;
   extLst?: CT_ExtensionList;
 }
-
 /** Formatting */
 export interface CT_Dxfs {
   count?: number;
   dxf?: CT_Dxf[];
 }
-
 /** Font Properties */
 export interface CT_Dxf {
   font?: CT_Font;
@@ -420,28 +383,23 @@ export interface CT_Dxf {
   protection?: CT_CellProtection;
   extLst?: CT_ExtensionList;
 }
-
 /** Color Indexes */
 export interface CT_Colors {
   indexedColors?: CT_IndexedColors;
   mruColors?: CT_MRUColors;
 }
-
 /** RGB Color */
 export interface CT_IndexedColors {
   rgbColor: CT_RgbColor[];
 }
-
 /** Color */
 export interface CT_MRUColors {
   color: CT_Color[];
 }
-
 /** Alpha Red Green Blue */
 export interface CT_RgbColor {
   rgb?: ST_UnsignedIntHex;
 }
-
 /** Table Style */
 export interface CT_TableStyles {
   count?: number;
@@ -449,7 +407,6 @@ export interface CT_TableStyles {
   defaultPivotStyle?: string;
   tableStyle?: CT_TableStyle[];
 }
-
 /** Table Style */
 export interface CT_TableStyle {
   name: string;
@@ -458,49 +415,40 @@ export interface CT_TableStyle {
   count?: number;
   tableStyleElement?: CT_TableStyleElement[];
 }
-
 /** Table Style Type */
 export interface CT_TableStyleElement {
   type: ST_TableStyleType;
   size?: number;
   dxfId?: ST_DxfId;
 }
-
 /** Value */
 export interface CT_BooleanProperty {
   val?: boolean;
 }
-
 /** Value */
 export interface CT_FontSize {
   val: number;
 }
-
 /** Value */
 export interface CT_IntProperty {
   val: number;
 }
-
 /** String Value */
 export interface CT_FontName {
   val: ST_Xstring;
 }
-
 /** Value */
 export interface CT_VerticalAlignFontProperty {
   val: ST_VerticalAlignRun;
 }
-
 /** Font Scheme */
 export interface CT_FontScheme {
   val: ST_FontScheme;
 }
-
 /** Underline Value */
 export interface CT_UnderlineProperty {
   val?: ST_UnderlineValues;
 }
-
 /** Font Name */
 export interface CT_Font {
   name?: CT_FontName;

@@ -1,3 +1,4 @@
+ 
 /**
  * 表格解析器
  *
@@ -21,7 +22,7 @@ import type {
   TableLook,
   BorderStyle,
   Shading,
-  DocxElement
+  DocxElement,
 } from '../types';
 
 const log = Logger.createTagged('TableParser');
@@ -54,7 +55,7 @@ export class TableParser {
       type: 'table',
       props,
       grid,
-      rows
+      rows,
     };
   }
 
@@ -154,7 +155,7 @@ export class TableParser {
 
     return {
       value: w ? parseInt(w, 10) : 0,
-      type: (type || 'auto') as TableWidth['type']
+      type: (type || 'auto') as TableWidth['type'],
     };
   }
 
@@ -191,7 +192,7 @@ export class TableParser {
       sz: node.getAttribute('w:sz') ? parseInt(node.getAttribute('w:sz')!, 10) : undefined,
       space: node.getAttribute('w:space') ? parseInt(node.getAttribute('w:space')!, 10) : undefined,
       shadow: node.getAttribute('w:shadow') === '1' || node.getAttribute('w:shadow') === 'true',
-      themeColor: node.getAttribute('w:themeColor') || undefined
+      themeColor: node.getAttribute('w:themeColor') || undefined,
     };
   }
 
@@ -232,7 +233,7 @@ export class TableParser {
       fill: node.getAttribute('w:fill') || undefined,
       color: node.getAttribute('w:color') || undefined,
       themeFill: node.getAttribute('w:themeFill') || undefined,
-      themeColor: node.getAttribute('w:themeColor') || undefined
+      themeColor: node.getAttribute('w:themeColor') || undefined,
     };
   }
 
@@ -326,7 +327,7 @@ export class TableParser {
     return {
       type: 'row',
       props,
-      cells
+      cells,
     };
   }
 
@@ -407,7 +408,7 @@ export class TableParser {
     return {
       type: 'cell',
       props,
-      children
+      children,
     };
   }
 
@@ -515,23 +516,25 @@ export class TableParser {
       const localName = tagName.split(':').pop() || tagName;
 
       switch (localName) {
-        case 'p':
+        case 'p': {
           // 段落
           const para = ParagraphParser.parse(child, context);
           children.push(para);
           break;
+        }
 
-        case 'tbl':
+        case 'tbl': {
           // 嵌套表格
           const nestedTable = TableParser.parse(child, context);
           children.push(nestedTable);
           break;
+        }
 
         case 'tcpr':
           // 单元格属性，已在上面处理
           break;
 
-        case 'sdt':
+        case 'sdt': {
           // 结构化文档标签
           const sdtContent = XmlUtils.query(child, 'w\\:sdtContent, sdtContent');
           if (sdtContent) {
@@ -539,6 +542,7 @@ export class TableParser {
             children.push(...sdtChildren);
           }
           break;
+        }
 
         default:
           log.debug(`未处理的单元格子元素: ${localName}`);

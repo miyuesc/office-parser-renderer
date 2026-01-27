@@ -4,7 +4,19 @@
  * 解析 XLSX 工作表结构 (xl/worksheets/sheet*.xml)
  */
 import { XmlUtils } from '@ai-space/shared';
-import { XlsxSheet, XlsxRow, XlsxColumn, XlsxMergeCell, XlsxCell } from '../types';
+import {
+  XlsxSheet,
+  XlsxRow,
+  XlsxColumn,
+  XlsxMergeCell,
+  XlsxCell,
+  XlsxPageMargins,
+  XlsxPageSetup,
+  XlsxHeaderFooter,
+} from '../types';
+import { Logger } from '../utils/Logger';
+
+const log = Logger.createTagged('WorksheetParser');
 
 export class WorksheetParser {
   /**
@@ -15,6 +27,9 @@ export class WorksheetParser {
    * @returns 完整的工作表对象
    */
   static parse(xml: string, baseSheet: XlsxSheet): XlsxSheet {
+    log.group('Parsing Worksheet');
+    log.debug(`Parsing sheet: ${baseSheet.name} (ID: ${baseSheet.id})`);
+
     const doc = XmlUtils.parse(xml);
     const sheet = { ...baseSheet };
 
@@ -31,6 +46,14 @@ export class WorksheetParser {
     sheet.pageSetup = this.parsePageSetup(doc);
     sheet.headerFooter = this.parseHeaderFooter(doc);
 
+    log.info('Worksheet stats', {
+      rowCount: Object.keys(sheet.rows).length,
+      colCount: sheet.cols.length,
+      mergeCount: sheet.merges.length,
+      hasDrawing: !!sheet.drawingId,
+    });
+    log.groupEnd();
+
     return sheet;
   }
 
@@ -40,7 +63,7 @@ export class WorksheetParser {
    * @param doc - 文档对象
    * @returns 页边距对象
    */
-  private static parsePageMargins(doc: Document): any {
+  private static parsePageMargins(doc: Document): XlsxPageMargins | undefined {
     const node = XmlUtils.query(doc, 'pageMargins');
     if (!node) return undefined;
     return {
@@ -49,7 +72,7 @@ export class WorksheetParser {
       top: parseFloat(node.getAttribute('top') || '0.75'),
       bottom: parseFloat(node.getAttribute('bottom') || '0.75'),
       header: parseFloat(node.getAttribute('header') || '0.3'),
-      footer: parseFloat(node.getAttribute('footer') || '0.3')
+      footer: parseFloat(node.getAttribute('footer') || '0.3'),
     };
   }
 
@@ -59,15 +82,16 @@ export class WorksheetParser {
    * @param doc - 文档对象
    * @returns 页面设置对象
    */
-  private static parsePageSetup(doc: Document): any {
+  private static parsePageSetup(doc: Document): XlsxPageSetup | undefined {
     const node = XmlUtils.query(doc, 'pageSetup');
     if (!node) return undefined;
+    const orientation = node.getAttribute('orientation');
     return {
       paperSize: parseInt(node.getAttribute('paperSize') || '0', 10),
-      orientation: node.getAttribute('orientation'), // portrait/landscape
+      orientation: orientation as XlsxPageSetup['orientation'], // portrait/landscape
       scale: parseInt(node.getAttribute('scale') || '100', 10),
       fitToWidth: parseInt(node.getAttribute('fitToWidth') || '1', 10),
-      fitToHeight: parseInt(node.getAttribute('fitToHeight') || '1', 10)
+      fitToHeight: parseInt(node.getAttribute('fitToHeight') || '1', 10),
     };
   }
 
@@ -77,7 +101,7 @@ export class WorksheetParser {
    * @param doc - 文档对象
    * @returns 页眉页脚对象
    */
-  private static parseHeaderFooter(doc: Document): any {
+  private static parseHeaderFooter(doc: Document): XlsxHeaderFooter | undefined {
     const node = XmlUtils.query(doc, 'headerFooter');
     if (!node) return undefined;
 
@@ -90,7 +114,7 @@ export class WorksheetParser {
       evenHeader: XmlUtils.query(node, 'evenHeader')?.textContent || undefined,
       evenFooter: XmlUtils.query(node, 'evenFooter')?.textContent || undefined,
       firstHeader: XmlUtils.query(node, 'firstHeader')?.textContent || undefined,
-      firstFooter: XmlUtils.query(node, 'firstFooter')?.textContent || undefined
+      firstFooter: XmlUtils.query(node, 'firstFooter')?.textContent || undefined,
     };
   }
 
@@ -115,7 +139,7 @@ export class WorksheetParser {
         max,
         width,
         customWidth,
-        hidden
+        hidden,
       });
     });
     return cols;
@@ -149,7 +173,7 @@ export class WorksheetParser {
         const v = vNode ? vNode.textContent || '' : undefined;
         const f = XmlUtils.query(c, 'f')?.textContent;
 
-        let val: any = v;
+        let val: XlsxCell['value'] | undefined = v;
         // 类型处理
         if (v !== undefined) {
           if (t === 'n') {
@@ -169,10 +193,10 @@ export class WorksheetParser {
         }
 
         cells[colIndex] = {
-          type: t as any,
+          type: t as XlsxCell['type'],
           value: val,
           formula: f || undefined,
-          styleIndex: s
+          styleIndex: s,
         };
       });
 
@@ -181,7 +205,7 @@ export class WorksheetParser {
         height: ht ? parseFloat(ht) : undefined,
         customHeight: !!row.getAttribute('customHeight'),
         hidden: !!row.getAttribute('hidden'),
-        cells
+        cells,
       };
     });
 
@@ -207,7 +231,7 @@ export class WorksheetParser {
 
       merges.push({
         s: this.getCellAddress(start),
-        e: this.getCellAddress(end)
+        e: this.getCellAddress(end),
       });
     });
     return merges;
@@ -247,7 +271,7 @@ export class WorksheetParser {
 
     return {
       r: parseInt(rowStr, 10),
-      c: colIndex
+      c: colIndex,
     };
   }
 }

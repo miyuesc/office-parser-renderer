@@ -52,7 +52,7 @@ export class MediaParser {
     '.webp': 'image/webp',
     '.ico': 'image/x-icon',
     '.emf': 'image/emf',
-    '.wmf': 'image/wmf'
+    '.wmf': 'image/wmf',
   };
 
   /**
@@ -62,14 +62,20 @@ export class MediaParser {
    * @param relationships - 关系信息数组
    * @returns 媒体解析结果
    */
-  static parse(files: Record<string, Uint8Array>, relationships: RelationshipInfo[]): MediaParseResult {
+  static parse(
+    files: Record<string, Uint8Array>,
+    relationships: RelationshipInfo[],
+  ): MediaParseResult {
     const result: MediaParseResult = {
       images: {},
-      imageUrls: {}
+      imageUrls: {},
     };
 
     // 过滤出图片关系
-    const imageRels = RelationshipsParser.filterByType(relationships, RelationshipsParser.TYPES.IMAGE);
+    const imageRels = RelationshipsParser.filterByType(
+      relationships,
+      RelationshipsParser.TYPES.IMAGE,
+    );
 
     for (const rel of imageRels) {
       const resource = this.loadResource(files, rel);
@@ -92,7 +98,10 @@ export class MediaParser {
    * @param rel - 关系信息
    * @returns MediaResource 对象或 null
    */
-  private static loadResource(files: Record<string, Uint8Array>, rel: RelationshipInfo): MediaResource | null {
+  private static loadResource(
+    files: Record<string, Uint8Array>,
+    rel: RelationshipInfo,
+  ): MediaResource | null {
     // 外部链接不加载
     if (rel.targetMode === 'External') {
       log.debug(`跳过外部资源: ${rel.target}`);
@@ -127,7 +136,7 @@ export class MediaParser {
       path,
       mimeType,
       data,
-      blobUrl
+      blobUrl,
     };
   }
 
@@ -157,7 +166,7 @@ export class MediaParser {
       for (const url of Object.values(result.imageUrls)) {
         try {
           URL.revokeObjectURL(url);
-        } catch (e) {
+        } catch {
           // 忽略释放错误
         }
       }
@@ -190,7 +199,7 @@ export class MediaParser {
       try {
         const blob = new Blob([data], { type: mimeType });
         blobUrl = URL.createObjectURL(blob);
-      } catch (e) {
+      } catch {
         // 忽略错误
       }
     }
@@ -200,7 +209,7 @@ export class MediaParser {
       path: cleanPath,
       mimeType,
       data,
-      blobUrl
+      blobUrl,
     };
   }
 
@@ -212,7 +221,7 @@ export class MediaParser {
    */
   static isImagePath(path: string): boolean {
     const lowerPath = path.toLowerCase();
-    return Object.keys(this.MIME_TYPES).some(ext => lowerPath.endsWith(ext));
+    return Object.keys(this.MIME_TYPES).some((ext) => lowerPath.endsWith(ext));
   }
 
   /**

@@ -8,20 +8,27 @@
 import {
   ImageRenderer as SharedImageRenderer,
   ShapeRenderer as SharedShapeRenderer,
-  ChartRenderer as SharedChartRenderer
+  ChartRenderer as SharedChartRenderer,
+  BaseStyleResolver,
+  UnitConverter,
 } from '@ai-space/shared';
 import type {
   RenderRect,
   RenderContext,
-  StyleResolverInterface,
   ShapeRenderOptions,
   ImageRenderOptions,
   ChartRenderOptions,
-  ColorDef
 } from '@ai-space/shared';
 
-import { UnitConverter } from '@ai-space/shared';
-import type { Drawing, DrawingImage, DrawingShape, DrawingChart, DocxDocument, AnchorPosition } from '../types';
+import type {
+  Drawing,
+  DrawingImage,
+  DrawingShape,
+  DrawingChart,
+  DocxDocument,
+  AnchorPosition,
+  DocxSection,
+} from '../types';
 import { ParagraphRenderer } from './ParagraphRenderer';
 import { TableRenderer } from './TableRenderer';
 
@@ -34,175 +41,7 @@ export interface DrawingRenderContext {
   /** 图片 URL 映射 */
   images?: Record<string, string>;
   /** 当前分节配置 (用于定位计算) */
-  section?: any;
-}
-
-/**
- * DOCX 样式解析器适配器
- * 实现 StyleResolverInterface 接口
- */
-class DocxStyleResolver implements StyleResolverInterface {
-  constructor(_context: DrawingRenderContext) {}
-
-  /**
-   * 解析颜色值
-   */
-  resolveColor(color: ColorDef): string {
-    if (typeof color === 'string') {
-      // 处理 theme:xxx 格式
-      if (color.startsWith('theme:')) {
-        return this.resolveThemeColor(color.substring(6));
-      }
-      return color.startsWith('#') ? color : `#${color}`;
-    }
-    if (color.val) {
-      return color.val.startsWith('#') ? color.val : `#${color.val}`;
-    }
-    if (color.theme) {
-      return this.resolveThemeColor(color.theme);
-    }
-    // 默认返回黑色
-    return '#000000';
-  }
-
-  /**
-   * 解析主题颜色
-   * 将主题颜色键映射到具体的十六进制颜色值
-   */
-  private resolveThemeColor(themeKey: string): string {
-    // Office 标准主题颜色调色板
-    const themeColorMap: Record<string, string> = {
-      // 主要主题颜色
-      lt1: '#FFFFFF', // 浅色 1 (白色)
-      dk1: '#000000', // 深色 1 (黑色)
-      lt2: '#E7E6E6', // 浅色 2
-      dk2: '#44546A', // 深色 2
-      // 强调色
-      accent1: '#4472C4', // 蓝色
-      accent2: '#ED7D31', // 橙色
-      accent3: '#A5A5A5', // 灰色
-      accent4: '#FFC000', // 黄色
-      accent5: '#5B9BD5', // 浅蓝
-      accent6: '#70AD47', // 绿色
-      // 超链接
-      hlink: '#0563C1',
-      folHlink: '#954F72',
-      // 背景和文本颜色别名
-      bg1: '#FFFFFF',
-      bg2: '#E7E6E6',
-      tx1: '#000000',
-      tx2: '#44546A'
-    };
-    return themeColorMap[themeKey] || '#000000';
-  }
-
-  /**
-   * 解析填充样式
-   */
-  resolveFill(
-    fill: { type?: string; color?: string; gradient?: unknown; opacity?: number } | undefined,
-    ctx: RenderContext,
-    _rect: RenderRect | null,
-    asCSS?: boolean
-  ): string {
-    if (!fill) return 'none';
-    if (fill.type === 'none') return 'none';
-
-    if (fill.type === 'solid' && fill.color) {
-      return this.resolveColor(fill.color);
-    }
-
-    if (fill.type === 'gradient' && fill.gradient && ctx.defs) {
-      const gradId = `grad_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-      const gradient = fill.gradient as {
-        type: string;
-        angle?: number;
-        stops: Array<{ position: number; color: string }>;
-      };
-
-      if (asCSS) {
-        // 返回 CSS 渐变
-        const stops = gradient.stops.map(s => `${this.resolveColor(s.color)} ${s.position * 100}%`).join(', ');
-        const angle = gradient.angle || 0;
-        return `linear-gradient(${90 - angle}deg, ${stops})`;
-      }
-
-      // 创建 SVG 渐变
-      const gradEl = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
-      gradEl.setAttribute('id', gradId);
-      gradEl.setAttribute('x1', '0%');
-      gradEl.setAttribute('y1', '0%');
-      gradEl.setAttribute('x2', '100%');
-      gradEl.setAttribute('y2', '0%');
-
-      const angle = gradient.angle || 0;
-      if (Math.abs(angle - 90) < 45 || Math.abs(angle - 270) < 45) {
-        gradEl.setAttribute('x2', '0%');
-        gradEl.setAttribute('y2', '100%');
-      }
-
-      gradient.stops.forEach(stop => {
-        const stopEl = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-        stopEl.setAttribute('offset', `${stop.position * 100}%`);
-        stopEl.setAttribute('stop-color', this.resolveColor(stop.color));
-        gradEl.appendChild(stopEl);
-      });
-
-      ctx.defs.appendChild(gradEl);
-      return `url(#${gradId})`;
-    }
-
-    return '#cccccc';
-  }
-
-  /**
-   * 解析滤镜效果
-   */
-  resolveFilter(
-    effects: Array<{ type: string; blur?: number; dist?: number; dir?: number; color?: string }>,
-    ctx: RenderContext
-  ): string | null {
-    if (!effects || effects.length === 0 || !ctx.defs) return null;
-
-    const filterId = `filter_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-    const filter = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
-    filter.setAttribute('id', filterId);
-    filter.setAttribute('x', '-50%');
-    filter.setAttribute('y', '-50%');
-    filter.setAttribute('width', '200%');
-    filter.setAttribute('height', '200%');
-
-    effects.forEach(eff => {
-      if (eff.type === 'outerShadow') {
-        const blur = (eff.blur || 0) / 72; // pt to approx pixels
-        const dist = (eff.dist || 0) / 72;
-        const dir = ((eff.dir || 0) * Math.PI) / 180;
-
-        const dx = dist * Math.cos(dir);
-        const dy = dist * Math.sin(dir);
-
-        const feDropShadow = document.createElementNS('http://www.w3.org/2000/svg', 'feDropShadow');
-        feDropShadow.setAttribute('dx', String(dx));
-        feDropShadow.setAttribute('dy', String(dy));
-        feDropShadow.setAttribute('stdDeviation', String(blur));
-        feDropShadow.setAttribute('flood-color', eff.color ? this.resolveColor(eff.color) : 'rgba(0,0,0,0.3)');
-        filter.appendChild(feDropShadow);
-      } else if (eff.type === 'glow') {
-        const feGaussianBlur = document.createElementNS('http://www.w3.org/2000/svg', 'feGaussianBlur');
-        feGaussianBlur.setAttribute('in', 'SourceAlpha');
-        feGaussianBlur.setAttribute('stdDeviation', String((eff.blur || 0) / 72));
-        feGaussianBlur.setAttribute('result', 'blur');
-        filter.appendChild(feGaussianBlur);
-      }
-    });
-
-    if (filter.children.length > 0) {
-      ctx.defs.appendChild(filter);
-      return filterId;
-    }
-
-    return null;
-  }
+  section?: DocxSection;
 }
 
 /**
@@ -237,22 +76,17 @@ export class DrawingRenderer {
   /**
    * 应用锚定位置样式
    */
-  private static applyPositioning(element: HTMLElement, pos: AnchorPosition, section?: any): void {
+  private static applyPositioning(
+    element: HTMLElement,
+    pos: AnchorPosition,
+    section?: DocxSection,
+  ): void {
     element.style.position = 'absolute';
 
     // Z-Index
     if (pos.behindDoc) {
-      element.style.zIndex = '0'; // 0 is behind text (default text z-index is 1 usually, or auto)
-      // Actually standard flow is z-index auto (0 stack).
-      // If we want behind text, -1 might be hidden by page background if page background is on container.
-      // But we checked docx-page has background. docx-content is transparent.
-      // So -1 should be fine if page container allows it.
-      // However, usually -1 goes behind the stacking context.
-      // Let's try zIndex 0 and ensure text is zIndex 1.
-      // Or just -1.
       element.style.zIndex = '-1';
     } else {
-      // ensure it is above text if not behind
       element.style.zIndex = '10'; // Safe value above normal text
     }
 
@@ -281,17 +115,11 @@ export class DrawingRenderer {
       }
 
       // 处理相对定位
-      // 容器 .docx-content 有 padding (页边距)，absolute 元素相对于 padding box 定位
-      // padding box 的 (0,0) 对应页面的 (marginLeft, marginTop)
       if (h.relativeTo === 'page') {
-        // 相对于页面：需要减去左边距，以抵消容器 padding
         left -= marginLeftEmu;
-      } else if (h.relativeTo === 'margin' || h.relativeTo === 'column') {
-        // 相对于边距/栏：直接使用 posOffset (因为容器原点就在边距处)
       }
 
       if (h.align) {
-        // 对齐处理
         if (h.align === 'center') {
           if (h.relativeTo === 'page' && section && section.pageSize) {
             const pageWidthEmu = section.pageSize.width * 635;
@@ -303,8 +131,8 @@ export class DrawingRenderer {
             section.pageSize &&
             section.pageMargins
           ) {
-            // 相对于边距居中
-            const contentWidth = section.pageSize.width * 635 - marginLeftEmu - (section.pageMargins.right || 0) * 635;
+            const contentWidth =
+              section.pageSize.width * 635 - marginLeftEmu - (section.pageMargins.right || 0) * 635;
             left = marginLeftEmu + contentWidth / 2;
             element.style.transform = 'translateX(-50%)';
           }
@@ -316,9 +144,6 @@ export class DrawingRenderer {
           }
         }
       }
-
-      // 移除边界限制，允许负定位 (例如覆盖整个页面的背景图)
-      // if (left < 0) { left = 0; }
 
       element.style.left = `${UnitConverter.emuToPixels(left)}px`;
     }
@@ -332,12 +157,8 @@ export class DrawingRenderer {
         top = v.posOffset;
       }
 
-      // 处理相对定位
       if (v.relativeTo === 'page') {
-        // 相对于页面：需要减去上边距
         top -= marginTopEmu;
-      } else if (v.relativeTo === 'margin' || v.relativeTo === 'paragraph') {
-        // 相对于边距：直接使用 posOffset
       }
 
       if (v.align) {
@@ -355,9 +176,6 @@ export class DrawingRenderer {
           }
         }
       }
-
-      // 移除边界限制
-      // if (top < 0) { top = 0; }
 
       element.style.top = `${UnitConverter.emuToPixels(top)}px`;
     }
@@ -385,7 +203,8 @@ export class DrawingRenderer {
 
     const rect: RenderRect = { x: 0, y: 0, w: widthPx, h: heightPx };
     const renderCtx: RenderContext = {
-      images: context?.document?.images || context?.images || {}
+      images: context?.document?.images || context?.images || {},
+      defsIdCounter: 0,
     };
 
     const options: ImageRenderOptions = {
@@ -394,10 +213,14 @@ export class DrawingRenderer {
       rotation: image.rotation,
       flipH: image.flipH,
       flipV: image.flipV,
-      crop: image.crop
+      crop: image.crop,
     };
 
-    const element = SharedImageRenderer.render(options, rect, renderCtx);
+    // 使用 BaseStyleResolver
+    const styleResolver = new BaseStyleResolver(context?.document?.theme?.colorScheme);
+    const imageRenderer = new SharedImageRenderer(styleResolver);
+
+    const element = imageRenderer.render(options, rect, renderCtx);
     element.className = 'docx-drawing docx-image';
 
     return element;
@@ -435,14 +258,15 @@ export class DrawingRenderer {
     const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
     svg.appendChild(defs);
 
-    // 创建样式解析器
-    const styleResolver = new DocxStyleResolver(context || {});
+    // 使用 BaseStyleResolver
+    const styleResolver = new BaseStyleResolver(context?.document?.theme?.colorScheme);
     const shapeRenderer = new SharedShapeRenderer(styleResolver);
 
     // 准备渲染上下文
     const renderCtx: RenderContext = {
       defs,
-      images: context?.document?.images || context?.images || {}
+      images: context?.document?.images || context?.images || {},
+      defsIdCounter: 0,
     };
 
     // 准备形状渲染配置
@@ -452,13 +276,13 @@ export class DrawingRenderer {
       path: shape.path,
       pathWidth: shape.pathWidth,
       pathHeight: shape.pathHeight,
-      fill: shape.fill as any,
+      fill: shape.fill as ShapeRenderOptions['fill'],
       stroke: shape.stroke
         ? {
             width: shape.stroke.width,
             color: shape.stroke.color,
             dashStyle: shape.stroke.dashStyle,
-            gradient: shape.stroke.gradient
+            gradient: shape.stroke.gradient,
           }
         : undefined,
       rotation: shape.rotation,
@@ -470,18 +294,18 @@ export class DrawingRenderer {
         ? {
             text: shape.textBody.text,
             verticalAlignment: shape.textBody.verticalAlignment as 'top' | 'middle' | 'bottom',
-            paragraphs: shape.textBody.paragraphs?.map(p => ({
+            paragraphs: shape.textBody.paragraphs?.map((p) => ({
               alignment: p.alignment,
               runs:
-                p.runs?.map(r => ({
+                p.runs?.map((r) => ({
                   text: r.text,
                   bold: r.bold,
                   size: r.size,
-                  color: r.color
-                })) || []
-            }))
+                  color: r.color,
+                })) || [],
+            })),
           }
-        : undefined
+        : undefined,
     };
 
     const rect: RenderRect = { x: 0, y: 0, w: widthPx, h: heightPx };
@@ -498,7 +322,7 @@ export class DrawingRenderer {
       textContainer.style.left = '0';
       textContainer.style.width = '100%';
       textContainer.style.height = '100%';
-      textContainer.style.overflow = 'hidden'; // Ensure it doesn't spill out
+      textContainer.style.overflow = 'hidden';
       textContainer.style.display = 'flex';
       textContainer.style.flexDirection = 'column';
 
@@ -508,20 +332,13 @@ export class DrawingRenderer {
       else if (vAlign === 'bottom') textContainer.style.justifyContent = 'flex-end';
       else textContainer.style.justifyContent = 'flex-start';
 
-      // Padding
-      // VML defaults or parsed padding?
-      // shape.textBody.padding is in EMU? No, usually in points or undefined.
-      // Shared ShapeRenderer expects padding. VmlParser didn't parse padding explicitly?
-      // Assuming defaults or mapped if available.
-      // For now, minimal padding.
       textContainer.style.padding = '4px';
 
       // Render children
-      // We need a context for ParagraphRenderer.
       const pContext = {
         document: context?.document,
         styles: context?.document?.styles,
-        numbering: context?.document?.numbering
+        numbering: context?.document?.numbering,
       };
 
       for (const element of shape.textBody.content) {
@@ -587,14 +404,15 @@ export class DrawingRenderer {
     const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
     svg.appendChild(defs);
 
-    // 创建样式解析器
-    const styleResolver = new DocxStyleResolver(context || {});
+    // 使用 BaseStyleResolver
+    const styleResolver = new BaseStyleResolver(context?.document?.theme?.colorScheme);
     const chartRenderer = new SharedChartRenderer(styleResolver);
 
     // 准备渲染上下文
     const renderCtx: RenderContext = {
       defs,
-      images: context?.document?.images || context?.images || {}
+      images: context?.document?.images || context?.images || {},
+      defsIdCounter: 0,
     };
 
     // 准备图表渲染配置
@@ -602,16 +420,16 @@ export class DrawingRenderer {
       id: chart.rId,
       type: chart.type || 'other',
       title: chart.title,
-      series: chart.series.map(s => ({
+      series: chart.series.map((s) => ({
         index: s.index,
         name: s.name,
         categories: s.categories,
         values: s.values,
         fillColor: s.fillColor,
-        chartType: s.chartType
+        chartType: s.chartType,
       })),
       barDirection: chart.barDirection,
-      grouping: chart.grouping
+      grouping: chart.grouping,
     };
 
     const rect: RenderRect = { x: 0, y: 0, w: widthPx, h: heightPx };

@@ -3,7 +3,10 @@
  *
  * 解析完整的 XLSX 文件，协调各个子解析器
  */
-import { ZipService, XmlUtils } from '@ai-space/shared';
+import { XmlUtils, BaseParser } from '@ai-space/shared';
+import { Logger } from '../utils/Logger';
+
+const log = Logger.createTagged('XlsxParser');
 import { XlsxWorkbook, XlsxSheet, XlsxStyles, OfficeChart } from '../types';
 import { WorkbookParser } from './WorkbookParser';
 import { StyleParser } from './StyleParser';
@@ -12,7 +15,7 @@ import { WorksheetParser } from './WorksheetParser';
 import { DrawingParser } from './DrawingParser';
 import { ChartParser } from './ChartParser';
 
-export class XlsxParser {
+export class XlsxParser extends BaseParser<XlsxWorkbook> {
   /**
    * 解析 XLSX 文件
    *
@@ -26,13 +29,17 @@ export class XlsxParser {
    * 7. 绘图对象：解析每个 Sheet 关联的绘图部分 (`xl/drawings/drawingN.xml`)，处理图片、形状、图表。
    * 8. 资源关联：通过 `_rels` 关系文件解决图片、图表等外部资源的引用路径。
    *
-   * @param buffer - XLSX 文件的原始二进制数据 (ArrayBuffer)
+   * @param input - 输入数据 (File | ArrayBuffer | Uint8Array)
    * @returns Promise<XlsxWorkbook> - 解析完成的工作簿对象，包含所有 Sheet 数据、样式和资源
    */
-  async parse(buffer: ArrayBuffer): Promise<XlsxWorkbook> {
-    const files = await ZipService.load(buffer);
-    const decoder = new TextDecoder();
-    const getXml = (path: string) => (files[path] ? decoder.decode(files[path]) : null);
+  async parse(input: File | ArrayBuffer | Uint8Array): Promise<XlsxWorkbook> {
+    const buffer = await this.normalizeInput(input);
+    await this.initZip(buffer);
+
+    const files = this.files;
+    // 使用 files 成员变量或 getXml/getText 方法
+    // 为了保持原有逻辑中的 getXml 简便性:
+    const getXml = (path: string) => this.getText(path);
 
     // 1. 解析共享字符串 (Shared Strings)
     // Excel 将重复出现的文本存储在单独的表中，单元格通过索引引用，以减小文件体积
@@ -119,7 +126,8 @@ export class XlsxParser {
 
                   const drawingXml = getXml(drawingPath);
                   if (drawingXml) {
-                    const { images, shapes, connectors, chartRefs } = DrawingParser.parse(drawingXml);
+                    const { images, shapes, connectors, chartRefs } =
+                      DrawingParser.parse(drawingXml);
 
                     // 7. 解析图片嵌入 (BLIP) 和图表引用
                     const dPathParts = drawingPath.split('/');
@@ -153,17 +161,22 @@ export class XlsxParser {
                           if (imgData) {
                             img.data = imgData as unknown as ArrayBuffer;
                             if (imgPath.endsWith('.png')) img.mimeType = 'image/png';
-                            else if (imgPath.endsWith('.jpeg') || imgPath.endsWith('.jpg')) img.mimeType = 'image/jpeg';
+                            else if (imgPath.endsWith('.jpeg') || imgPath.endsWith('.jpg'))
+                              img.mimeType = 'image/jpeg';
                             else if (imgPath.endsWith('.gif')) img.mimeType = 'image/gif';
                             else if (imgPath.endsWith('.bmp')) img.mimeType = 'image/bmp';
 
                             // 为浏览器渲染生成 Blob URL
-                            if (typeof URL !== 'undefined' && typeof Blob !== 'undefined' && img.mimeType) {
+                            if (
+                              typeof URL !== 'undefined' &&
+                              typeof Blob !== 'undefined' &&
+                              img.mimeType
+                            ) {
                               try {
                                 const blob = new Blob([img.data!], { type: img.mimeType });
                                 img.src = URL.createObjectURL(blob);
                               } catch (e) {
-                                console.warn('创建图片 Object URL 失败', e);
+                                log.warn('创建图片 Object URL 失败', e);
                               }
                             }
                           }
@@ -196,9 +209,9 @@ export class XlsxParser {
                               charts.push({
                                 ...parsedChart,
                                 id: chartRef.id,
-                                anchor: chartRef.anchor
+                                anchor: chartRef.anchor,
                               });
-                              console.log(`已解析图表: ${chartRef.name}`, parsedChart);
+                              log.debug(`已解析图表: ${chartRef.name}`, parsedChart);
                             }
                           }
                         }
@@ -214,7 +227,7 @@ export class XlsxParser {
               }
             }
           } else {
-            console.warn(`在 ${sheetPath} 未找到工作表 XML`);
+            log.warn(`在 ${sheetPath} 未找到工作表 XML`);
           }
         }
       }
@@ -225,7 +238,7 @@ export class XlsxParser {
       styles,
       sharedStrings,
       theme,
-      date1904: (wbXml && WorkbookParser.parse(wbXml, relsXml).date1904) || false
+      date1904: (wbXml && WorkbookParser.parse(wbXml, relsXml).date1904) || false,
     };
   }
 }

@@ -1,3 +1,4 @@
+import { ST_Panose, ST_TextLanguageID } from './common-types';
 import { CT_OfficeArtExtensionList, ST_Percentage } from './dml-baseTypes';
 import { CT_LineProperties } from './dml-shapeLineProperties';
 import { CT_Color, CT_Hyperlink } from './wml';
@@ -16,13 +17,11 @@ export type ST_TextNonNegativePoint = number;
 export type ST_TextFontSize = number;
 
 /** Panose Type */
-export type ST_Panose = string;
 
 /** Text Typeface */
 export type ST_TextTypeface = string;
 
 /** Language ID */
-export type ST_TextLanguageID = string;
 
 /** Text Underline Types */
 export enum ST_TextUnderlineType {

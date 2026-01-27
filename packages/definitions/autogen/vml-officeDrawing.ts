@@ -1,3 +1,4 @@
+import { ST_ColorType, ST_Guid, ST_RelationshipId, ST_TrueFalse } from './common-types';
 import {
   ST_ImageAspect,
   ST_StrokeArrowLength,
@@ -101,7 +102,6 @@ export enum ST_ColorMode {
 }
 
 /** Color Type */
-export type ST_ColorType = string;
 
 /** Extrusion Type */
 export enum ST_ExtrusionType {
@@ -231,22 +231,10 @@ export enum ST_OLEUpdateMode {
 }
 
 /** 128-Bit GUID */
-export type ST_Guid = string;
 
 /** Explicit Relationship ID */
-export type ST_RelationshipId = string;
 
 /** Boolean Value */
-export enum ST_TrueFalse {
-  /** True */
-  t = 't',
-  /** False */
-  f = 'f',
-  /** True */
-  true = 'true',
-  /** False */
-  false = 'false'
-}
 
 /** Boolean Value with Blank [False] State */
 export enum ST_TrueFalseBlank {

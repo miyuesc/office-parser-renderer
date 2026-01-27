@@ -1,9 +1,9 @@
+import { CT_Extension, CT_ExtensionList, ST_Guid, ST_Xstring } from './common-types';
 /**
  * sml-baseTypes.xsd
  */
 
 /** Escaped String */
-export type ST_Xstring = string;
 
 /** Cell Reference */
 export type ST_CellRef = string;
@@ -27,7 +27,6 @@ export type ST_UnsignedIntHex = string;
 export type ST_UnsignedShortHex = string;
 
 /** Globally Unique Identifier */
-export type ST_Guid = string;
 
 /** Value */
 export interface CT_XStringElement {
@@ -35,10 +34,4 @@ export interface CT_XStringElement {
 }
 
 /** URI */
-export interface CT_Extension {
-  uri?: string;
-}
 
-export interface CT_ExtensionList {
-  ext?: CT_Extension[];
-}

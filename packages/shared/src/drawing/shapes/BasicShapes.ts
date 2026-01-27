@@ -3,8 +3,8 @@
  *
  * 基于 OOXML 规范实现，包含椭圆、三角形、多边形、弧形等基础几何图形
  */
-import { ST_ShapeType } from '@ai-space/definitions/autogen/dml-shapeGeometry';
-import { ShapeGenerator, ShapeResult } from './types';
+import { ST_ShapeType } from '@ai-space/definitions/dml-shapeGeometry';
+import { ShapeGenerator, ShapeResult } from '../../types/shapes';
 import { GeoUtils } from './GeoUtils';
 
 export const BasicShapes: Record<string, ShapeGenerator> = {
@@ -196,5 +196,5 @@ export const BasicShapes: Record<string, ShapeGenerator> = {
       `M 0 0 L ${w} 0 L ${w} ${h} L 0 ${h} Z ` + // Outer
       `M 0 0 L ${d} ${d} M ${w} 0 L ${w - d} ${d} M ${w} ${h} L ${w - d} ${h - d} M 0 ${h} L ${d} ${h - d}`
     );
-  }
+  },
 };

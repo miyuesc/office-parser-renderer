@@ -3,8 +3,8 @@
  *
  * 基于 OOXML 规范实现
  */
-import { ST_ShapeType } from '@ai-space/definitions/autogen/dml-shapeGeometry';
-import { ShapeGenerator } from './types';
+import { ST_ShapeType } from '@ai-space/definitions/dml-shapeGeometry';
+import { ShapeGenerator } from '../../types/shapes';
 import { GeoUtils } from './GeoUtils';
 
 export const Rectangles: Record<string, ShapeGenerator> = {
@@ -19,5 +19,5 @@ export const Rectangles: Record<string, ShapeGenerator> = {
     const val = adj?.['val'] ?? 16667;
     const r = Math.min(w, h) * (val / 100000);
     return GeoUtils.roundRectPath(w, h, r);
-  }
+  },
 };

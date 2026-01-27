@@ -3,8 +3,8 @@
  *
  * 基于 OOXML 规范实现
  */
-import { ST_ShapeType } from '@ai-space/definitions/autogen/dml-shapeGeometry';
-import { ShapeGenerator } from './types';
+import { ST_ShapeType } from '@ai-space/definitions/dml-shapeGeometry';
+import { ShapeGenerator } from '../../types/shapes';
 
 export const SnipShapes: Record<string, ShapeGenerator> = {
   /**
@@ -89,5 +89,5 @@ export const SnipShapes: Record<string, ShapeGenerator> = {
 
     // 左上 (圆角) -> 右上 (切角) -> 右下 -> 左下
     return `M 0 ${r1} A ${r1} ${r1} 0 0 1 ${r1} 0 L ${w - r2} 0 L ${w} ${r2} L ${w} ${h} L 0 ${h} Z`;
-  }
+  },
 };

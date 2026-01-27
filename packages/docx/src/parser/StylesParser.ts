@@ -15,7 +15,7 @@ import type {
   DocumentDefaults,
   LatentStyles,
   ParagraphProperties,
-  RunProperties
+  RunProperties,
 } from '../types';
 
 const log = Logger.createTagged('StylesParser');
@@ -32,7 +32,7 @@ export class StylesParser {
    */
   static parse(xml: string): DocxStyles {
     const result: DocxStyles = {
-      styles: {}
+      styles: {},
     };
 
     try {
@@ -110,7 +110,7 @@ export class StylesParser {
       defSemiHidden: node.getAttribute('w:defSemiHidden') === '1',
       defUnhideWhenUsed: node.getAttribute('w:defUnhideWhenUsed') === '1',
       defQFormat: node.getAttribute('w:defQFormat') === '1',
-      count: parseInt(node.getAttribute('w:count') || '0', 10)
+      count: parseInt(node.getAttribute('w:count') || '0', 10),
     };
   }
 
@@ -130,7 +130,7 @@ export class StylesParser {
 
     const style: DocxStyle = {
       styleId,
-      type: type as DocxStyle['type']
+      type: type as DocxStyle['type'],
     };
 
     // 样式名称
@@ -235,7 +235,7 @@ export class StylesParser {
   static resolveInheritedProperties<T extends 'pPr' | 'rPr'>(
     styles: DocxStyles,
     styleId: string,
-    type: T
+    type: T,
   ): T extends 'pPr' ? ParagraphProperties : RunProperties {
     const visited = new Set<string>();
     const propertyChain: Array<ParagraphProperties | RunProperties> = [];
@@ -260,7 +260,8 @@ export class StylesParser {
 
     // 添加文档默认值
     if (styles.docDefaults) {
-      const defaultProps = type === 'pPr' ? styles.docDefaults.pPrDefault : styles.docDefaults.rPrDefault;
+      const defaultProps =
+        type === 'pPr' ? styles.docDefaults.pPrDefault : styles.docDefaults.rPrDefault;
 
       if (defaultProps) {
         propertyChain.unshift(defaultProps as ParagraphProperties | RunProperties);
@@ -270,7 +271,7 @@ export class StylesParser {
     // 合并所有属性
     let merged = {} as ParagraphProperties | RunProperties;
     for (const props of propertyChain) {
-      merged = { ...merged, ...props } as any;
+      merged = { ...merged, ...props } as ParagraphProperties | RunProperties;
     }
 
     return merged as T extends 'pPr' ? ParagraphProperties : RunProperties;

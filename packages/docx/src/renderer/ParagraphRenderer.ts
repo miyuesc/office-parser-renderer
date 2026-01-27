@@ -6,7 +6,13 @@
  */
 
 import { Logger } from '../utils/Logger';
-import { UnitConverter, AlignmentStyles, BorderStyles, OMathRenderer, OMathNode } from '@ai-space/shared';
+import {
+  UnitConverter,
+  AlignmentStyles,
+  BorderStyles,
+  OMathRenderer,
+  OMathNode,
+} from '@ai-space/shared';
 import { RunRenderer, RunRenderContext } from './RunRenderer';
 import { DrawingRenderer } from './DrawingRenderer';
 import { ListCounter } from './ListCounter';
@@ -19,7 +25,9 @@ import type {
   Drawing,
   OMathElement,
   InsertedText,
-  DeletedText
+  DeletedText,
+  DocxSection,
+  Hyperlink,
 } from '../types';
 
 const log = Logger.createTagged('ParagraphRenderer');
@@ -37,7 +45,7 @@ export interface ParagraphRenderContext extends RunRenderContext {
   /** 默认制表符宽度（像素） */
   defaultTabWidth?: number;
   /** 当前分节配置 */
-  section?: any;
+  section?: DocxSection;
 }
 
 /**
@@ -96,7 +104,10 @@ export class ParagraphRenderer {
    * @param context - 渲染上下文
    * @returns HTMLElement 或 null
    */
-  private static renderChild(child: ParagraphChild, context?: ParagraphRenderContext): HTMLElement | Node | null {
+  private static renderChild(
+    child: ParagraphChild,
+    context?: ParagraphRenderContext,
+  ): HTMLElement | Node | null {
     switch (child.type) {
       case 'run':
         return RunRenderer.render(child, context);
@@ -123,16 +134,17 @@ export class ParagraphRenderer {
         return DrawingRenderer.render(child as Drawing, {
           document: context?.document,
           images: context?.document?.images,
-          section: context?.section
+          section: context?.section,
         });
 
-      case 'omath':
+      case 'omath': {
         // 渲染数学公式
         const omathChild = child as OMathElement;
         if (omathChild.node) {
           return OMathRenderer.render(omathChild.node as OMathNode);
         }
         return null;
+      }
 
       case 'insertedText':
         return this.renderInsertedText(child as InsertedText, context);
@@ -154,7 +166,11 @@ export class ParagraphRenderer {
    * @param props - 段落属性
    * @param context - 渲染上下文
    */
-  static applyStyles(element: HTMLElement, props: ParagraphProperties, context?: ParagraphRenderContext): void {
+  static applyStyles(
+    element: HTMLElement,
+    props: ParagraphProperties,
+    context?: ParagraphRenderContext,
+  ): void {
     const style = element.style;
 
     // 对齐方式 - 使用 AlignmentStyles
@@ -212,7 +228,10 @@ export class ParagraphRenderer {
    * @param style - CSSStyleDeclaration
    * @param indentation - 缩进配置
    */
-  private static applyIndentation(style: CSSStyleDeclaration, indentation: ParagraphProperties['indentation']): void {
+  private static applyIndentation(
+    style: CSSStyleDeclaration,
+    indentation: ParagraphProperties['indentation'],
+  ): void {
     if (!indentation) return;
 
     // 左缩进
@@ -249,7 +268,10 @@ export class ParagraphRenderer {
    * @param style - CSSStyleDeclaration
    * @param spacing - 间距配置
    */
-  private static applySpacing(style: CSSStyleDeclaration, spacing: ParagraphProperties['spacing']): void {
+  private static applySpacing(
+    style: CSSStyleDeclaration,
+    spacing: ParagraphProperties['spacing'],
+  ): void {
     if (!spacing) return;
 
     // 段前间距
@@ -276,7 +298,10 @@ export class ParagraphRenderer {
    * @param style - CSSStyleDeclaration
    * @param borders - 边框配置
    */
-  private static applyBorders(style: CSSStyleDeclaration, borders: ParagraphProperties['borders']): void {
+  private static applyBorders(
+    style: CSSStyleDeclaration,
+    borders: ParagraphProperties['borders'],
+  ): void {
     if (!borders) return;
 
     if (borders.top) {
@@ -305,7 +330,7 @@ export class ParagraphRenderer {
    */
   private static renderListMarker(
     numbering: { id: number; level: number },
-    context: ParagraphRenderContext
+    context: ParagraphRenderContext,
   ): HTMLElement | null {
     if (!context.listCounter) return null;
 
@@ -331,8 +356,8 @@ export class ParagraphRenderer {
    * @returns HTMLElement
    */
   private static renderHyperlink(
-    hyperlink: { children: any[]; url?: string; anchor?: string },
-    context?: ParagraphRenderContext
+    hyperlink: Hyperlink,
+    context?: ParagraphRenderContext,
   ): HTMLElement {
     const a = document.createElement('a');
     a.className = 'docx-hyperlink';
@@ -366,7 +391,11 @@ export class ParagraphRenderer {
    * @param context - 渲染上下文
    * @returns HTMLElement
    */
-  private static renderField(field: { fieldType: string; instruction: string; result?: string }): HTMLElement {
+  private static renderField(field: {
+    fieldType: string;
+    instruction: string;
+    result?: string;
+  }): HTMLElement {
     const span = document.createElement('span');
     span.className = 'docx-field';
 
@@ -395,7 +424,10 @@ export class ParagraphRenderer {
   /**
    * 渲染新增文本 (修订)
    */
-  private static renderInsertedText(node: InsertedText, context?: ParagraphRenderContext): HTMLElement {
+  private static renderInsertedText(
+    node: InsertedText,
+    context?: ParagraphRenderContext,
+  ): HTMLElement {
     const span = document.createElement('span');
     span.className = 'docx-ins';
     span.setAttribute('data-track-changes', 'insert');
@@ -415,7 +447,10 @@ export class ParagraphRenderer {
   /**
    * 渲染删除文本 (修订)
    */
-  private static renderDeletedText(node: DeletedText, context?: ParagraphRenderContext): HTMLElement {
+  private static renderDeletedText(
+    node: DeletedText,
+    context?: ParagraphRenderContext,
+  ): HTMLElement {
     const span = document.createElement('span');
     span.className = 'docx-del';
     // 默认隐藏，但保留 DOM 以供查看

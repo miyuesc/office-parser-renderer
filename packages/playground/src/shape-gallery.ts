@@ -1,4 +1,4 @@
-import { ShapeRegistry, generatePresetPath, isShapeResult } from '@ai-space/shared/src/drawing/shapes';
+import { ShapeRegistry, generatePresetPath } from '@ai-space/shared/src/drawing/shapes';
 
 export function renderShapeGallery(container: HTMLElement) {
   container.innerHTML = '';
@@ -9,13 +9,14 @@ export function renderShapeGallery(container: HTMLElement) {
   grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(150px, 1fr))';
   grid.style.gap = '20px';
   grid.style.padding = '20px';
+  grid.style.width = '100%';
 
   container.appendChild(grid);
 
   const shapes: string[] = [];
 
   // 遍历所有注册的形状
-  Object.keys(ShapeRegistry).forEach(shapeName => {
+  Object.keys(ShapeRegistry).forEach((shapeName) => {
     const generator = ShapeRegistry[shapeName];
     if (!generator) return;
     shapes.push(shapeName);

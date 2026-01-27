@@ -4,7 +4,7 @@
   "private": true,
   "description": "OOXML Definitions",
   "exports": {
-    "./autogen/*": "./autogen/*.ts"
+    "./*": "./autogen/*.ts"
   },
   "files": [
     "autogen"

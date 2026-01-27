@@ -15,7 +15,7 @@ export class PptxParser {
 
     // Parse Master (Simplified: just look for slideMaster1)
     const masterXml = getXml('ppt/slideMasters/slideMaster1.xml');
-    let theme: any = {};
+    let theme: Record<string, unknown> = {};
     if (masterXml) {
       const masterDoc = XmlUtils.parse(masterXml);
       const bg = masterDoc.querySelector('p\\:bg, bg');
@@ -34,6 +34,7 @@ export class PptxParser {
     const loadImage = (target: string) => {
       // Target is usually relative like "../media/image1.png" from "ppt/slides/_rels/"
       // So we need to resolve it to "ppt/media/image1.png"
+
       // Simple normalization:
       const parts = target.split('/');
       const filename = parts[parts.length - 1];
@@ -80,11 +81,15 @@ export class PptxParser {
     return {
       slides,
       theme,
-      images
+      images,
     };
   }
 
-  private parseSlide(xml: string, rels: Record<string, string>, loadImage: (target: string) => string): Slide {
+  private parseSlide(
+    xml: string,
+    rels: Record<string, string>,
+    loadImage: (target: string) => string,
+  ): Slide {
     const slideDoc = XmlUtils.parse(xml);
     const spTree = slideDoc.querySelector('p\\:spTree, spTree');
     const elements: SlideElement[] = [];
@@ -107,7 +112,7 @@ export class PptxParser {
 
     return {
       id: '1',
-      elements
+      elements,
     };
   }
 
@@ -172,22 +177,22 @@ export class PptxParser {
         return {
           type: 'textbox', // Treat as textbox or shape with text
           text: t.textContent,
-          props: { x, y, w, h, fill, outline }
-        } as any; // Cast to satisfy type union if strictly checked
+          props: { x, y, w, h, fill, outline },
+        } as import('../types').TextBox;
       }
     }
 
     return {
       type: 'shape',
       geometry: geom,
-      props: { x, y, w, h, fill, outline }
+      props: { x, y, w, h, fill, outline },
     };
   }
 
   private parsePicture(
     node: Element,
     rels: Record<string, string>,
-    loadImage: (target: string) => string
+    loadImage: (target: string) => string,
   ): import('../types').Picture | null {
     const blipFill = XmlUtils.query(node, 'p\\:blipFill, blipFill');
     const blip = XmlUtils.query(blipFill!, 'a\\:blip, blip');
@@ -215,8 +220,8 @@ export class PptxParser {
         x,
         y,
         w,
-        h
-      }
+        h,
+      },
     };
   }
 

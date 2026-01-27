@@ -3,8 +3,8 @@
  *
  * 基于 OOXML 规范实现，支持 4-32 角星形
  */
-import { ST_ShapeType } from '@ai-space/definitions/autogen/dml-shapeGeometry';
-import { ShapeGenerator } from './types';
+import { ST_ShapeType } from '@ai-space/definitions/dml-shapeGeometry';
+import { ShapeGenerator } from '../../types/shapes';
 import { GeoUtils } from './GeoUtils';
 
 export const Stars: Record<string, ShapeGenerator> = {
@@ -58,5 +58,5 @@ export const Stars: Record<string, ShapeGenerator> = {
   [ST_ShapeType.star32]: (w, h, adj) => {
     const adj1 = adj?.['adj1'] ?? adj?.['val'] ?? undefined;
     return GeoUtils.star(32, w, h, adj1);
-  }
+  },
 };

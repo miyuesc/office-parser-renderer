@@ -113,6 +113,9 @@ playground → docx/xlsx → shared → definitions
 |------|------|--------|
 | 缺少虚拟滚动实现 | 大文档渲染卡顿 | 🟡 中 |
 | Web Worker 未使用 | 解析阻塞主线程 | 🟡 中 |
+| 频繁 DOM 回流 (Layout Thrashing) | 渲染性能低下 | 🔴 高 |
+| 缺少 CSS 渲染隔离 | 局部变更触发全局重排 | 🟡 中 |
+| 主线程渲染阻塞 | 长文档导致界面假死 | 🟡 中 |
 | 缺少性能监控指标 | 性能问题难定位 | 🟢 低 |
 
 ### 四、文档和开发体验
@@ -158,6 +161,9 @@ playground → docx/xlsx → shared → definitions
 | 17 | shared 重复导出 | 导出规范 | 🟢 低 | shared | 0.5h |
 | 18 | 缺少 CHANGELOG | 文档 | 🟢 低 | 全项目 | 1h |
 | 19 | 缺少性能监控 | 性能 | 🟢 低 | 全项目 | 4h |
+| 20 | 频繁 DOM 回流 (Fragment) | 性能 | 🔴 高 | docx, xlsx | 2h |
+| 21 | 缺少 CSS 渲染隔离 | 性能 | 🟢 低 | shared | 0.5h |
+| 22 | 主线程渲染阻塞 (Time Slicing) | 性能 | 🟡 中 | docx, xlsx | 6h |
 
 ---
 
@@ -366,6 +372,32 @@ export interface XlsxOfficeChart extends OfficeChart {
 
 ---
 
+#### 1.6 渲染性能优化：离线 DOM 构建 (Fragment)
+
+**问题**：当前在 `DocxRenderer` 中直接向已挂载的容器 `appendChild`，导致严重的 Layout Thrashing（O(N)次重排）。
+
+**解决方案**：使用 `DocumentFragment` 进行批量插入。
+
+```typescript
+// 优化前：频繁重排
+// this.container.appendChild(pageContainer);
+// for (const el of elements) pageContainer.appendChild(el);
+
+// 优化后：1次重排
+const fragment = document.createDocumentFragment();
+for (const element of doc.body) {
+  const rendered = this.renderElement(element, context);
+  if (rendered) fragment.appendChild(rendered);
+}
+// 最后一次性挂载
+pageContainer.appendChild(fragment);
+this.container.appendChild(pageContainer);
+```
+
+**收益**：大文档渲染性能提升 5-10 倍。
+
+---
+
 ### 二、中优先级方案
 
 #### 2.1 配置 ESLint 和 Git Hooks
@@ -556,6 +588,48 @@ self.onmessage = async (event) => {
   }
   self.postMessage({ success: true, data: result });
 };
+```
+
+---
+
+#### 2.8 渲染性能优化：CSS 遏制与时间分片
+
+**1. CSS Containment (渲染隔离)**
+
+在页面容器上应用 `contain` 属性，限制重排范围。
+
+```css
+/* packages/shared/styles/index.css */
+.docx-page {
+  contain: content; /* 布局、绘制限制在盒子内部 */
+}
+```
+
+**2. 时间分片 (Time Slicing)**
+
+使用 `requestAnimationFrame` 分批渲染，避免主线程假死。
+
+```typescript
+async renderWithSlicing(doc: DocxDocument) {
+  const elements = doc.body;
+  let index = 0;
+  
+  const processChunk = () => {
+    const fragment = document.createDocumentFragment();
+    const endTime = performance.now() + 16; // 每帧 16ms
+    
+    while (index < elements.length && performance.now() < endTime) {
+      const rendered = this.renderElement(elements[index], context);
+      if (rendered) fragment.appendChild(rendered);
+      index++;
+    }
+    this.container.appendChild(fragment);
+    
+    if (index < elements.length) requestAnimationFrame(processChunk);
+  };
+  
+  processChunk();
+}
 ```
 
 ---

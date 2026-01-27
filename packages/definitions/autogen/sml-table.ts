@@ -1,11 +1,10 @@
+import { CT_ExtensionList, ST_Xstring } from './common-types';
 import { CT_AutoFilter, CT_SortState } from './sml-autoFilter';
-import { CT_ExtensionList, ST_Formula, ST_Ref, ST_Xstring } from './sml-baseTypes';
+import { ST_Formula, ST_Ref } from './sml-baseTypes';
 import { ST_DxfId } from './sml-styles';
-
 /**
  * sml-table.xsd
  */
-
 /** Table Type */
 export enum ST_TableType {
   /** Worksheet */
@@ -15,7 +14,6 @@ export enum ST_TableType {
   /** Query Table */
   queryTable = 'queryTable'
 }
-
 /** Totals Row Function Types */
 export enum ST_TotalsRowFunction {
   /** None */
@@ -39,7 +37,6 @@ export enum ST_TotalsRowFunction {
   /** Custom Formula */
   custom = 'custom'
 }
-
 /** XML Data Types */
 export enum ST_XmlDataType {
   /** String */
@@ -133,7 +130,6 @@ export enum ST_XmlDataType {
   /** Any Type */
   anyType = 'anyType'
 }
-
 /** Table AutoFilter */
 export interface CT_Table {
   id: number;
@@ -164,7 +160,6 @@ export interface CT_Table {
   tableStyleInfo?: CT_TableStyleInfo;
   extLst?: CT_ExtensionList;
 }
-
 /** Style Name */
 export interface CT_TableStyleInfo {
   name?: ST_Xstring;
@@ -173,13 +168,11 @@ export interface CT_TableStyleInfo {
   showRowStripes?: boolean;
   showColumnStripes?: boolean;
 }
-
 /** Table Column */
 export interface CT_TableColumns {
   count?: number;
   tableColumn: CT_TableColumn[];
 }
-
 /** Calculated Column Formula */
 export interface CT_TableColumn {
   id: number;
@@ -199,13 +192,11 @@ export interface CT_TableColumn {
   xmlColumnPr?: CT_XmlColumnPr;
   extLst?: CT_ExtensionList;
 }
-
 /** Array */
 export interface CT_TableFormula {
   val?: ST_Formula;
   array?: boolean;
 }
-
 /** Future Feature Data Storage Area */
 export interface CT_XmlColumnPr {
   mapId: number;

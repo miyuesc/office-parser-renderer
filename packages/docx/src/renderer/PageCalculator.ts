@@ -7,7 +7,13 @@
 
 import { Logger } from '../utils/Logger';
 import { UnitConverter } from '@ai-space/shared';
-import type { DocxDocument, DocxSection, DocxElement, ResolvedPageConfig } from '../types';
+import type {
+  DocxDocument,
+  DocxSection,
+  DocxElement,
+  ResolvedPageConfig,
+  DocxHTMLElement,
+} from '../types';
 
 const log = Logger.createTagged('PageCalculator');
 
@@ -36,7 +42,7 @@ export class PageCalculator {
    */
   constructor(
     private document: DocxDocument,
-    private sections: DocxSection[]
+    private sections: DocxSection[],
   ) {}
 
   /**
@@ -53,7 +59,7 @@ export class PageCalculator {
 
     const result: PageBreakResult = {
       totalPages: 1,
-      pageRanges: []
+      pageRanges: [],
     };
 
     // 获取第一个分节配置
@@ -97,7 +103,7 @@ export class PageCalculator {
       bottom: UnitConverter.twipsToPoints(section.pageMargins.bottom),
       left: UnitConverter.twipsToPoints(section.pageMargins.left),
       header: UnitConverter.twipsToPoints(section.pageMargins.header),
-      footer: UnitConverter.twipsToPoints(section.pageMargins.footer)
+      footer: UnitConverter.twipsToPoints(section.pageMargins.footer),
     };
 
     const contentWidth = widthPt - marginsPt.left - marginsPt.right;
@@ -108,7 +114,7 @@ export class PageCalculator {
       height: heightPt,
       margins: marginsPt,
       contentWidth,
-      contentHeight
+      contentHeight,
     };
   }
 
@@ -125,9 +131,9 @@ export class PageCalculator {
       pageSize: {
         width: defaultSize.width,
         height: defaultSize.height,
-        orientation: 'portrait'
+        orientation: 'portrait',
       },
-      pageMargins: defaultMargins
+      pageMargins: defaultMargins,
     };
   }
 
@@ -171,10 +177,13 @@ export class PageCalculator {
    * @param pageConfig - 页面配置
    * @returns 分页结果
    */
-  calculateWithMeasurement(renderedElements: HTMLElement[], pageConfig: ResolvedPageConfig): PageBreakResult {
+  calculateWithMeasurement(
+    renderedElements: HTMLElement[],
+    pageConfig: ResolvedPageConfig,
+  ): PageBreakResult {
     const result: PageBreakResult = {
       totalPages: 1,
-      pageRanges: []
+      pageRanges: [],
     };
 
     let currentPageStart = 0;
@@ -186,7 +195,7 @@ export class PageCalculator {
       const element = renderedElements[i];
       // Use getBoundingClientRect for sub-pixel precision
       const elementHeight = element.getBoundingClientRect().height;
-      const docxElement = (element as any)._docxElement as DocxElement | undefined;
+      const docxElement = (element as DocxHTMLElement)._docxElement;
 
       // 检查强制分页
       const forceBreak = docxElement && this.isForcePageBreak(docxElement);
@@ -198,7 +207,7 @@ export class PageCalculator {
         result.pageRanges.push({
           start: currentPageStart,
           end: i,
-          sectionIndex: currentSectionIndex
+          sectionIndex: currentSectionIndex,
         });
 
         // 开始新页
@@ -227,7 +236,7 @@ export class PageCalculator {
       result.pageRanges.push({
         start: currentPageStart,
         end: renderedElements.length,
-        sectionIndex: currentSectionIndex
+        sectionIndex: currentSectionIndex,
       });
     }
 

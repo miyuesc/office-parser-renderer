@@ -1,3 +1,4 @@
+import { ST_Guid } from './common-types';
 import { CT_OfficeArtExtensionList, ST_Coordinate, ST_Coordinate32 } from './dml-baseTypes';
 import {
   CT_BlipFillProperties,
@@ -13,12 +14,9 @@ import { CT_LineProperties } from './dml-shapeLineProperties';
 import { CT_Cell3D } from './dml-tableStyle';
 import { CT_TextBody, ST_TextAnchoringType, ST_TextHorzOverflowType, ST_TextVerticalType } from './dml-text';
 import { CT_TableStyle } from './sml-styles';
-import { ST_Guid } from './wml';
-
 /**
  * dml-table.xsd
  */
-
 /** Left Border Line Properties */
 export interface CT_TableCellProperties {
   marL?: ST_Coordinate32;
@@ -44,18 +42,15 @@ export interface CT_TableCellProperties {
   grpFill?: CT_GroupFillProperties;
   extLst?: CT_OfficeArtExtensionList;
 }
-
 /** Width */
 export interface CT_TableCol {
   w: ST_Coordinate;
   extLst?: CT_OfficeArtExtensionList;
 }
-
 /** Table Grid Column */
 export interface CT_TableGrid {
   gridCol?: CT_TableCol[];
 }
-
 /** Text Body */
 export interface CT_TableCell {
   rowSpan?: number;
@@ -66,14 +61,12 @@ export interface CT_TableCell {
   tcPr?: CT_TableCellProperties;
   extLst?: CT_OfficeArtExtensionList;
 }
-
 /** Table Cell */
 export interface CT_TableRow {
   h: ST_Coordinate;
   tc?: CT_TableCell[];
   extLst?: CT_OfficeArtExtensionList;
 }
-
 /** Table Style */
 export interface CT_TableProperties {
   rtl?: boolean;
@@ -89,7 +82,6 @@ export interface CT_TableProperties {
   tableStyleId: ST_Guid;
   extLst?: CT_OfficeArtExtensionList;
 }
-
 /** Table Properties */
 export interface CT_Table {
   tblPr?: CT_TableProperties;

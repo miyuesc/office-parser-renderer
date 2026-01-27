@@ -4,7 +4,8 @@
  * 解析完整的 DOCX 文件，协调各个子解析器
  */
 
-import { ZipService } from '@ai-space/shared';
+import { BaseParser } from '@ai-space/shared';
+
 import { Logger } from '../utils/Logger';
 import { ErrorHandler } from '../utils/ErrorHandler';
 import { DocumentParser } from './DocumentParser';
@@ -15,14 +16,22 @@ import { HeaderFooterParser } from './HeaderFooterParser';
 import { RelationshipsParser } from './RelationshipsParser';
 import { MediaParser } from './MediaParser';
 import { ChartParser } from './ChartParser';
-import type { DocxDocument, NumberingDefinition, DocxSection, DocxElement, Drawing } from '../types';
+import { ThemeParser } from './ThemeParser';
+import type {
+  DocxDocument,
+  NumberingDefinition,
+  DocxSection,
+  DocxElement,
+  Drawing,
+  DocxTheme,
+} from '../types';
 
 const log = Logger.createTagged('DocxParser');
 
 /**
  * DOCX 解析器类
  */
-export class DocxParser {
+export class DocxParser extends BaseParser<DocxDocument> {
   /**
    * 解析 DOCX 文件
    *
@@ -48,8 +57,9 @@ export class DocxParser {
       log.info('输入转换完成', { size: buffer.byteLength });
 
       // 2. 解压 ZIP 文件
-      const files = await ZipService.load(buffer);
-      const decoder = new TextDecoder();
+      await this.initZip(buffer);
+      const files = this.files;
+      const decoder = this.decoder;
       log.info('ZIP 解压完成', { fileCount: Object.keys(files).length });
 
       // 3. 解析包级别关系
@@ -79,12 +89,24 @@ export class DocxParser {
         log.info('编号解析完成');
       }
 
+      // 解析主题
+      let theme: DocxTheme | undefined;
+      const themePath = 'word/theme/theme1.xml';
+      if (files[themePath]) {
+        const themeXml = decoder.decode(files[themePath]);
+        theme = ThemeParser.parse(themeXml);
+        log.info('主题解析完成', { colorCount: Object.keys(theme.colorScheme).length });
+      }
+
       // 7. 解析文档内容
       const context = { styles: styles.styles, numbering, relationships };
       const documentResult = DocumentParser.parseFromFiles(files, decoder, context);
       log.info('文档内容解析完成', {
         elementCount: documentResult.body.length,
-        sectionCount: documentResult.sections.length
+        sectionCount: documentResult.sections.length,
+      });
+      documentResult.sections.forEach((sect, idx) => {
+        log.debug(`Section [${idx}] info`, { type: sect.type, pageSize: sect.pageSize });
       });
 
       // 8. 解析页眉页脚
@@ -107,13 +129,17 @@ export class DocxParser {
       // 11. 构建最终文档对象
       const document: DocxDocument = {
         body: documentResult.body,
-        sections: documentResult.sections.length > 0 ? documentResult.sections : [documentResult.lastSection],
+        sections:
+          documentResult.sections.length > 0
+            ? documentResult.sections
+            : [documentResult.lastSection],
         styles,
         numbering,
         relationships,
         images,
+        theme,
         // 文档背景色（如果有的话需要加上 # 前缀）
-        background: documentResult.background ? `#${documentResult.background}` : undefined
+        background: documentResult.background ? `#${documentResult.background}` : undefined,
       };
 
       Logger.timeEnd('解析耗时');
@@ -129,31 +155,6 @@ export class DocxParser {
   }
 
   /**
-   * 标准化输入数据
-   *
-   * 核心逻辑：
-   * 判断输入数据的类型（ArrayBuffer, Uint8Array, File），将其统一转换为 ArrayBuffer 格式。
-   *
-   * @param input - 输入数据 (File | ArrayBuffer | Uint8Array)
-   * @returns Promise<ArrayBuffer> - 标准化后的二进制缓冲数据
-   */
-  private async normalizeInput(input: File | ArrayBuffer | Uint8Array): Promise<ArrayBuffer> {
-    if (input instanceof ArrayBuffer) {
-      return input;
-    }
-
-    if (input instanceof Uint8Array) {
-      return input.buffer.slice(input.byteOffset, input.byteOffset + input.byteLength);
-    }
-
-    if (input instanceof File) {
-      return await input.arrayBuffer();
-    }
-
-    throw ErrorHandler.invalidFile('不支持的输入类型');
-  }
-
-  /**
    * 填充页眉页脚内容到分节配置
    *
    * 核心逻辑：
@@ -166,7 +167,7 @@ export class DocxParser {
    */
   private fillHeaderFooterContent(
     sections: DocxSection[],
-    headerFooterResult: ReturnType<typeof HeaderFooterParser.parse>
+    headerFooterResult: ReturnType<typeof HeaderFooterParser.parse>,
   ): void {
     for (const section of sections) {
       // 填充默认页眉
@@ -267,7 +268,7 @@ export class DocxParser {
     elements: DocxElement[],
     files: Record<string, Uint8Array>,
     decoder: TextDecoder,
-    relationships: Record<string, string>
+    relationships: Record<string, string>,
   ): void {
     for (const element of elements) {
       if (element.type === 'paragraph') {
@@ -321,6 +322,55 @@ export class DocxParser {
       return target.substring(1);
     } else {
       return 'word/' + target;
+    }
+  }
+  /**
+   * 异步解析 DOCX 文件（尝试使用 Web Worker）
+   *
+   * @param input - 输入文件数据
+   * @returns Promise<DocxDocument>
+   */
+  static async parseAsync(input: File | ArrayBuffer | Uint8Array): Promise<DocxDocument> {
+    // 检测是否支持 Worker 环境
+    if (typeof Worker !== 'undefined') {
+      return new Promise((resolve, reject) => {
+        try {
+          // 创建 Worker
+          // 注意：这里假设构建工具能正确处理 Worker 路径
+          const worker = new Worker(new URL('../worker/docx.worker.ts', import.meta.url), {
+            type: 'module',
+          });
+
+          worker.onmessage = (e) => {
+            const { success, data, error } = e.data;
+            worker.terminate();
+
+            if (success) {
+              resolve(data);
+            } else {
+              // Worker 解析失败（可能是环境缺失或文件错误）
+              // 尝试回退到主线程执行，以确保功能可用性
+              console.warn('Docx Worker failed, falling back to main thread:', error);
+              new DocxParser().parse(input).then(resolve).catch(reject);
+            }
+          };
+
+          worker.onerror = (err) => {
+            reject(err);
+            worker.terminate();
+          };
+
+          // 发送解析请求
+          worker.postMessage({ type: 'parse', input });
+        } catch (e) {
+          // Worker 创建失败（可能是 CSP 限制或路径问题），回退到主线程
+          console.warn('Failed to create Docx Worker, falling back to main thread:', e);
+          new DocxParser().parse(input).then(resolve).catch(reject);
+        }
+      });
+    } else {
+      // 不支持 Worker，回退到主线程
+      return new DocxParser().parse(input);
     }
   }
 }

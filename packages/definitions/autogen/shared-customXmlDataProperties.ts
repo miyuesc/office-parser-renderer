@@ -1,9 +1,9 @@
+import { ST_Guid } from './common-types';
 /**
  * shared-customXmlDataProperties.xsd
  */
 
 /** 128-Bit GUID Value */
-export type ST_Guid = string;
 
 /** Target Namespace of Associated XML Schema */
 export interface CT_DatastoreSchemaRef {

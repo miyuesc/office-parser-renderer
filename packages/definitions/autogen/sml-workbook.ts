@@ -1,10 +1,8 @@
-import { CT_ExtensionList, ST_Formula, ST_Ref, ST_UnsignedShortHex, ST_Xstring } from './sml-baseTypes';
-import { ST_Guid } from './wml';
-
+import { CT_ExtensionList, ST_Guid, ST_Xstring } from './common-types';
+import { ST_Formula, ST_Ref, ST_UnsignedShortHex } from './sml-baseTypes';
 /**
  * sml-workbook.xsd
  */
-
 /** Visibility Types */
 export enum ST_Visibility {
   /** Visible */
@@ -14,7 +12,6 @@ export enum ST_Visibility {
   /** Very Hidden */
   veryHidden = 'veryHidden'
 }
-
 /** Comment Display Types */
 export enum ST_Comments {
   /** No Comments */
@@ -24,7 +21,6 @@ export enum ST_Comments {
   /** Show Comment &amp; Indicator */
   commIndAndComment = 'commIndAndComment'
 }
-
 /** Object Display Types */
 export enum ST_Objects {
   /** All */
@@ -34,7 +30,6 @@ export enum ST_Objects {
   /** None */
   none = 'none'
 }
-
 /** Sheet Visibility Types */
 export enum ST_SheetState {
   /** Visible */
@@ -44,7 +39,6 @@ export enum ST_SheetState {
   /** Very Hidden */
   veryHidden = 'veryHidden'
 }
-
 /** Update Links Behavior Types */
 export enum ST_UpdateLinks {
   /** User Set */
@@ -54,7 +48,6 @@ export enum ST_UpdateLinks {
   /** Always Update Links */
   always = 'always'
 }
-
 /** Smart Tag Display Types */
 export enum ST_SmartTagShow {
   /** All */
@@ -64,7 +57,6 @@ export enum ST_SmartTagShow {
   /** No Smart Tag Indicator */
   noIndicator = 'noIndicator'
 }
-
 /** Calculation Mode */
 export enum ST_CalcMode {
   /** Manual Calculation Mode */
@@ -74,7 +66,6 @@ export enum ST_CalcMode {
   /** Automatic Calculation (No Tables) */
   autoNoTable = 'autoNoTable'
 }
-
 /** Reference Mode */
 export enum ST_RefMode {
   /** A1 Mode */
@@ -82,7 +73,6 @@ export enum ST_RefMode {
   /** R1C1 Reference Mode */
   R1C1 = 'R1C1'
 }
-
 /** Target Screen Size Types */
 export enum ST_TargetScreenSize {
   /** 544 x 376 Resolution */
@@ -108,7 +98,6 @@ export enum ST_TargetScreenSize {
   /** 1920 x 1200 Resolution */
   _1920x1200 = '1920x1200'
 }
-
 /** File Version */
 export interface CT_Workbook {
   fileVersion?: CT_FileVersion;
@@ -131,7 +120,6 @@ export interface CT_Workbook {
   webPublishObjects?: CT_WebPublishObjects;
   extLst?: CT_ExtensionList;
 }
-
 /** Application Name */
 export interface CT_FileVersion {
   appName?: string;
@@ -140,12 +128,10 @@ export interface CT_FileVersion {
   rupBuild?: string;
   codeName?: ST_Guid;
 }
-
 /** Workbook View */
 export interface CT_BookViews {
   workbookView: CT_BookView[];
 }
-
 /** Visibility */
 export interface CT_BookView {
   visibility?: ST_Visibility;
@@ -163,12 +149,10 @@ export interface CT_BookView {
   autoFilterDateGrouping?: boolean;
   extLst?: CT_ExtensionList;
 }
-
 /** Custom Workbook View */
 export interface CT_CustomWorkbookViews {
   customWorkbookView: any[];
 }
-
 /** Custom View Name */
 export interface CT_CustomWorkbookView {
   name: ST_Xstring;
@@ -197,12 +181,10 @@ export interface CT_CustomWorkbookView {
   showObjects?: ST_Objects;
   extLst?: any;
 }
-
 /** Sheet Information */
 export interface CT_Sheets {
   sheet: CT_Sheet[];
 }
-
 /** Sheet Name */
 export interface CT_Sheet {
   name: ST_Xstring;
@@ -210,7 +192,6 @@ export interface CT_Sheet {
   state?: ST_SheetState;
   id: string;
 }
-
 /** Date 1904 */
 export interface CT_WorkbookPr {
   date1904?: boolean;
@@ -232,25 +213,21 @@ export interface CT_WorkbookPr {
   refreshAllConnections?: boolean;
   defaultThemeVersion?: number;
 }
-
 /** Embed SmartTags */
 export interface CT_SmartTagPr {
   embed?: boolean;
   show?: ST_SmartTagShow;
 }
-
 /** Smart Tag Type */
 export interface CT_SmartTagTypes {
   smartTagType?: CT_SmartTagType[];
 }
-
 /** SmartTag Namespace URI */
 export interface CT_SmartTagType {
   namespaceUri?: ST_Xstring;
   name?: ST_Xstring;
   url?: ST_Xstring;
 }
-
 /** Auto Recover */
 export interface CT_FileRecoveryPr {
   autoRecover?: boolean;
@@ -258,7 +235,6 @@ export interface CT_FileRecoveryPr {
   dataExtractLoad?: boolean;
   repairLoad?: boolean;
 }
-
 /** Calculation Id */
 export interface CT_CalcPr {
   calcId?: number;
@@ -275,12 +251,10 @@ export interface CT_CalcPr {
   concurrentManualCount?: number;
   forceFullCalc?: boolean;
 }
-
 /** Defined Name */
 export interface CT_DefinedNames {
   definedName?: CT_DefinedName[];
 }
-
 /** Defined Name */
 export interface CT_DefinedName {
   val?: ST_Formula;
@@ -300,45 +274,37 @@ export interface CT_DefinedName {
   publishToServer?: boolean;
   workbookParameter?: boolean;
 }
-
 /** External Reference */
 export interface CT_ExternalReferences {
   externalReference: CT_ExternalReference[];
 }
-
 /** Relationship Id */
 export interface CT_ExternalReference {
   id: string;
 }
-
 /** Relationship Id */
 export interface CT_SheetBackgroundPicture {
   id: string;
 }
-
 /** PivotCache */
 export interface CT_PivotCaches {
   pivotCache: CT_PivotCache[];
 }
-
 /** PivotCache Id */
 export interface CT_PivotCache {
   cacheId: number;
   id: string;
 }
-
 /** Read Only Recommended */
 export interface CT_FileSharing {
   readOnlyRecommended?: boolean;
   userName?: ST_Xstring;
   reservationPassword?: ST_UnsignedShortHex;
 }
-
 /** Reference */
 export interface CT_OleSize {
   ref: ST_Ref;
 }
-
 /** Workbook Password */
 export interface CT_WorkbookProtection {
   workbookPassword?: ST_UnsignedShortHex;
@@ -347,7 +313,6 @@ export interface CT_WorkbookProtection {
   lockWindows?: boolean;
   lockRevision?: boolean;
 }
-
 /** Use CSS */
 export interface CT_WebPublishing {
   css?: boolean;
@@ -359,24 +324,20 @@ export interface CT_WebPublishing {
   dpi?: number;
   codePage?: number;
 }
-
 /** Function Group */
 export interface CT_FunctionGroups {
   builtInGroupCount?: number;
   functionGroup?: CT_FunctionGroup;
 }
-
 /** Name */
 export interface CT_FunctionGroup {
   name?: ST_Xstring;
 }
-
 /** Web Publishing Object */
 export interface CT_WebPublishObjects {
   count?: number;
   webPublishObject: CT_WebPublishObject[];
 }
-
 /** Id */
 export interface CT_WebPublishObject {
   id: number;

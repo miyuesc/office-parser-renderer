@@ -8,7 +8,7 @@
 export * from './constants';
 
 // 单位转换器
-export { UnitConverter } from './UnitConverter';
+export { UnitConverter } from '../core/utils/UnitConverter';
 
 // 文本样式
 export { TextStyles } from './TextStyles';
@@ -23,3 +23,6 @@ export type { BorderConfig } from './BorderStyles';
 
 // 样式工具
 export { StyleUtils } from './StyleUtils';
+
+// 基础样式解析器
+export { BaseStyleResolver } from './BaseStyleResolver';

@@ -1,10 +1,9 @@
-import { CT_ExtensionList, ST_Ref, ST_Xstring } from './sml-baseTypes';
+import { CT_ExtensionList, ST_Xstring } from './common-types';
+import { ST_Ref } from './sml-baseTypes';
 import { ST_DxfId } from './sml-styles';
-
 /**
  * sml-autoFilter.xsd
  */
-
 /** Filter Operator */
 export enum ST_FilterOperator {
   /** Equal */
@@ -20,7 +19,6 @@ export enum ST_FilterOperator {
   /** Greater Than */
   greaterThan = 'greaterThan'
 }
-
 /** Dynamic Filter */
 export enum ST_DynamicFilterType {
   /** Null */
@@ -94,7 +92,6 @@ export enum ST_DynamicFilterType {
   /** 12th Month */
   M12 = 'M12'
 }
-
 /** Icon Set Type */
 export enum ST_IconSetType {
   /** 3 Arrows */
@@ -132,7 +129,6 @@ export enum ST_IconSetType {
   /** 5 Quarters */
   _5Quarters = '5Quarters'
 }
-
 /** Sort By */
 export enum ST_SortBy {
   /** Value */
@@ -144,7 +140,6 @@ export enum ST_SortBy {
   /** Sort by Icon */
   icon = 'icon'
 }
-
 /** Sort Method */
 export enum ST_SortMethod {
   /** Sort by Stroke */
@@ -154,7 +149,6 @@ export enum ST_SortMethod {
   /** None */
   none = 'none'
 }
-
 /** Calendar Type */
 export enum ST_CalendarType {
   /** No Calendar Type */
@@ -184,7 +178,6 @@ export enum ST_CalendarType {
   /** Gregorian Transliterated French Calendar */
   gregorianXlitFrench = 'gregorianXlitFrench'
 }
-
 /** Date Time Grouping */
 export enum ST_DateTimeGrouping {
   /** Group by Year */
@@ -200,7 +193,6 @@ export enum ST_DateTimeGrouping {
   /** Second */
   second = 'second'
 }
-
 /** AutoFilter Column */
 export interface CT_AutoFilter {
   ref?: ST_Ref;
@@ -208,7 +200,6 @@ export interface CT_AutoFilter {
   sortState?: any;
   extLst?: CT_ExtensionList;
 }
-
 /** Filter Criteria */
 export interface CT_FilterColumn {
   colId: number;
@@ -222,7 +213,6 @@ export interface CT_FilterColumn {
   iconFilter?: any;
   extLst?: CT_ExtensionList;
 }
-
 /** Filter */
 export interface CT_Filters {
   blank?: boolean;
@@ -230,24 +220,20 @@ export interface CT_Filters {
   filter?: CT_Filter[];
   dateGroupItem?: CT_DateGroupItem[];
 }
-
 /** Filter Value */
 export interface CT_Filter {
   val?: ST_Xstring;
 }
-
 /** Custom Filter Criteria */
 export interface CT_CustomFilters {
   and?: boolean;
   customFilter: CT_CustomFilter[];
 }
-
 /** Filter Comparison Operator */
 export interface CT_CustomFilter {
   operator?: ST_FilterOperator;
   val?: ST_Xstring;
 }
-
 /** Top */
 export interface CT_Top10 {
   top?: boolean;
@@ -255,26 +241,22 @@ export interface CT_Top10 {
   val: number;
   filterVal?: number;
 }
-
 /** Differential Format Record Id */
 export interface CT_ColorFilter {
   dxfId?: ST_DxfId;
   cellColor?: boolean;
 }
-
 /** Icon Set */
 export interface CT_IconFilter {
   iconSet: ST_IconSetType;
   iconId?: number;
 }
-
 /** Dynamic filter type */
 export interface CT_DynamicFilter {
   type: ST_DynamicFilterType;
   val?: number;
   maxVal?: number;
 }
-
 /** Sort Condition */
 export interface CT_SortState {
   columnSort?: boolean;
@@ -284,7 +266,6 @@ export interface CT_SortState {
   sortCondition?: any[];
   extLst?: CT_ExtensionList;
 }
-
 /** Descending */
 export interface CT_SortCondition {
   descending?: boolean;
@@ -295,7 +276,6 @@ export interface CT_SortCondition {
   iconSet?: ST_IconSetType;
   iconId?: number;
 }
-
 /** Year */
 export interface CT_DateGroupItem {
   year: number;

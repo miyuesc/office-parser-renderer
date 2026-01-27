@@ -1,3 +1,4 @@
+import { CT_Empty, CT_Extension, CT_ExtensionList } from './common-types';
 /**
  * pml-baseTypes.xsd
  */
@@ -15,8 +16,6 @@ export enum ST_Direction {
 
 /** Index */
 export type ST_Index = string;
-
-export interface CT_Empty {}
 
 /** Start */
 export interface CT_IndexRange {
@@ -56,13 +55,6 @@ export interface CT_CustomerDataList {
 }
 
 /** Uniform Resource Identifier */
-export interface CT_Extension {
-  uri?: string;
-}
-
-export interface CT_ExtensionList {
-  ext?: CT_Extension[];
-}
 
 /** Modify */
 export interface CT_ExtensionListModify {

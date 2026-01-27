@@ -1,5 +1,5 @@
-import { ST_ShapeType } from '@ai-space/definitions/autogen/dml-shapeGeometry';
-import { ShapeGenerator, ShapeResult } from './types';
+import { ST_ShapeType } from '@ai-space/definitions/dml-shapeGeometry';
+import { ShapeGenerator, ShapeResult } from '../../types/shapes';
 
 /**
  * 连接符形状
@@ -8,12 +8,12 @@ import { ShapeGenerator, ShapeResult } from './types';
 export const Connectors: Record<string, ShapeGenerator> = {
   [ST_ShapeType.straightConnector1]: (w, h): ShapeResult => ({
     path: `M 0 0 L ${w} ${h}`,
-    noFill: true
+    noFill: true,
   }),
 
   [ST_ShapeType.bentConnector2]: (w, h): ShapeResult => ({
     path: `M 0 0 L ${w} 0 L ${w} ${h}`,
-    noFill: true
+    noFill: true,
   }),
 
   [ST_ShapeType.bentConnector3]: (w, h, adj): ShapeResult => {
@@ -21,7 +21,7 @@ export const Connectors: Record<string, ShapeGenerator> = {
     const midX = w * (adj1 / 100000);
     return {
       path: `M 0 0 L ${midX} 0 L ${midX} ${h} L ${w} ${h}`,
-      noFill: true
+      noFill: true,
     };
   },
 
@@ -32,7 +32,7 @@ export const Connectors: Record<string, ShapeGenerator> = {
     const midY = h * (adj2 / 100000);
     return {
       path: `M 0 0 L ${midX} 0 L ${midX} ${midY} L ${w} ${midY} L ${w} ${h}`,
-      noFill: true
+      noFill: true,
     };
   },
 
@@ -41,7 +41,7 @@ export const Connectors: Record<string, ShapeGenerator> = {
     const midX = w * (adj1 / 100000);
     return {
       path: `M 0 0 L ${midX} 0 L ${midX} ${h / 2} L ${w - midX} ${h / 2} L ${w - midX} ${h} L ${w} ${h}`,
-      noFill: true
+      noFill: true,
     };
   },
 
@@ -52,7 +52,7 @@ export const Connectors: Record<string, ShapeGenerator> = {
    */
   [ST_ShapeType.curvedConnector2]: (w, h): ShapeResult => ({
     path: `M 0 0 C ${w * 0.5} 0 ${w} ${h * 0.5} ${w} ${h}`,
-    noFill: true
+    noFill: true,
   }),
 
   /**
@@ -70,7 +70,7 @@ export const Connectors: Record<string, ShapeGenerator> = {
         `M 0 0 ` +
         `C ${midX * 0.5} 0 ${midX} ${h * 0.25} ${midX} ${h * 0.5} ` +
         `C ${midX} ${h * 0.75} ${midX + (w - midX) * 0.5} ${h} ${w} ${h}`,
-      noFill: true
+      noFill: true,
     };
   },
 
@@ -94,7 +94,7 @@ export const Connectors: Record<string, ShapeGenerator> = {
         `C ${turn1X * 0.5} 0 ${turn1X} ${turnY * 0.25} ${turn1X} ${turnY * 0.5} ` +
         `C ${turn1X} ${turnY * 0.75} ${w * 0.625} ${turnY} ${w * 0.75} ${turnY} ` +
         `C ${w * 0.875} ${turnY} ${w} ${h * 0.75} ${w} ${h}`,
-      noFill: true
+      noFill: true,
     };
   },
 
@@ -122,7 +122,7 @@ export const Connectors: Record<string, ShapeGenerator> = {
         `C ${cp1x} ${cp2y} ${w * 0.5} ${cp2y} ${w * 0.5} ${cp2y} ` +
         `C ${w * 0.5} ${cp2y} ${cp3x} ${cp2y} ${cp3x} ${h * 0.5 + cp2y * 0.5} ` +
         `C ${cp3x} ${h} ${w} ${h} ${w} ${h}`,
-      noFill: true
+      noFill: true,
     };
-  }
+  },
 };

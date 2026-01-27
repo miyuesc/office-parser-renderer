@@ -1,5 +1,5 @@
-import { ST_ShapeType } from '@ai-space/definitions/autogen/dml-shapeGeometry';
-import { ShapeGenerator, ShapeResult } from './types';
+import { ST_ShapeType } from '@ai-space/definitions/dml-shapeGeometry';
+import { ShapeGenerator, ShapeResult } from '../../types/shapes';
 import { GeoUtils } from './GeoUtils';
 
 /**
@@ -123,7 +123,7 @@ export const CalloutShapes: Record<string, ShapeGenerator> = {
     return {
       path: box,
       noFill: false,
-      strokePath: line
+      strokePath: line,
     };
   },
 
@@ -135,7 +135,7 @@ export const CalloutShapes: Record<string, ShapeGenerator> = {
     return {
       path: box,
       noFill: false,
-      strokePath: line
+      strokePath: line,
     };
   },
 
@@ -147,7 +147,7 @@ export const CalloutShapes: Record<string, ShapeGenerator> = {
     return {
       path: box,
       noFill: false,
-      strokePath: line
+      strokePath: line,
     };
   },
 
@@ -171,7 +171,7 @@ export const CalloutShapes: Record<string, ShapeGenerator> = {
     return {
       path: box,
       noFill: false,
-      strokePath: strokeLines
+      strokePath: strokeLines,
     };
   },
 
@@ -191,7 +191,7 @@ export const CalloutShapes: Record<string, ShapeGenerator> = {
     return {
       path: box,
       noFill: false,
-      strokePath: strokeLines
+      strokePath: strokeLines,
     };
   },
 
@@ -211,7 +211,7 @@ export const CalloutShapes: Record<string, ShapeGenerator> = {
     return {
       path: box,
       noFill: false,
-      strokePath: strokeLines
+      strokePath: strokeLines,
     };
   },
 
@@ -221,7 +221,7 @@ export const CalloutShapes: Record<string, ShapeGenerator> = {
     return {
       path: `M 0 0 L ${w} 0 L ${w} ${boxH} L 0 ${boxH} Z`,
       noFill: false,
-      strokePath: `M ${w * 0.5} ${boxH} L ${w * 0.2} ${h}`
+      strokePath: `M ${w * 0.5} ${boxH} L ${w * 0.2} ${h}`,
     };
   },
 
@@ -230,7 +230,7 @@ export const CalloutShapes: Record<string, ShapeGenerator> = {
     return {
       path: `M 0 0 L ${w} 0 L ${w} ${boxH} L 0 ${boxH} Z`,
       noFill: false,
-      strokePath: `M ${w * 0.5} ${boxH} L ${w * 0.3} ${h * 0.85} L ${w * 0.2} ${h}`
+      strokePath: `M ${w * 0.5} ${boxH} L ${w * 0.3} ${h * 0.85} L ${w * 0.2} ${h}`,
     };
   },
 
@@ -239,7 +239,7 @@ export const CalloutShapes: Record<string, ShapeGenerator> = {
     return {
       path: `M 0 0 L ${w} 0 L ${w} ${boxH} L 0 ${boxH} Z`,
       noFill: false,
-      strokePath: `M ${w * 0.5} ${boxH} L ${w * 0.5} ${h * 0.8} L ${w * 0.3} ${h * 0.8} L ${w * 0.2} ${h}`
+      strokePath: `M ${w * 0.5} ${boxH} L ${w * 0.5} ${h * 0.8} L ${w * 0.3} ${h * 0.8} L ${w * 0.2} ${h}`,
     };
   },
 
@@ -250,7 +250,7 @@ export const CalloutShapes: Record<string, ShapeGenerator> = {
     return {
       path: `M 0 0 L ${w} 0 L ${w} ${boxH} L 0 ${boxH} Z`,
       noFill: false,
-      strokePath: `M ${accentX} 0 L ${accentX} ${boxH} M ${w * 0.5} ${boxH} L ${w * 0.2} ${h}`
+      strokePath: `M ${accentX} 0 L ${accentX} ${boxH} M ${w * 0.5} ${boxH} L ${w * 0.2} ${h}`,
     };
   },
 
@@ -260,7 +260,7 @@ export const CalloutShapes: Record<string, ShapeGenerator> = {
     return {
       path: `M 0 0 L ${w} 0 L ${w} ${boxH} L 0 ${boxH} Z`,
       noFill: false,
-      strokePath: `M ${accentX} 0 L ${accentX} ${boxH} M ${w * 0.5} ${boxH} L ${w * 0.3} ${h * 0.85} L ${w * 0.2} ${h}`
+      strokePath: `M ${accentX} 0 L ${accentX} ${boxH} M ${w * 0.5} ${boxH} L ${w * 0.3} ${h * 0.85} L ${w * 0.2} ${h}`,
     };
   },
 
@@ -272,7 +272,7 @@ export const CalloutShapes: Record<string, ShapeGenerator> = {
       noFill: false,
       strokePath: `M ${accentX} 0 L ${accentX} ${boxH} M ${w * 0.5} ${boxH} L ${w * 0.5} ${h * 0.8} L ${w * 0.3} ${
         h * 0.8
-      } L ${w * 0.2} ${h}`
+      } L ${w * 0.2} ${h}`,
     };
-  }
+  },
 };

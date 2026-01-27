@@ -3,7 +3,7 @@
  *
  * 解析 DrawingML 中的形状样式引用 (a:style)
  */
-import { XmlUtils } from '../../xml';
+import { XmlUtils } from '../../core/xml';
 import { OfficeStyle } from '../types';
 import { ColorParser } from './ColorParser';
 

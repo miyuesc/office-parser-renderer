@@ -16,7 +16,7 @@ import type {
   Shading,
   Tab,
   LineBreak,
-  ParagraphChild
+  ParagraphChild,
 } from '../types';
 import { FillParser } from '@ai-space/shared/src/drawing/parsers/FillParser';
 
@@ -41,7 +41,7 @@ export class RunParser {
     return {
       type: 'run',
       props,
-      text
+      text,
     };
   }
 
@@ -83,7 +83,7 @@ export class RunParser {
           children.push({
             type: 'break',
             breakType: breakType as LineBreak['breakType'],
-            clear: clear as LineBreak['clear']
+            clear: clear as LineBreak['clear'],
           } as LineBreak);
           break;
 
@@ -99,7 +99,11 @@ export class RunParser {
           if (charCode) {
             const code = parseInt(charCode, 16);
             const symText = String.fromCharCode(code);
-            children.push({ type: 'run', props: { ...props, fonts: { ascii: font || undefined } }, text: symText });
+            children.push({
+              type: 'run',
+              props: { ...props, fonts: { ascii: font || undefined } },
+              text: symText,
+            });
           }
           break;
 
@@ -249,7 +253,7 @@ export class RunParser {
         props.underline = {
           val: val as UnderlineStyle['val'],
           color: uNode.getAttribute('w:color') || undefined,
-          themeColor: uNode.getAttribute('w:themeColor') || undefined
+          themeColor: uNode.getAttribute('w:themeColor') || undefined,
         };
       }
     }
@@ -437,8 +441,8 @@ export class RunParser {
         width: w,
         color,
         gradient: lnFill && lnFill.type === 'gradient' ? lnFill.gradient : undefined,
-        cap: cap as any,
-        compound: cmpd as any
+        cap: (cap as 'rnd' | 'sq' | 'flat') || undefined,
+        compound: (cmpd as 'sng' | 'dbl' | 'thickThin' | 'thinThick' | 'tri') || undefined,
         // algn ignored for now
       };
 
@@ -474,7 +478,7 @@ export class RunParser {
       asciiTheme: node.getAttribute('w:asciiTheme') || undefined,
       eastAsiaTheme: node.getAttribute('w:eastAsiaTheme') || undefined,
       hAnsiTheme: node.getAttribute('w:hAnsiTheme') || undefined,
-      csTheme: node.getAttribute('w:cstheme') || undefined
+      csTheme: node.getAttribute('w:cstheme') || undefined,
     };
   }
 
@@ -490,7 +494,7 @@ export class RunParser {
       fill: node.getAttribute('w:fill') || undefined,
       color: node.getAttribute('w:color') || undefined,
       themeFill: node.getAttribute('w:themeFill') || undefined,
-      themeColor: node.getAttribute('w:themeColor') || undefined
+      themeColor: node.getAttribute('w:themeColor') || undefined,
     };
   }
 
@@ -504,7 +508,7 @@ export class RunParser {
     return {
       val: node.getAttribute('w:val') || undefined,
       eastAsia: node.getAttribute('w:eastAsia') || undefined,
-      bidi: node.getAttribute('w:bidi') || undefined
+      bidi: node.getAttribute('w:bidi') || undefined,
     };
   }
 
@@ -530,7 +534,7 @@ export class RunParser {
     if (parent.fonts || child.fonts) {
       merged.fonts = {
         ...parent.fonts,
-        ...child.fonts
+        ...child.fonts,
       };
     }
 

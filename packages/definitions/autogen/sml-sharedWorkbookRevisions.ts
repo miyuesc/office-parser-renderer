@@ -1,12 +1,10 @@
-import { ST_CellRef, ST_Formula, ST_Ref, ST_RefA, ST_Sqref, ST_Xstring } from './sml-baseTypes';
+import { ST_Guid, ST_Xstring } from './common-types';
+import { ST_CellRef, ST_Formula, ST_Ref, ST_RefA, ST_Sqref } from './sml-baseTypes';
 import { CT_Cell } from './sml-sheet';
 import { CT_Dxf, ST_NumFmtId } from './sml-styles';
-import { ST_Guid } from './wml';
-
 /**
  * sml-sharedWorkbookRevisions.xsd
  */
-
 /** Row Column Action Type */
 export enum ST_rwColActionType {
   /** Insert Row */
@@ -18,7 +16,6 @@ export enum ST_rwColActionType {
   /** Delete Column */
   deleteCol = 'deleteCol'
 }
-
 /** Revision Action Types */
 export enum ST_RevisionAction {
   /** Add */
@@ -26,7 +23,6 @@ export enum ST_RevisionAction {
   /** Delete */
   delete = 'delete'
 }
-
 /** Formula Expression Type */
 export enum ST_FormulaExpression {
   /** Reference */
@@ -40,7 +36,6 @@ export enum ST_FormulaExpression {
   /** Computed Area */
   computedArea = 'computedArea'
 }
-
 /** Header */
 export interface CT_RevisionHeaders {
   guid: ST_Guid;
@@ -57,7 +52,6 @@ export interface CT_RevisionHeaders {
   preserveHistory?: number;
   header: CT_RevisionHeader[];
 }
-
 /** Revision Row Column Insert Delete */
 export interface CT_Revisions {
   rrc?: CT_RevisionRowColumn[];
@@ -73,7 +67,6 @@ export interface CT_Revisions {
   rqt?: CT_RevisionQueryTableField[];
   rcft?: CT_RevisionConflict[];
 }
-
 /** Sheet Id Map */
 export interface CT_RevisionHeader {
   guid: ST_Guid;
@@ -87,29 +80,24 @@ export interface CT_RevisionHeader {
   reviewedList?: any;
   extLst?: any;
 }
-
 /** Sheet Id */
 export interface CT_SheetIdMap {
   count?: number;
   sheetId: CT_SheetId[];
 }
-
 /** Sheet Id */
 export interface CT_SheetId {
   val: number;
 }
-
 /** Reviewed */
 export interface CT_ReviewedRevisions {
   count?: number;
   reviewed: CT_Reviewed[];
 }
-
 /** revision Id */
 export interface CT_Reviewed {
   rId: number;
 }
-
 /** Index */
 export interface CT_UndoInfo {
   index: number;
@@ -124,7 +112,6 @@ export interface CT_UndoInfo {
   r?: ST_CellRef;
   sId?: number;
 }
-
 /** Undo */
 export interface CT_RevisionRowColumn {
   sId: number;
@@ -136,7 +123,6 @@ export interface CT_RevisionRowColumn {
   rcc?: CT_RevisionCellChange[];
   rfmt?: CT_RevisionFormatting[];
 }
-
 /** Undo */
 export interface CT_RevisionMove {
   sheetId: number;
@@ -147,13 +133,11 @@ export interface CT_RevisionMove {
   rcc?: CT_RevisionCellChange[];
   rfmt?: CT_RevisionFormatting[];
 }
-
 /** GUID */
 export interface CT_RevisionCustomView {
   guid: ST_Guid;
   action: ST_RevisionAction;
 }
-
 /** Sheet Id */
 export interface CT_RevisionSheetRename {
   sheetId: number;
@@ -161,14 +145,12 @@ export interface CT_RevisionSheetRename {
   newName: ST_Xstring;
   extLst?: any;
 }
-
 /** Sheet Id */
 export interface CT_RevisionInsertSheet {
   sheetId: number;
   name: ST_Xstring;
   sheetPosition: number;
 }
-
 /** Old Cell Data */
 export interface CT_RevisionCellChange {
   sId: number;
@@ -187,7 +169,6 @@ export interface CT_RevisionCellChange {
   ndxf?: CT_Dxf;
   extLst?: any;
 }
-
 /** Formatting */
 export interface CT_RevisionFormatting {
   sheetId: number;
@@ -199,13 +180,11 @@ export interface CT_RevisionFormatting {
   dxf?: CT_Dxf;
   extLst?: any;
 }
-
 /** Sheet Id */
 export interface CT_RevisionAutoFormatting {
   sheetId: number;
   ref: ST_Ref;
 }
-
 /** Sheet Id */
 export interface CT_RevisionComment {
   sheetId: number;
@@ -220,7 +199,6 @@ export interface CT_RevisionComment {
   oldLength?: number;
   newLength?: number;
 }
-
 /** Formula */
 export interface CT_RevisionDefinedName {
   localSheetId?: number;
@@ -248,12 +226,10 @@ export interface CT_RevisionDefinedName {
   oldFormula?: ST_Formula;
   extLst?: any;
 }
-
 /** Sheet Id */
 export interface CT_RevisionConflict {
   sheetId?: number;
 }
-
 /** Sheet Id */
 export interface CT_RevisionQueryTableField {
   sheetId: number;

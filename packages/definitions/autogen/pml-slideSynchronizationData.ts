@@ -1,9 +1,7 @@
-import { CT_ExtensionList } from './sml-baseTypes';
-
+import { CT_ExtensionList } from './common-types';
 /**
  * pml-slideSynchronizationData.xsd
  */
-
 /** Server's Slide File ID */
 export interface CT_SlideSyncProperties {
   serverSldId: string;

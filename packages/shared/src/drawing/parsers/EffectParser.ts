@@ -8,7 +8,7 @@
  * - reflection: 反射
  * - softEdge: 柔化边缘
  */
-import { XmlUtils } from '../../xml';
+import { XmlUtils } from '../../core/xml';
 import { OfficeEffect } from '../types';
 import { ColorParser } from './ColorParser';
 

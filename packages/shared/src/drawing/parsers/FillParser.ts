@@ -7,7 +7,7 @@
  * - pattFill: 图案填充
  * - noFill: 无填充
  */
-import { XmlUtils } from '../../xml';
+import { XmlUtils } from '../../core/xml';
 import { OfficeFill } from '../types';
 import { ColorParser } from './ColorParser';
 

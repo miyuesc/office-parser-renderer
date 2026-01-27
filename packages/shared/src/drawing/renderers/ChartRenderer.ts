@@ -4,7 +4,7 @@
  * 提供图表元素的统一渲染逻辑，可被 docx/xlsx/pptx 包调用
  */
 
-import type { RenderRect, RenderContext, ChartRenderOptions, ChartSeriesData, StyleResolverInterface } from './types';
+import type { RenderRect, RenderContext, ChartRenderOptions, ChartSeriesData, StyleResolverInterface } from '../../types/rendering';
 
 /**
  * 图表渲染常量

@@ -6,58 +6,23 @@
  */
 
 import { ShapeRenderer as SharedShapeRenderer } from '@ai-space/shared';
-import type { RenderRect, RenderContext, StyleResolverInterface, ShapeRenderOptions, ColorDef } from '@ai-space/shared';
+import type { RenderRect, RenderContext, ShapeRenderOptions } from '@ai-space/shared';
 import type { OfficeShape } from '../types';
-import type { StyleResolver as XlsxStyleResolver, RenderContext as XlsxRenderContext } from './StyleResolver';
-
-/**
- * XLSX 样式解析器适配器
- * 将 XLSX StyleResolver 包装为共享接口
- */
-class XlsxStyleResolverAdapter implements StyleResolverInterface {
-  private xlsxResolver: XlsxStyleResolver;
-
-  constructor(xlsxResolver: XlsxStyleResolver) {
-    this.xlsxResolver = xlsxResolver;
-  }
-
-  resolveColor(color: ColorDef): string {
-    return this.xlsxResolver.resolveColor(color as string);
-  }
-
-  resolveFill(
-    fill: { type?: string; color?: string; gradient?: unknown; opacity?: number } | undefined,
-    ctx: RenderContext,
-    rect: RenderRect | null,
-    asCSS?: boolean
-  ): string {
-    // 转换为 XLSX 格式的填充
-    const xlsxFill = fill as Parameters<typeof this.xlsxResolver.resolveFill>[0];
-    const xlsxRect = rect ? { x: rect.x, y: rect.y, w: rect.w, h: rect.h } : null;
-    return this.xlsxResolver.resolveFill(xlsxFill, ctx as unknown as XlsxRenderContext, xlsxRect, asCSS);
-  }
-
-  resolveFilter(
-    effects: Array<{ type: string; blur?: number; dist?: number; dir?: number; color?: string; radius?: number }>,
-    ctx: RenderContext
-  ): string | null {
-    return this.xlsxResolver.resolveFilter(
-      effects as unknown as Parameters<typeof this.xlsxResolver.resolveFilter>[0],
-      ctx as unknown as XlsxRenderContext
-    );
-  }
-}
+import type {
+  StyleResolver as XlsxStyleResolver,
+  RenderContext as XlsxRenderContext,
+} from './StyleResolver';
 
 /**
  * 形状渲染器类
  */
 export class ShapeRenderer {
   private sharedRenderer: SharedShapeRenderer;
-  private adapter: XlsxStyleResolverAdapter;
 
   constructor(styleResolver: XlsxStyleResolver) {
-    this.adapter = new XlsxStyleResolverAdapter(styleResolver);
-    this.sharedRenderer = new SharedShapeRenderer(this.adapter);
+    // StyleResolver extends BaseStyleResolver which implements StyleResolverInterface.
+    // So we can pass it directly.
+    this.sharedRenderer = new SharedShapeRenderer(styleResolver);
   }
 
   /**
@@ -68,7 +33,12 @@ export class ShapeRenderer {
    * @param rect 渲染区域
    * @param ctx 渲染上下文
    */
-  renderShape(shape: OfficeShape, container: SVGElement, rect: RenderRect, ctx: XlsxRenderContext): void {
+  renderShape(
+    shape: OfficeShape,
+    container: SVGElement,
+    rect: RenderRect,
+    ctx: XlsxRenderContext,
+  ): void {
     // 将 XLSX OfficeShape 转换为共享 ShapeRenderOptions
     const options: ShapeRenderOptions = {
       id: shape.id,
@@ -115,20 +85,20 @@ export class ShapeRenderer {
                     bold: r.bold,
                     size: r.size,
                     color: r.color,
-                    fill: r.fill,
-                    effects: r.effects
-                  })
-                )
-              })
-            )
+                    fill: r.fill, // OfficeFill structure should match
+                    effects: r.effects,
+                  }),
+                ),
+              }),
+            ),
           }
-        : undefined
+        : undefined,
     };
 
     // 转换渲染上下文
     const renderCtx: RenderContext = {
       defs: ctx.defs,
-      theme: ctx.theme as Record<string, unknown>
+      theme: ctx.theme as Record<string, unknown>,
     };
 
     // 调用共享渲染器

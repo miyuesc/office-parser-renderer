@@ -1,16 +1,12 @@
-import { ST_Xstring } from './sml-baseTypes';
-import { ST_Guid } from './wml';
-
+import { ST_Guid, ST_Xstring } from './common-types';
 /**
  * sml-sharedWorkbookUserNames.xsd
  */
-
 /** User Information */
 export interface CT_Users {
     count?: number;
     userInfo?: any[];
 }
-
 /** User Revisions GUID */
 export interface CT_SharedUser {
     guid: ST_Guid;
@@ -19,4 +15,3 @@ export interface CT_SharedUser {
     dateTime: any;
     extLst?: any;
 }
-

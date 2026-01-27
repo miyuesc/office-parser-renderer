@@ -4,7 +4,15 @@
  * 解析 XLSX 样式定义 (xl/styles.xml)
  */
 import { XmlUtils } from '@ai-space/shared';
-import { XlsxStyles, XlsxFont, XlsxFill, XlsxBorder, XlsxCellXf, XlsxColor, XlsxBorderSide } from '../types';
+import {
+  XlsxStyles,
+  XlsxFont,
+  XlsxFill,
+  XlsxBorder,
+  XlsxCellXf,
+  XlsxColor,
+  XlsxBorderSide,
+} from '../types';
 
 export class StyleParser {
   /**
@@ -21,7 +29,7 @@ export class StyleParser {
       fonts: this.parseFonts(doc),
       fills: this.parseFills(doc),
       borders: this.parseBorders(doc),
-      cellXfs: this.parseCellXfs(doc)
+      cellXfs: this.parseCellXfs(doc),
     };
   }
 
@@ -53,7 +61,7 @@ export class StyleParser {
       20: 'h:mm',
       21: 'h:mm:ss',
       22: 'm/d/yy h:mm',
-      49: '@'
+      49: '@',
     };
 
     const nodes = XmlUtils.queryAll(doc, 'numFmts numFmt');
@@ -83,9 +91,11 @@ export class StyleParser {
         name: XmlUtils.query(node, 'name')?.getAttribute('val') || 'Calibri',
         b: !!XmlUtils.query(node, 'b'),
         i: !!XmlUtils.query(node, 'i'),
-        u: XmlUtils.query(node, 'u') ? XmlUtils.query(node, 'u')?.getAttribute('val') || true : undefined,
+        u: XmlUtils.query(node, 'u')
+          ? XmlUtils.query(node, 'u')?.getAttribute('val') || true
+          : undefined,
         strike: !!XmlUtils.query(node, 'strike'),
-        color: this.parseColor(XmlUtils.query(node, 'color'))
+        color: this.parseColor(XmlUtils.query(node, 'color')),
       });
     });
     return fonts;
@@ -106,7 +116,7 @@ export class StyleParser {
         fills.push({
           patternType: patternFill.getAttribute('patternType') || undefined,
           fgColor: this.parseColor(XmlUtils.query(patternFill, 'fgColor')),
-          bgColor: this.parseColor(XmlUtils.query(patternFill, 'bgColor'))
+          bgColor: this.parseColor(XmlUtils.query(patternFill, 'bgColor')),
         });
       } else {
         fills.push({}); // gradientFill 占位符等
@@ -130,7 +140,7 @@ export class StyleParser {
         right: this.parseBorderSide(XmlUtils.query(node, 'right')),
         top: this.parseBorderSide(XmlUtils.query(node, 'top')),
         bottom: this.parseBorderSide(XmlUtils.query(node, 'bottom')),
-        diagonal: this.parseBorderSide(XmlUtils.query(node, 'diagonal'))
+        diagonal: this.parseBorderSide(XmlUtils.query(node, 'diagonal')),
       });
     });
     return borders;
@@ -148,7 +158,7 @@ export class StyleParser {
     if (!style) return undefined;
     return {
       style,
-      color: this.parseColor(XmlUtils.query(node, 'color'))
+      color: this.parseColor(XmlUtils.query(node, 'color')),
     };
   }
 
@@ -172,13 +182,17 @@ export class StyleParser {
         applyAlignment: !!node.getAttribute('applyAlignment'),
         alignment: alignNode
           ? {
-              horizontal: alignNode.getAttribute('horizontal') as any,
-              vertical: alignNode.getAttribute('vertical') as any,
+              horizontal: alignNode.getAttribute('horizontal') as NonNullable<
+                XlsxCellXf['alignment']
+              >['horizontal'],
+              vertical: alignNode.getAttribute('vertical') as NonNullable<
+                XlsxCellXf['alignment']
+              >['vertical'],
               wrapText: !!alignNode.getAttribute('wrapText'),
               indent: parseInt(alignNode.getAttribute('indent') || '0', 10),
-              textRotation: parseInt(alignNode.getAttribute('textRotation') || '0', 10)
+              textRotation: parseInt(alignNode.getAttribute('textRotation') || '0', 10),
             }
-          : undefined
+          : undefined,
       });
     });
     return cellXfs;
@@ -204,7 +218,7 @@ export class StyleParser {
       rgb: rgb ? `#${rgb}` : undefined,
       theme: theme ? parseInt(theme, 10) : undefined,
       tint: tint ? parseFloat(tint) : undefined,
-      indexed: indexed ? parseInt(indexed, 10) : undefined
+      indexed: indexed ? parseInt(indexed, 10) : undefined,
     };
   }
 }

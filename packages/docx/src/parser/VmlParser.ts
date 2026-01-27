@@ -8,7 +8,7 @@
 import { XmlUtils } from '@ai-space/shared';
 import { UnitConverter } from '@ai-space/shared';
 import { Logger } from '../utils/Logger';
-import type { Drawing, DrawingShape, DocxElement } from '../types';
+import type { Drawing, DrawingShape, DocxElement, AnchorPosition, PositionConfig } from '../types';
 import { ParagraphParser } from './ParagraphParser';
 import { TableParser } from './TableParser';
 
@@ -127,9 +127,9 @@ export class VmlParser {
       stroke: strokeColor
         ? {
             color: this.normalizeColor(strokeColor),
-            width: strokeWeight ? UnitConverter.pointsToEmu(parseFloat(strokeWeight)) : undefined
+            width: strokeWeight ? UnitConverter.pointsToEmu(parseFloat(strokeWeight)) : undefined,
           }
-        : undefined
+        : undefined,
     };
 
     // Parse flip from style
@@ -154,7 +154,7 @@ export class VmlParser {
         shape.textBody = {
           text: textContent,
           paragraphs: [],
-          content // Store full content
+          content, // Store full content
         };
       }
     }
@@ -171,8 +171,8 @@ export class VmlParser {
           image: {
             embedId: rId,
             cx,
-            cy
-          }
+            cy,
+          },
         };
       }
     }
@@ -180,7 +180,7 @@ export class VmlParser {
     // 解析定位
     // VML 形状通常是绝对定位，即使 style 中没有显式写 position:absolute
     // 只要有定位相关的属性，就尝试解析
-    let position: any = undefined;
+    let position: AnchorPosition | undefined = undefined;
     const isPositioned =
       styles.position === 'absolute' ||
       styles.position === 'relative' ||
@@ -231,15 +231,15 @@ export class VmlParser {
         relativeHeight: zIndex,
         behindDoc: isBehindDoc,
         horizontal: {
-          relativeTo: hRelative,
-          align: hAlign !== 'absolute' ? hAlign : undefined,
-          posOffset: left
+          relativeTo: hRelative as PositionConfig['relativeTo'],
+          align: hAlign !== 'absolute' ? (hAlign as PositionConfig['align']) : undefined,
+          posOffset: left,
         },
         vertical: {
-          relativeTo: vRelative,
-          align: vAlign !== 'absolute' ? vAlign : undefined,
-          posOffset: top
-        }
+          relativeTo: vRelative as PositionConfig['relativeTo'],
+          align: vAlign !== 'absolute' ? (vAlign as PositionConfig['align']) : undefined,
+          posOffset: top,
+        },
       };
     }
 
@@ -247,7 +247,7 @@ export class VmlParser {
       type: 'drawing',
       drawingType: 'anchor', // VML default to anchor usually
       shape,
-      position
+      position,
     };
   }
 
@@ -257,7 +257,7 @@ export class VmlParser {
    */
   private static parseStyle(styleStr: string): Record<string, string> {
     const styles: Record<string, string> = {};
-    styleStr.split(';').forEach(part => {
+    styleStr.split(';').forEach((part) => {
       const [key, value] = part.split(':');
       if (key && value) {
         styles[key.trim().toLowerCase()] = value.trim().toLowerCase();

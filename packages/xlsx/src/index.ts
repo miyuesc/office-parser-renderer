@@ -7,8 +7,18 @@
  * - 支持工作表、样式、绘图、图表等功能
  */
 
-export * from './renderer/XlsxRenderer';
-export * from './parser/XlsxParser';
-export * from './parser/WorksheetParser';
-export * from './parser/DrawingParser';
+export { XlsxRenderer } from './renderer/XlsxRenderer';
+export { ChartRenderer } from './renderer/ChartRenderer';
+export { ShapeRenderer } from './renderer/ShapeRenderer';
+export { ImageRenderer } from '@ai-space/shared';
+export { StyleResolver } from './renderer/StyleResolver';
+
+export { XlsxParser } from './parser/XlsxParser';
+export { WorksheetParser } from './parser/WorksheetParser';
+export { DrawingParser } from './parser/DrawingParser';
+export { ChartParser } from './parser/ChartParser';
+export { StyleParser } from './parser/StyleParser';
+export { ThemeParser } from './parser/ThemeParser';
+
+export { NumberFormatUtils } from './utils/NumberFormatUtils';
 export * from './types';

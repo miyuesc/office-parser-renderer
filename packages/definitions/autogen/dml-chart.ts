@@ -1,3 +1,4 @@
+import { CT_Extension, CT_ExtensionList, ST_TextLanguageID, ST_Xstring } from './common-types';
 import { CT_ShapeProperties } from './dml-shapeProperties';
 import { CT_ColorMapping } from './dml-stylesheet';
 import { CT_TextBody } from './dml-text';
@@ -7,10 +8,8 @@ import { CT_TextBody } from './dml-text';
  */
 
 /** String With Encoded Characters */
-export type ST_Xstring = string;
 
 /** Chart Language Tag */
-export type ST_TextLanguageID = string;
 
 /** Layout Target */
 export enum ST_LayoutTarget {
@@ -455,14 +454,8 @@ export interface CT_RelId {
 }
 
 /** Uniform Resource Identifier */
-export interface CT_Extension {
-  uri?: string;
-}
 
 /** Extension */
-export interface CT_ExtensionList {
-  ext?: CT_Extension[];
-}
 
 /** Numeric Value */
 export interface CT_NumVal {

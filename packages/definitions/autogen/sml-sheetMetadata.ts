@@ -1,9 +1,8 @@
-import { CT_XStringElement, ST_UnsignedIntHex, ST_Xstring } from './sml-baseTypes';
-
+import { ST_Xstring } from './common-types';
+import { CT_XStringElement, ST_UnsignedIntHex } from './sml-baseTypes';
 /**
  * sml-sheetMetadata.xsd
  */
-
 /** MDX Function Type */
 export enum ST_MdxFunctionType {
   /** Cube Member */
@@ -21,7 +20,6 @@ export enum ST_MdxFunctionType {
   /** Cube KPI Member */
   k = 'k'
 }
-
 /** MDX Set Order */
 export enum ST_MdxSetOrder {
   /** Unsorted */
@@ -39,7 +37,6 @@ export enum ST_MdxSetOrder {
   /** Natural Descending */
   nd = 'nd'
 }
-
 /** MDX KPI Property */
 export enum ST_MdxKPIProperty {
   /** Value */
@@ -55,7 +52,6 @@ export enum ST_MdxKPIProperty {
   /** Current Time Member */
   m = 'm'
 }
-
 /** Metadata Types Collection */
 export interface CT_Metadata {
   metadataTypes?: CT_MetadataTypes;
@@ -66,13 +62,11 @@ export interface CT_Metadata {
   valueMetadata?: CT_MetadataBlocks;
   extLst?: any;
 }
-
 /** Metadata Type Information */
 export interface CT_MetadataTypes {
   count?: number;
   metadataType: CT_MetadataType[];
 }
-
 /** Metadata Type Name */
 export interface CT_MetadataType {
   name: ST_Xstring;
@@ -104,24 +98,20 @@ export interface CT_MetadataType {
   adjust?: boolean;
   cellMeta?: boolean;
 }
-
 /** Metadata Block */
 export interface CT_MetadataBlocks {
   count?: number;
   bk: CT_MetadataBlock[];
 }
-
 /** Metadata Record */
 export interface CT_MetadataBlock {
   rc: CT_MetadataRecord[];
 }
-
 /** Metadata Record Type Index */
 export interface CT_MetadataRecord {
   t: number;
   v: number;
 }
-
 /** Future Metadata Block */
 export interface CT_FutureMetadata {
   name: ST_Xstring;
@@ -129,18 +119,15 @@ export interface CT_FutureMetadata {
   bk?: CT_FutureMetadataBlock[];
   extLst?: any;
 }
-
 /** Future Feature Storage Area */
 export interface CT_FutureMetadataBlock {
   extLst?: any;
 }
-
 /** MDX Metadata Record */
 export interface CT_MdxMetadata {
   count?: number;
   mdx: CT_Mdx[];
 }
-
 /** Tuple MDX Metadata */
 export interface CT_Mdx {
   n: number;
@@ -150,7 +137,6 @@ export interface CT_Mdx {
   p: CT_MdxMemeberProp;
   k: CT_MdxKPI;
 }
-
 /** Member Unique Name Index */
 export interface CT_MdxTuple {
   c?: number;
@@ -165,7 +151,6 @@ export interface CT_MdxTuple {
   b?: boolean;
   n?: CT_MetadataStringIndex[];
 }
-
 /** Member Unique Name Index */
 export interface CT_MdxSet {
   ns: number;
@@ -173,26 +158,22 @@ export interface CT_MdxSet {
   o?: ST_MdxSetOrder;
   n?: CT_MetadataStringIndex[];
 }
-
 /** Member Unique Name Index */
 export interface CT_MdxMemeberProp {
   n: number;
   np: number;
 }
-
 /** Member Unique Name Index */
 export interface CT_MdxKPI {
   n: number;
   np: number;
   p: ST_MdxKPIProperty;
 }
-
 /** Index Value */
 export interface CT_MetadataStringIndex {
   x: number;
   s?: boolean;
 }
-
 /** MDX Metadata String */
 export interface CT_MetadataStrings {
   count?: number;

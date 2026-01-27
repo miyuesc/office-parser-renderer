@@ -4,8 +4,14 @@
  * 提供形状元素的统一渲染逻辑，可被 docx/xlsx/pptx 包调用
  */
 
-import { generatePresetPath } from '../PresetGeometries';
-import type { RenderRect, RenderContext, ShapeRenderOptions, StyleResolverInterface, ShapeTextBody } from './types';
+import { generatePresetPath } from '../shapes';
+import type {
+  RenderRect,
+  RenderContext,
+  ShapeRenderOptions,
+  StyleResolverInterface,
+  ShapeTextBody,
+} from '../../types/rendering';
 import type { OfficeEffect } from '../types';
 
 /**
@@ -27,7 +33,12 @@ export class ShapeRenderer {
    * @param rect - 渲染区域
    * @param ctx - 渲染上下文
    */
-  renderShape(options: ShapeRenderOptions, container: SVGElement, rect: RenderRect, ctx: RenderContext): void {
+  renderShape(
+    options: ShapeRenderOptions,
+    container: SVGElement,
+    rect: RenderRect,
+    ctx: RenderContext,
+  ): void {
     const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     g.style.pointerEvents = 'all';
 
@@ -76,18 +87,18 @@ export class ShapeRenderer {
       }
 
       // 添加到容器
-      // @ts-ignore - 内部属性
+      // @ts-expect-error - 内部属性
       if (vector._wrapper) {
-        // @ts-ignore
+        // @ts-expect-error - 内部属性
         g.appendChild(vector._wrapper);
       } else {
         g.appendChild(vector);
       }
 
       // 添加辅助描边路径
-      // @ts-ignore
+      // @ts-expect-error - 内部属性
       if (vector._strokePathElement) {
-        // @ts-ignore
+        // @ts-expect-error - 内部属性
         this._appendStrokePath(vector._strokePathElement, options, g, ctx);
       }
     }
@@ -123,7 +134,7 @@ export class ShapeRenderer {
         innerSvg.setAttribute('preserveAspectRatio', 'none');
         innerSvg.style.overflow = 'visible';
         innerSvg.appendChild(vector);
-        // @ts-ignore
+        // @ts-expect-error - 内部属性
         vector._wrapper = innerSvg;
       }
     } else if (options.geometry === 'roundRect') {
@@ -161,7 +172,7 @@ export class ShapeRenderer {
           const strokePathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
           strokePathEl.setAttribute('d', preset.strokePath);
           strokePathEl.setAttribute('fill', 'none');
-          // @ts-ignore
+          // @ts-expect-error - 内部属性
           vector._strokePathElement = strokePathEl;
         }
       } else {
@@ -197,7 +208,11 @@ export class ShapeRenderer {
 
         // 渐变描边
         if (stroke.gradient) {
-          strokeColor = this.styleResolver.resolveFill({ type: 'gradient', gradient: stroke.gradient }, ctx, null);
+          strokeColor = this.styleResolver.resolveFill(
+            { type: 'gradient', gradient: stroke.gradient },
+            ctx,
+            null,
+          );
         }
 
         strokeWidth = stroke.width || 0;
@@ -225,7 +240,7 @@ export class ShapeRenderer {
           dot: '1 1',
           lgDash: '8 2',
           dashDot: '4 2 1 2',
-          lgDashDot: '8 2 1 2'
+          lgDashDot: '8 2 1 2',
         };
         if (dashMap[strokeDash]) {
           vector.setAttribute('stroke-dasharray', dashMap[strokeDash]);
@@ -243,7 +258,7 @@ export class ShapeRenderer {
     strokePathEl: SVGPathElement,
     options: ShapeRenderOptions,
     g: SVGGElement,
-    _ctx: RenderContext
+    _ctx: RenderContext,
   ): void {
     const stroke = options.stroke;
     let strokeColor = 'none';
@@ -272,7 +287,12 @@ export class ShapeRenderer {
   /**
    * 渲染文本内容
    */
-  private _renderTextBody(textBody: ShapeTextBody, g: SVGGElement, rect: RenderRect, ctx: RenderContext): void {
+  private _renderTextBody(
+    textBody: ShapeTextBody,
+    g: SVGGElement,
+    rect: RenderRect,
+    ctx: RenderContext,
+  ): void {
     const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
     fo.setAttribute('x', '0');
     fo.setAttribute('y', '0');
@@ -297,7 +317,7 @@ export class ShapeRenderer {
       bottom: 'flex-end',
       b: 'flex-end',
       justified: 'space-between',
-      distributed: 'space-between'
+      distributed: 'space-between',
     };
     div.style.justifyContent = vaMap[va] || 'flex-start';
 
@@ -312,11 +332,11 @@ export class ShapeRenderer {
 
     // 渲染段落
     if (textBody.paragraphs) {
-      textBody.paragraphs.forEach(p => {
+      textBody.paragraphs.forEach((p) => {
         const pDiv = document.createElement('div');
         if (p.alignment) pDiv.style.textAlign = p.alignment;
 
-        p.runs.forEach(run => {
+        p.runs.forEach((run) => {
           const span = document.createElement('span');
           span.textContent = run.text;
           if (run.bold) span.style.fontWeight = 'bold';
@@ -332,7 +352,7 @@ export class ShapeRenderer {
           if (run.fill?.type === 'gradient') {
             span.style.backgroundImage = this.styleResolver.resolveFill(run.fill, ctx, rect, true);
             span.style.backgroundClip = 'text';
-            // @ts-ignore
+            // @ts-expect-error - 内部属性
             span.style.webkitBackgroundClip = 'text';
             span.style.display = 'inline-block';
             span.style.color = 'transparent';
@@ -365,7 +385,7 @@ export class ShapeRenderer {
   private _applyTextEffects(effects: OfficeEffect[], span: HTMLSpanElement): void {
     const shadows: string[] = [];
 
-    effects.forEach(eff => {
+    effects.forEach((eff) => {
       if (eff.type === 'outerShadow' || (eff as unknown as { type: string }).type === 'outerShdw') {
         const blurRad = (eff.blur || 0) * 1.33;
         const dist = (eff.dist || 0) * 1.33;
@@ -375,7 +395,9 @@ export class ShapeRenderer {
         const offsetX = Math.round(dist * Math.cos(dirRad));
         const offsetY = Math.round(dist * Math.sin(dirRad));
 
-        const shadowColor = eff.color ? this.styleResolver.resolveColor(eff.color) : 'rgba(0,0,0,0.4)';
+        const shadowColor = eff.color
+          ? this.styleResolver.resolveColor(eff.color)
+          : 'rgba(0,0,0,0.4)';
         shadows.push(`${offsetX}px ${offsetY}px ${blurRad}px ${shadowColor}`);
       } else if (eff.type === 'glow') {
         const rad = (eff.radius || 0) * 1.33;

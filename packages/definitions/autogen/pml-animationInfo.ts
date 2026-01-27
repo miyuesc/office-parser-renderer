@@ -1,3 +1,4 @@
+import { CT_Empty } from './common-types';
 import {
   CT_EmbeddedWAVAudioFile,
   ST_FixedPercentage,
@@ -9,12 +10,10 @@ import { CT_AnimationElementChoice, CT_AnimationGraphicalObjectBuildProperties }
 import { ST_ShapeID } from './dml-shapeMiscellaneous';
 import { CT_ExtensionListModify, CT_IndexRange, ST_Direction } from './pml-baseTypes';
 import { ST_Angle } from './vml-officeDrawing';
-import { CT_Color, CT_Empty } from './wml';
-
+import { CT_Color } from './wml';
 /**
  * pml-animationInfo.xsd
  */
-
 /** Transition Slide Direction Type */
 export enum ST_TransitionSideDirectionType {
   /** Transition Slide Direction Enum ( Left ) */
@@ -26,7 +25,6 @@ export enum ST_TransitionSideDirectionType {
   /** Transition Slide Direction Enum ( Down ) */
   d = 'd'
 }
-
 /** Transition Corner Direction Type */
 export enum ST_TransitionCornerDirectionType {
   /** Transition Corner Direction Enum ( Left-Up ) */
@@ -38,7 +36,6 @@ export enum ST_TransitionCornerDirectionType {
   /** Transition Corner Direction Enum ( Right-Down ) */
   rd = 'rd'
 }
-
 /** Transition In/Out Direction Type */
 export enum ST_TransitionInOutDirectionType {
   /** Transition In/Out Direction Enum ( Out ) */
@@ -46,10 +43,8 @@ export enum ST_TransitionInOutDirectionType {
   /** Transition In/Out Direction Enum ( In ) */
   in = 'in'
 }
-
 /** Transition Eight Direction */
 export type ST_TransitionEightDirectionType = string;
-
 /** Transition Speed */
 export enum ST_TransitionSpeed {
   /** low */
@@ -59,19 +54,15 @@ export enum ST_TransitionSpeed {
   /** Fast */
   fast = 'fast'
 }
-
 /** Indefinite Time Declaration */
 export enum ST_TLTimeIndefinite {
   /** Indefinite Type Enum */
   indefinite = 'indefinite'
 }
-
 /** Time */
 export type ST_TLTime = string;
-
 /** Time Node ID */
 export type ST_TLTimeNodeID = string;
-
 /** Iterate Type */
 export enum ST_IterateType {
   /** Element */
@@ -81,7 +72,6 @@ export enum ST_IterateType {
   /** Letter */
   lt = 'lt'
 }
-
 /** Chart Subelement Type */
 export enum ST_TLChartSubelementType {
   /** Chart Build Element Type Enum ( Grid Legend ) */
@@ -95,7 +85,6 @@ export enum ST_TLChartSubelementType {
   /** Chart Build Element Type Enum ( Point in Cat ) */
   ptInCategory = 'ptInCategory'
 }
-
 /** Trigger RunTime Node */
 export enum ST_TLTriggerRuntimeNode {
   /** Trigger RunTime Node ( First ) */
@@ -105,7 +94,6 @@ export enum ST_TLTriggerRuntimeNode {
   /** Trigger RunTime Node Enum ( All ) */
   all = 'all'
 }
-
 /** Trigger Event */
 export enum ST_TLTriggerEvent {
   /** Trigger Event Enum ( On Begin ) */
@@ -131,7 +119,6 @@ export enum ST_TLTriggerEvent {
   /** Trigger Event Enum ( On Stop Audio ) */
   onStopAudio = 'onStopAudio'
 }
-
 /** Time Node Preset Class Type */
 export enum ST_TLTimeNodePresetClassType {
   /** Preset Type Enum ( Entrance ) */
@@ -147,7 +134,6 @@ export enum ST_TLTimeNodePresetClassType {
   /** Preset Type Enum ( Media Call ) */
   mediacall = 'mediacall'
 }
-
 /** Time Node Restart Type */
 export enum ST_TLTimeNodeRestartType {
   /** Restart Enum ( Always ) */
@@ -157,7 +143,6 @@ export enum ST_TLTimeNodeRestartType {
   /** Restart Enum ( Never ) */
   never = 'never'
 }
-
 /** Time Node Fill Type */
 export enum ST_TLTimeNodeFillType {
   /** Remove */
@@ -169,7 +154,6 @@ export enum ST_TLTimeNodeFillType {
   /** Transition */
   transition = 'transition'
 }
-
 /** Time Node Sync Type */
 export enum ST_TLTimeNodeSyncType {
   /** TimeNode Sync Enum ( Can Slip ) */
@@ -177,7 +161,6 @@ export enum ST_TLTimeNodeSyncType {
   /** TimeNode Sync Enum ( Locked ) */
   locked = 'locked'
 }
-
 /** Time Node Master Relation */
 export enum ST_TLTimeNodeMasterRelation {
   /** TimeNode Master Relation Enum ( Same Click ) */
@@ -187,7 +170,6 @@ export enum ST_TLTimeNodeMasterRelation {
   /** TimeNode Master Relation Enum ( Next Click ) */
   nextClick = 'nextClick'
 }
-
 /** Time Node Type */
 export enum ST_TLTimeNodeType {
   /** Node Type Enum ( Click Effect ) */
@@ -209,7 +191,6 @@ export enum ST_TLTimeNodeType {
   /** Node Type Enum ( Timing Root ) */
   tmRoot = 'tmRoot'
 }
-
 /** Next Action Type */
 export enum ST_TLNextActionType {
   /** Next Action Type Enum ( None ) */
@@ -217,7 +198,6 @@ export enum ST_TLNextActionType {
   /** Next Action Type Enum ( Seek ) */
   seek = 'seek'
 }
-
 /** Previous Action Type */
 export enum ST_TLPreviousActionType {
   /** Previous Action Type Enum ( None ) */
@@ -225,7 +205,6 @@ export enum ST_TLPreviousActionType {
   /** Previous Action Type Enum ( Skip Timed ) */
   skipTimed = 'skipTimed'
 }
-
 /** Behavior Additive Type */
 export enum ST_TLBehaviorAdditiveType {
   /** Additive Enum ( Base ) */
@@ -239,7 +218,6 @@ export enum ST_TLBehaviorAdditiveType {
   /** None */
   none = 'none'
 }
-
 /** Behavior Accumulate Type */
 export enum ST_TLBehaviorAccumulateType {
   /** Accumulate Enum ( None ) */
@@ -247,7 +225,6 @@ export enum ST_TLBehaviorAccumulateType {
   /** Accumulate Enum ( Always ) */
   always = 'always'
 }
-
 /** Behavior Transform Type */
 export enum ST_TLBehaviorTransformType {
   /** Point */
@@ -255,7 +232,6 @@ export enum ST_TLBehaviorTransformType {
   /** Image */
   img = 'img'
 }
-
 /** Behavior Override Type */
 export enum ST_TLBehaviorOverrideType {
   /** Override Enum ( Normal ) */
@@ -263,10 +239,8 @@ export enum ST_TLBehaviorOverrideType {
   /** Override Enum ( Child Style ) */
   childStyle = 'childStyle'
 }
-
 /** Animation Time */
 export type ST_TLTimeAnimateValueTime = string;
-
 /** Time List Animate Behavior Calculate Mode */
 export enum ST_TLAnimateBehaviorCalcMode {
   /** Calc Mode Enum ( Discrete ) */
@@ -276,7 +250,6 @@ export enum ST_TLAnimateBehaviorCalcMode {
   /** Calc Mode Enum ( Formula ) */
   fmla = 'fmla'
 }
-
 /** Time List Animate Behavior Value Types */
 export enum ST_TLAnimateBehaviorValueType {
   /** Value Type Enum ( String ) */
@@ -286,7 +259,6 @@ export enum ST_TLAnimateBehaviorValueType {
   /** Value Type Enum ( Color ) */
   clr = 'clr'
 }
-
 /** Time List Animate Color Space */
 export enum ST_TLAnimateColorSpace {
   /** Color Space Enum ( RGB ) */
@@ -294,7 +266,6 @@ export enum ST_TLAnimateColorSpace {
   /** Color Space Enum ( HSL ) */
   hsl = 'hsl'
 }
-
 /** Time List Animate Color Direction */
 export enum ST_TLAnimateColorDirection {
   /** Direction Enum ( Clockwise ) */
@@ -302,7 +273,6 @@ export enum ST_TLAnimateColorDirection {
   /** Counter-Clockwise */
   ccw = 'ccw'
 }
-
 /** Time List Animate Effect Transition */
 export enum ST_TLAnimateEffectTransition {
   /** Transition Enum ( In ) */
@@ -312,7 +282,6 @@ export enum ST_TLAnimateEffectTransition {
   /** Transition Enum ( None ) */
   none = 'none'
 }
-
 /** Time List Animate Motion Behavior Origin */
 export enum ST_TLAnimateMotionBehaviorOrigin {
   /** Origin Enum ( Parent ) */
@@ -320,7 +289,6 @@ export enum ST_TLAnimateMotionBehaviorOrigin {
   /** Origin Enum ( Layout ) */
   layout = 'layout'
 }
-
 /** Time List Animate Motion Path Edit Mode */
 export enum ST_TLAnimateMotionPathEditMode {
   /** Path Edit Mode Enum ( Relative ) */
@@ -328,7 +296,6 @@ export enum ST_TLAnimateMotionPathEditMode {
   /** Path Edit Mode Enum ( Fixed ) */
   fixed = 'fixed'
 }
-
 /** Command Type */
 export enum ST_TLCommandType {
   /** Command Type Enum ( Event ) */
@@ -338,7 +305,6 @@ export enum ST_TLCommandType {
   /** Command Type Enum ( Verb ) */
   verb = 'verb'
 }
-
 /** Paragraph Build Type */
 export enum ST_TLParaBuildType {
   /** All At Once */
@@ -350,7 +316,6 @@ export enum ST_TLParaBuildType {
   /** Whole */
   whole = 'whole'
 }
-
 /** Diagram Build Types */
 export enum ST_TLDiagramBuildType {
   /** Diagram Build Type Enum ( Whole ) */
@@ -388,7 +353,6 @@ export enum ST_TLDiagramBuildType {
   /** Diagram Build Type Enum ( Custom ) */
   cust = 'cust'
 }
-
 /** OLE Chart Build Type */
 export enum ST_TLOleChartBuildType {
   /** Chart Build Type Enum ( All At Once ) */
@@ -402,59 +366,48 @@ export enum ST_TLOleChartBuildType {
   /** Chart Build Type Enum ( Category Element ) */
   categoryEl = 'categoryEl'
 }
-
 /** Direction */
 export interface CT_SideDirectionTransition {
   dir?: ST_TransitionSideDirectionType;
 }
-
 /** Direction */
 export interface CT_CornerDirectionTransition {
   dir?: ST_TransitionCornerDirectionType;
 }
-
 /** Direction */
 export interface CT_EightDirectionTransition {
   dir?: ST_TransitionEightDirectionType;
 }
-
 /** Transition Direction */
 export interface CT_OrientationTransition {
   dir?: ST_Direction;
 }
-
 /** Direction */
 export interface CT_InOutTransition {
   dir?: ST_TransitionInOutDirectionType;
 }
-
 /** Transition Through Black */
 export interface CT_OptionalBlackTransition {
   thruBlk?: boolean;
 }
-
 /** Orientation */
 export interface CT_SplitTransition {
   orient?: ST_Direction;
   dir?: ST_TransitionInOutDirectionType;
 }
-
 /** Spokes */
 export interface CT_WheelTransition {
   spokes?: number;
 }
-
 /** Sound */
 export interface CT_TransitionStartSoundAction {
   loop?: boolean;
 }
-
 /** Start Sound Action */
 export interface CT_TransitionSoundAction {
   stSnd: CT_TransitionStartSoundAction;
   endSnd: CT_Empty;
 }
-
 /** Blinds Slide Transition */
 export interface CT_SlideTransition {
   spd?: ST_TransitionSpeed;
@@ -484,17 +437,14 @@ export interface CT_SlideTransition {
   sndAc?: any;
   extLst?: CT_ExtensionListModify;
 }
-
 /** Time */
 export interface CT_TLIterateIntervalTime {
   val: ST_TLTime;
 }
-
 /** Value */
 export interface CT_TLIterateIntervalPercentage {
   val: ST_PositivePercentage;
 }
-
 /** Time Absolute */
 export interface CT_TLIterateData {
   type?: ST_IterateType;
@@ -502,24 +452,20 @@ export interface CT_TLIterateData {
   tmAbs: CT_TLIterateIntervalTime;
   tmPct: CT_TLIterateIntervalPercentage;
 }
-
 /** Shape ID */
 export interface CT_TLSubShapeId {
   spid: ST_ShapeID;
 }
-
 /** Character Range */
 export interface CT_TLTextTargetElement {
   charRg: CT_IndexRange;
   pRg: CT_IndexRange;
 }
-
 /** Type */
 export interface CT_TLOleChartTargetElement {
   type: ST_TLChartSubelementType;
   lvl?: number;
 }
-
 /** Background */
 export interface CT_TLShapeTargetElement {
   spid: ST_ShapeID;
@@ -529,7 +475,6 @@ export interface CT_TLShapeTargetElement {
   txEl: CT_TLTextTargetElement;
   graphicEl: CT_AnimationElementChoice;
 }
-
 /** Slide Target */
 export interface CT_TLTimeTargetElement {
   sldTgt: CT_Empty;
@@ -537,17 +482,14 @@ export interface CT_TLTimeTargetElement {
   spTgt: CT_TLShapeTargetElement;
   inkTgt: CT_TLSubShapeId;
 }
-
 /** Value */
 export interface CT_TLTriggerTimeNodeID {
   val: ST_TLTimeNodeID;
 }
-
 /** Value */
 export interface CT_TLTriggerRuntimeNode {
   val: ST_TLTriggerRuntimeNode;
 }
-
 /** Target Element Trigger Choice */
 export interface CT_TLTimeCondition {
   evt?: any;
@@ -556,12 +498,10 @@ export interface CT_TLTimeCondition {
   tn: CT_TLTriggerTimeNodeID;
   rtn: CT_TLTriggerRuntimeNode;
 }
-
 /** Condition */
 export interface CT_TLTimeConditionList {
   cond: CT_TLTimeCondition[];
 }
-
 /** Parallel Time Node */
 export interface CT_TimeNodeList {
   par: CT_TLTimeNodeParallel;
@@ -578,7 +518,6 @@ export interface CT_TimeNodeList {
   audio: CT_TLMediaNodeAudio;
   video: CT_TLMediaNodeVideo;
 }
-
 /** Start Conditions List */
 export interface CT_TLCommonTimeNodeData {
   id?: ST_TLTimeNodeID;
@@ -611,12 +550,10 @@ export interface CT_TLCommonTimeNodeData {
   childTnLst?: CT_TimeNodeList;
   subTnLst?: CT_TimeNodeList;
 }
-
 /** Parallel TimeNode */
 export interface CT_TLTimeNodeParallel {
   cTn: CT_TLCommonTimeNodeData;
 }
-
 /** Common TimeNode Properties */
 export interface CT_TLTimeNodeSequence {
   concurrent?: boolean;
@@ -626,17 +563,14 @@ export interface CT_TLTimeNodeSequence {
   prevCondLst?: CT_TLTimeConditionList;
   nextCondLst?: CT_TLTimeConditionList;
 }
-
 /** Common TimeNode Properties */
 export interface CT_TLTimeNodeExclusive {
   cTn: CT_TLCommonTimeNodeData;
 }
-
 /** Attribute Name */
 export interface CT_TLBehaviorAttributeNameList {
   attrName: string[];
 }
-
 /** Target Element */
 export interface CT_TLCommonBehaviorData {
   additive?: ST_TLBehaviorAdditiveType;
@@ -651,27 +585,22 @@ export interface CT_TLCommonBehaviorData {
   tgtEl: CT_TLTimeTargetElement;
   attrNameLst?: CT_TLBehaviorAttributeNameList;
 }
-
 /** Value */
 export interface CT_TLAnimVariantBooleanVal {
   val: boolean;
 }
-
 /** Value */
 export interface CT_TLAnimVariantIntegerVal {
   val: number;
 }
-
 /** Value */
 export interface CT_TLAnimVariantFloatVal {
   val: number;
 }
-
 /** Value */
 export interface CT_TLAnimVariantStringVal {
   val: string;
 }
-
 /** Boolean Variant */
 export interface CT_TLAnimVariant {
   boolVal: CT_TLAnimVariantBooleanVal;
@@ -680,19 +609,16 @@ export interface CT_TLAnimVariant {
   strVal: CT_TLAnimVariantStringVal;
   clrVal: CT_Color;
 }
-
 /** Value */
 export interface CT_TLTimeAnimateValue {
   tm?: ST_TLTimeAnimateValueTime;
   fmla?: string;
   val?: CT_TLAnimVariant;
 }
-
 /** Time Animate Value */
 export interface CT_TLTimeAnimateValueList {
   tav?: CT_TLTimeAnimateValue[];
 }
-
 /** Time Animated Value List */
 export interface CT_TLAnimateBehavior {
   by?: string;
@@ -703,27 +629,23 @@ export interface CT_TLAnimateBehavior {
   cBhvr: CT_TLCommonBehaviorData;
   tavLst?: CT_TLTimeAnimateValueList;
 }
-
 /** Red */
 export interface CT_TLByRgbColorTransform {
   r: ST_FixedPercentage;
   g: ST_FixedPercentage;
   b: ST_FixedPercentage;
 }
-
 /** Hue */
 export interface CT_TLByHslColorTransform {
   h: ST_Angle;
   s: ST_FixedPercentage;
   l: ST_FixedPercentage;
 }
-
 /** RGB */
 export interface CT_TLByAnimateColorTransform {
   rgb: CT_TLByRgbColorTransform;
   hsl: CT_TLByHslColorTransform;
 }
-
 /** By */
 export interface CT_TLAnimateColorBehavior {
   clrSpc?: ST_TLAnimateColorSpace;
@@ -733,7 +655,6 @@ export interface CT_TLAnimateColorBehavior {
   from?: CT_Color;
   to?: CT_Color;
 }
-
 /** Progress */
 export interface CT_TLAnimateEffectBehavior {
   transition?: ST_TLAnimateEffectTransition;
@@ -742,13 +663,11 @@ export interface CT_TLAnimateEffectBehavior {
   cBhvr: CT_TLCommonBehaviorData;
   progress?: CT_TLAnimVariant;
 }
-
 /** X coordinate */
 export interface CT_TLPoint {
   x: ST_Percentage;
   y: ST_Percentage;
 }
-
 /** From */
 export interface CT_TLAnimateMotionBehavior {
   origin?: ST_TLAnimateMotionBehaviorOrigin;
@@ -762,7 +681,6 @@ export interface CT_TLAnimateMotionBehavior {
   to?: CT_TLPoint;
   rCtr?: CT_TLPoint;
 }
-
 /** By */
 export interface CT_TLAnimateRotationBehavior {
   by?: ST_Angle;
@@ -770,7 +688,6 @@ export interface CT_TLAnimateRotationBehavior {
   to?: ST_Angle;
   cBhvr: CT_TLCommonBehaviorData;
 }
-
 /** By */
 export interface CT_TLAnimateScaleBehavior {
   zoomContents?: boolean;
@@ -779,19 +696,16 @@ export interface CT_TLAnimateScaleBehavior {
   from?: CT_TLPoint;
   to?: CT_TLPoint;
 }
-
 /** Command Type */
 export interface CT_TLCommandBehavior {
   cmd?: string;
   cBhvr: CT_TLCommonBehaviorData;
 }
-
 /** Common Behavior */
 export interface CT_TLSetBehavior {
   cBhvr: CT_TLCommonBehaviorData;
   to?: CT_TLAnimVariant;
 }
-
 /** Common Time Node Properties */
 export interface CT_TLCommonMediaNodeData {
   vol?: ST_PositiveFixedPercentage;
@@ -801,30 +715,25 @@ export interface CT_TLCommonMediaNodeData {
   cTn: CT_TLCommonTimeNodeData;
   tgtEl: CT_TLTimeTargetElement;
 }
-
 /** Common Media Node Properties */
 export interface CT_TLMediaNodeAudio {
   isNarration?: boolean;
   cMediaNode: CT_TLCommonMediaNodeData;
 }
-
 /** Common Media Node Properties */
 export interface CT_TLMediaNodeVideo {
   fullScrn?: boolean;
   cMediaNode: CT_TLCommonMediaNodeData;
 }
-
 /** Time Node List */
 export interface CT_TLTemplate {
   lvl?: number;
   tnLst: CT_TimeNodeList;
 }
-
 /** Template Effects */
 export interface CT_TLTemplateList {
   tmpl?: CT_TLTemplate[];
 }
-
 /** Template effects */
 export interface CT_TLBuildParagraph {
   build?: ST_TLParaBuildType;
@@ -835,24 +744,20 @@ export interface CT_TLBuildParagraph {
   advAuto?: ST_TLTime;
   tmplLst?: CT_TLTemplateList;
 }
-
 /** Diagram Build Types */
 export interface CT_TLBuildDiagram {
   bld?: ST_TLDiagramBuildType;
 }
-
 /** Build */
 export interface CT_TLOleBuildChart {
   bld?: ST_TLOleChartBuildType;
   animBg?: boolean;
 }
-
 /** Build As One */
 export interface CT_TLGraphicalObjectBuild {
   bldAsOne: CT_Empty;
   bldSub: CT_AnimationGraphicalObjectBuildProperties;
 }
-
 /** Build Paragraph */
 export interface CT_BuildList {
   bldP: CT_TLBuildParagraph;
@@ -860,7 +765,6 @@ export interface CT_BuildList {
   bldOleChart: CT_TLOleBuildChart;
   bldGraphic: CT_TLGraphicalObjectBuild;
 }
-
 /** Build List */
 export interface CT_SlideTiming {
   tnLst?: CT_TimeNodeList;

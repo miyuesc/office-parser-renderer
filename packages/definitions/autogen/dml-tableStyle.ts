@@ -1,3 +1,4 @@
+import { ST_Guid } from './common-types';
 import { CT_FontCollection } from './dml-baseStylesheet';
 import {
   CT_HslColor,
@@ -13,12 +14,9 @@ import { CT_Bevel, ST_PresetMaterialType } from './dml-shape3DStyles';
 import { CT_EffectProperties, CT_FillProperties } from './dml-shapeEffects';
 import { CT_LineProperties } from './dml-shapeLineProperties';
 import { CT_FontReference, CT_StyleMatrixReference } from './dml-shapeStyle';
-import { ST_Guid } from './wml';
-
 /**
  * dml-tableStyle.xsd
  */
-
 /** On/Off Style Type */
 export enum ST_OnOffStyleType {
   /** On */
@@ -28,7 +26,6 @@ export enum ST_OnOffStyleType {
   /** Default */
   def = 'def'
 }
-
 /** Bevel */
 export interface CT_Cell3D {
   prstMaterial?: ST_PresetMaterialType;
@@ -36,13 +33,11 @@ export interface CT_Cell3D {
   lightRig?: CT_LightRig;
   extLst?: CT_OfficeArtExtensionList;
 }
-
 /** Line Reference */
 export interface CT_ThemeableLineStyle {
   ln?: CT_LineProperties;
   lnRef?: CT_StyleMatrixReference;
 }
-
 /** Bold */
 export interface CT_TableStyleTextStyle {
   b?: ST_OnOffStyleType;
@@ -57,7 +52,6 @@ export interface CT_TableStyleTextStyle {
   prstClr?: CT_PresetColor;
   extLst?: CT_OfficeArtExtensionList;
 }
-
 /** Left Border */
 export interface CT_TableCellBorderStyle {
   left?: CT_ThemeableLineStyle;
@@ -70,14 +64,12 @@ export interface CT_TableCellBorderStyle {
   tr2bl?: CT_ThemeableLineStyle;
   extLst?: CT_OfficeArtExtensionList;
 }
-
 export interface CT_TableBackgroundStyle {
   fill?: CT_FillProperties;
   fillRef?: CT_StyleMatrixReference;
   effect?: CT_EffectProperties;
   effectRef?: CT_StyleMatrixReference;
 }
-
 /** Table Cell Borders */
 export interface CT_TableStyleCellStyle {
   tcBdr?: CT_TableCellBorderStyle;
@@ -85,13 +77,11 @@ export interface CT_TableStyleCellStyle {
   fillRef?: CT_StyleMatrixReference;
   cell3D?: CT_Cell3D;
 }
-
 /** Table Cell Text Style */
 export interface CT_TablePartStyle {
   tcTxStyle?: CT_TableStyleTextStyle;
   tcStyle?: CT_TableStyleCellStyle;
 }
-
 /** Table Background */
 export interface CT_TableStyle {
   styleId: ST_Guid;
@@ -112,7 +102,6 @@ export interface CT_TableStyle {
   nwCell?: CT_TablePartStyle;
   extLst?: CT_OfficeArtExtensionList;
 }
-
 /** Table Style */
 export interface CT_TableStyleList {
   def: ST_Guid;

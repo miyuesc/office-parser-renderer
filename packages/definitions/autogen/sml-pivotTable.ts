@@ -1,12 +1,11 @@
-import { CT_ExtensionList, ST_Ref, ST_UnsignedIntHex, ST_Xstring } from './sml-baseTypes';
+import { CT_ExtensionList, ST_Xstring } from './common-types';
+import { ST_Ref, ST_UnsignedIntHex } from './sml-baseTypes';
 import { CT_Index, CT_PivotArea } from './sml-pivotTableShared';
 import { ST_DataConsolidateFunction } from './sml-sheet';
 import { ST_DxfId, ST_NumFmtId } from './sml-styles';
-
 /**
  * sml-pivotTable.xsd
  */
-
 /** PivotCache Type */
 export enum ST_SourceType {
   /** Worksheet */
@@ -18,7 +17,6 @@ export enum ST_SourceType {
   /** Scenario Summary Report */
   scenario = 'scenario'
 }
-
 /** Values Group By */
 export enum ST_GroupBy {
   /** Group By Numeric Ranges */
@@ -38,7 +36,6 @@ export enum ST_GroupBy {
   /** Years */
   years = 'years'
 }
-
 /** Set Sort Order */
 export enum ST_SortType {
   /** None */
@@ -56,7 +53,6 @@ export enum ST_SortType {
   /** Natural Order Descending */
   descendingNatural = 'descendingNatural'
 }
-
 /** Conditional Formatting Scope */
 export enum ST_Scope {
   /** Selection */
@@ -66,7 +62,6 @@ export enum ST_Scope {
   /** Field Intersections */
   field = 'field'
 }
-
 /** Top N Evaluation Type */
 export enum ST_Type {
   /** Top N None */
@@ -78,7 +73,6 @@ export enum ST_Type {
   /** Column Top N */
   column = 'column'
 }
-
 /** Show Data As */
 export enum ST_ShowDataAs {
   /** Normal Data Type */
@@ -100,7 +94,6 @@ export enum ST_ShowDataAs {
   /** Index */
   index = 'index'
 }
-
 /** PivotItem Type */
 export enum ST_ItemType {
   /** Data */
@@ -134,7 +127,6 @@ export enum ST_ItemType {
   /** Blank Pivot Item */
   blank = 'blank'
 }
-
 /** PivotTable Format Types */
 export enum ST_FormatAction {
   /** Blank */
@@ -146,7 +138,6 @@ export enum ST_FormatAction {
   /** Formula Type */
   formula = 'formula'
 }
-
 /** Field Sort Type */
 export enum ST_FieldSortType {
   /** Manual Sort */
@@ -156,7 +147,6 @@ export enum ST_FieldSortType {
   /** Descending */
   descending = 'descending'
 }
-
 /** Pivot Filter Types */
 export enum ST_PivotFilterType {
   /** Unknown */
@@ -292,7 +282,6 @@ export enum ST_PivotFilterType {
   /** Dates in December */
   M12 = 'M12'
 }
-
 /** PivotCache Source Description */
 export interface CT_PivotCacheDefinition {
   id: string;
@@ -324,13 +313,11 @@ export interface CT_PivotCacheDefinition {
   maps?: CT_MeasureDimensionMaps;
   extLst?: any;
 }
-
 /** PivotCache Field */
 export interface CT_CacheFields {
   count?: number;
   cacheField?: CT_CacheField[];
 }
-
 /** Shared Items */
 export interface CT_CacheField {
   name: ST_Xstring;
@@ -351,7 +338,6 @@ export interface CT_CacheField {
   mpMap?: any[];
   extLst?: any;
 }
-
 /** Worksheet PivotCache Source */
 export interface CT_CacheSource {
   type: ST_SourceType;
@@ -360,7 +346,6 @@ export interface CT_CacheSource {
   consolidation: CT_Consolidation;
   extLst?: CT_ExtensionList;
 }
-
 /** Reference */
 export interface CT_WorksheetSource {
   ref?: ST_Ref;
@@ -368,37 +353,31 @@ export interface CT_WorksheetSource {
   sheet?: ST_Xstring;
   id: string;
 }
-
 /** Page Item Values */
 export interface CT_Consolidation {
   autoPage?: boolean;
   pages?: CT_Pages;
   rangeSets: CT_RangeSets;
 }
-
 /** Page Items */
 export interface CT_Pages {
   count?: number;
   page: CT_PCDSCPage[];
 }
-
 /** Page Item */
 export interface CT_PCDSCPage {
   count?: number;
   pageItem?: CT_PageItem[];
 }
-
 /** Page Item Name */
 export interface CT_PageItem {
   name: ST_Xstring;
 }
-
 /** Range Set */
 export interface CT_RangeSets {
   count?: number;
   rangeSet: CT_RangeSet[];
 }
-
 /** Field Item Index Page 1 */
 export interface CT_RangeSet {
   i1?: number;
@@ -410,7 +389,6 @@ export interface CT_RangeSet {
   sheet?: ST_Xstring;
   id: string;
 }
-
 /** No Value */
 export interface CT_SharedItems {
   containsSemiMixedTypes?: boolean;
@@ -434,7 +412,6 @@ export interface CT_SharedItems {
   s: CT_String;
   d: CT_DateTime;
 }
-
 /** Tuples */
 export interface CT_Missing {
   u?: boolean;
@@ -451,7 +428,6 @@ export interface CT_Missing {
   tpls?: any[];
   x?: any[];
 }
-
 /** OLAP Members */
 export interface CT_Number {
   v: any;
@@ -469,7 +445,6 @@ export interface CT_Number {
   tpls?: any[];
   x?: any[];
 }
-
 /** Member Property Indexes */
 export interface CT_Boolean {
   v: any;
@@ -479,7 +454,6 @@ export interface CT_Boolean {
   cp?: number;
   x?: any[];
 }
-
 /** Tuples */
 export interface CT_Error {
   v: any;
@@ -497,7 +471,6 @@ export interface CT_Error {
   tpls?: any;
   x?: any[];
 }
-
 /** Tuples */
 export interface CT_String {
   v: any;
@@ -515,7 +488,6 @@ export interface CT_String {
   tpls?: any[];
   x?: any[];
 }
-
 /** Member Property Index */
 export interface CT_DateTime {
   v: any;
@@ -525,7 +497,6 @@ export interface CT_DateTime {
   cp?: number;
   x?: any[];
 }
-
 /** Range Grouping Properties */
 export interface CT_FieldGroup {
   par?: number;
@@ -534,7 +505,6 @@ export interface CT_FieldGroup {
   discretePr?: any;
   groupItems?: any;
 }
-
 /** Source Data Set Beginning Range */
 export interface CT_RangePr {
   autoStart?: boolean;
@@ -546,13 +516,11 @@ export interface CT_RangePr {
   endDate?: any;
   groupInterval?: number;
 }
-
 /** Element Group */
 export interface CT_DiscretePr {
   count?: number;
   x: any[];
 }
-
 /** No Value */
 export interface CT_GroupItems {
   count?: number;
@@ -563,14 +531,12 @@ export interface CT_GroupItems {
   s: CT_String;
   d: CT_DateTime;
 }
-
 /** PivotCache Record */
 export interface CT_PivotCacheRecords {
   count?: number;
   r?: any[];
   extLst?: any;
 }
-
 /** No Value */
 export interface CT_Record {
   m: CT_Missing;
@@ -581,13 +547,11 @@ export interface CT_Record {
   d: CT_DateTime;
   x: CT_Index;
 }
-
 /** OLAP KPI */
 export interface CT_PCDKPIs {
   count?: number;
   kpi?: any[];
 }
-
 /** KPI Unique Name */
 export interface CT_PCDKPI {
   uniqueName: any;
@@ -602,13 +566,11 @@ export interface CT_PCDKPI {
   weight?: ST_Xstring;
   time?: ST_Xstring;
 }
-
 /** PivotCache Hierarchy */
 export interface CT_CacheHierarchies {
   count?: number;
   cacheHierarchy?: any[];
 }
-
 /** Fields Usage */
 export interface CT_CacheHierarchy {
   uniqueName: any;
@@ -637,24 +599,20 @@ export interface CT_CacheHierarchy {
   groupLevels?: any;
   extLst?: any;
 }
-
 /** PivotCache Field Id */
 export interface CT_FieldsUsage {
   count?: number;
   fieldUsage?: any[];
 }
-
 /** Field Index */
 export interface CT_FieldUsage {
   x: any;
 }
-
 /** OLAP Grouping Levels */
 export interface CT_GroupLevels {
   count?: number;
   groupLevel: any[];
 }
-
 /** OLAP Level Groups */
 export interface CT_GroupLevel {
   uniqueName: any;
@@ -664,13 +622,11 @@ export interface CT_GroupLevel {
   groups?: any;
   extLst?: any;
 }
-
 /** OLAP Group */
 export interface CT_Groups {
   count?: number;
   group: any[];
 }
-
 /** OLAP Group Members */
 export interface CT_LevelGroup {
   name: any;
@@ -680,19 +636,16 @@ export interface CT_LevelGroup {
   id?: number;
   groupMembers: CT_GroupMembers;
 }
-
 /** OLAP Group Member */
 export interface CT_GroupMembers {
   count?: number;
   groupMember: any[];
 }
-
 /** Group Member Unique Name */
 export interface CT_GroupMember {
   uniqueName: any;
   group?: boolean;
 }
-
 /** Entries */
 export interface CT_TupleCache {
   entries?: any;
@@ -701,19 +654,16 @@ export interface CT_TupleCache {
   serverFormats?: any;
   extLst?: any;
 }
-
 /** Culture */
 export interface CT_ServerFormat {
   culture?: any;
   format?: any;
 }
-
 /** Server Format */
 export interface CT_ServerFormats {
   count?: number;
   serverFormat?: CT_ServerFormat[];
 }
-
 /** No Value */
 export interface CT_PCDSDTCEntries {
   count?: number;
@@ -722,26 +672,22 @@ export interface CT_PCDSDTCEntries {
   e: CT_Error;
   s: CT_String;
 }
-
 /** Tuple */
 export interface CT_Tuples {
   c?: number;
   tpl: CT_Tuple[];
 }
-
 /** Field Index */
 export interface CT_Tuple {
   fld?: number;
   hier?: number;
   item: number;
 }
-
 /** OLAP Set */
 export interface CT_Sets {
   count?: number;
   set: any[];
 }
-
 /** Tuples */
 export interface CT_Set {
   count?: number;
@@ -752,25 +698,21 @@ export interface CT_Set {
   tpls?: any[];
   sortByTuple?: any;
 }
-
 /** Query */
 export interface CT_QueryCache {
   count?: number;
   query: any[];
 }
-
 /** Tuples */
 export interface CT_Query {
   mdx: any;
   tpls?: any;
 }
-
 /** Calculated Item */
 export interface CT_CalculatedItems {
   count?: number;
   calculatedItem: any[];
 }
-
 /** Calculated Item Location */
 export interface CT_CalculatedItem {
   field?: number;
@@ -778,13 +720,11 @@ export interface CT_CalculatedItem {
   pivotArea: CT_PivotArea;
   extLst?: any;
 }
-
 /** Calculated Member */
 export interface CT_CalculatedMembers {
   count?: number;
   calculatedMember: any[];
 }
-
 /** Future Feature Data Storage Area */
 export interface CT_CalculatedMember {
   name: any;
@@ -796,7 +736,6 @@ export interface CT_CalculatedMember {
   set?: boolean;
   extLst?: any;
 }
-
 /** PivotTable Location */
 export interface CT_pivotTableDefinition {
   name: any;
@@ -878,7 +817,6 @@ export interface CT_pivotTableDefinition {
   colHierarchiesUsage?: CT_ColHierarchiesUsage;
   extLst?: any;
 }
-
 /** Reference */
 export interface CT_Location {
   ref: any;
@@ -888,13 +826,11 @@ export interface CT_Location {
   rowPageCount?: number;
   colPageCount?: number;
 }
-
 /** PivotTable Field */
 export interface CT_PivotFields {
   count?: number;
   pivotField: any[];
 }
-
 /** Field Items */
 export interface CT_PivotField {
   name?: ST_Xstring;
@@ -949,18 +885,15 @@ export interface CT_PivotField {
   autoSortScope?: any;
   extLst?: any;
 }
-
 /** Auto Sort Scope */
 export interface CT_AutoSortScope {
   pivotArea: CT_PivotArea;
 }
-
 /** PivotTable Field Item */
 export interface CT_Items {
   count?: number;
   item: any[];
 }
-
 /** Item User Caption */
 export interface CT_Item {
   n?: ST_Xstring;
@@ -975,13 +908,11 @@ export interface CT_Item {
   d?: boolean;
   e?: boolean;
 }
-
 /** Page Field */
 export interface CT_PageFields {
   count?: number;
   pageField: any[];
 }
-
 /** Future Feature Data Storage Area */
 export interface CT_PageField {
   fld: any;
@@ -991,13 +922,11 @@ export interface CT_PageField {
   cap?: ST_Xstring;
   extLst?: any;
 }
-
 /** Data Field Item */
 export interface CT_DataFields {
   count?: number;
   dataField: any[];
 }
-
 /** Future Feature Data Storage Area */
 export interface CT_DataField {
   name?: any;
@@ -1009,19 +938,16 @@ export interface CT_DataField {
   numFmtId?: ST_NumFmtId;
   extLst?: any;
 }
-
 /** Row Items */
 export interface CT_rowItems {
   count?: number;
   i: any[];
 }
-
 /** Column Items */
 export interface CT_colItems {
   count?: number;
   i: any[];
 }
-
 /** Row / Column Item Index */
 export interface CT_I {
   t?: ST_ItemType;
@@ -1029,35 +955,29 @@ export interface CT_I {
   i?: number;
   x?: any[];
 }
-
 /** Shared Items Index */
 export interface CT_X {
   v?: number;
 }
-
 /** Row Items */
 export interface CT_RowFields {
   count?: number;
   field: any[];
 }
-
 /** Field */
 export interface CT_ColFields {
   count?: number;
   field: any[];
 }
-
 /** Field Index */
 export interface CT_Field {
   x: number;
 }
-
 /** PivotTable Format */
 export interface CT_Formats {
   count?: number;
   format: any[];
 }
-
 /** Pivot Table Location */
 export interface CT_Format {
   action?: ST_FormatAction;
@@ -1065,13 +985,11 @@ export interface CT_Format {
   pivotArea: CT_PivotArea;
   extLst?: any;
 }
-
 /** Conditional Formatting */
 export interface CT_ConditionalFormats {
   count?: number;
   conditionalFormat: any[];
 }
-
 /** Pivot Areas */
 export interface CT_ConditionalFormat {
   scope?: ST_Scope;
@@ -1080,19 +998,16 @@ export interface CT_ConditionalFormat {
   pivotAreas: CT_PivotAreas;
   extLst?: any;
 }
-
 /** Pivot Area */
 export interface CT_PivotAreas {
   count?: number;
   pivotArea?: any[];
 }
-
 /** PivotChart Format */
 export interface CT_ChartFormats {
   count?: number;
   chartFormat: any[];
 }
-
 /** Pivot Table Location Rule */
 export interface CT_ChartFormat {
   chart: any;
@@ -1100,13 +1015,11 @@ export interface CT_ChartFormat {
   series?: boolean;
   pivotArea: CT_PivotArea;
 }
-
 /** OLAP Hierarchy */
 export interface CT_PivotHierarchies {
   count?: number;
   pivotHierarchy: any[];
 }
-
 /** OLAP Member Properties */
 export interface CT_PivotHierarchy {
   outline?: boolean;
@@ -1124,30 +1037,25 @@ export interface CT_PivotHierarchy {
   members?: any[];
   extLst?: any;
 }
-
 /** Row OLAP Hierarchies */
 export interface CT_RowHierarchiesUsage {
   count?: number;
   rowHierarchyUsage: any[];
 }
-
 /** Column OLAP Hierarchies */
 export interface CT_ColHierarchiesUsage {
   count?: number;
   colHierarchyUsage: any[];
 }
-
 /** Hierarchy Usage */
 export interface CT_HierarchyUsage {
   hierarchyUsage: number;
 }
-
 /** OLAP Member Property */
 export interface CT_MemberProperties {
   count?: number;
   mp: any[];
 }
-
 /** OLAP Member Property Unique Name */
 export interface CT_MemberProperty {
   name?: ST_Xstring;
@@ -1160,25 +1068,21 @@ export interface CT_MemberProperty {
   level?: number;
   field: any;
 }
-
 /** Member */
 export interface CT_Members {
   count?: number;
   level?: any;
   member: any[];
 }
-
 /** Hidden Item Name */
 export interface CT_Member {
   name: any;
 }
-
 /** OLAP Dimension */
 export interface CT_Dimensions {
   count?: number;
   dimension?: any[];
 }
-
 /** Measure */
 export interface CT_PivotDimension {
   measure?: boolean;
@@ -1186,31 +1090,26 @@ export interface CT_PivotDimension {
   uniqueName: any;
   caption: any;
 }
-
 /** OLAP Measure Group */
 export interface CT_MeasureGroups {
   count?: number;
   measureGroup?: any[];
 }
-
 /** OLAP Measure Group */
 export interface CT_MeasureDimensionMaps {
   count?: number;
   map?: any[];
 }
-
 /** Measure Group Name */
 export interface CT_MeasureGroup {
   name: any;
   caption: any;
 }
-
 /** Measure Group Id */
 export interface CT_MeasureDimensionMap {
   measureGroup?: any;
   dimension?: any;
 }
-
 /** Table Style Name */
 export interface CT_PivotTableStyle {
   name?: string;
@@ -1220,13 +1119,11 @@ export interface CT_PivotTableStyle {
   showColStripes?: boolean;
   showLastColumn?: boolean;
 }
-
 /** PivotTable Advanced Filter */
 export interface CT_PivotFilters {
   count?: number;
   filter?: any[];
 }
-
 /** Auto Filter */
 export interface CT_PivotFilter {
   fld: any;

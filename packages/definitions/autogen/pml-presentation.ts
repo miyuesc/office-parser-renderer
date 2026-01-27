@@ -1,19 +1,15 @@
+import { CT_ExtensionList } from './common-types';
 import { CT_PositiveSize2D, ST_Percentage, ST_PositiveCoordinate32 } from './dml-baseTypes';
 import { CT_TextListStyle } from './dml-text';
 import { CT_TextFont } from './dml-textCharacter';
 import { CT_CustomerDataList, CT_SlideRelationshipList, ST_Name } from './pml-baseTypes';
-import { CT_ExtensionList } from './sml-baseTypes';
-
 /**
  * pml-presentation.xsd
  */
-
 /** Slide Identifier */
 export type ST_SlideId = number;
-
 /** Slide Master ID */
 export type ST_SlideMasterId = number;
-
 /** Photo Album Layout Definition */
 export enum ST_PhotoAlbumLayout {
   /** Fit Photos to Slide */
@@ -31,7 +27,6 @@ export enum ST_PhotoAlbumLayout {
   /** 4 Photos per Slide with Titles */
   _4picTitle = '4picTitle'
 }
-
 /** Photo Album Shape for Photo Mask */
 export enum ST_PhotoAlbumFrameShape {
   /** Rectangle Photo Frame */
@@ -49,10 +44,8 @@ export enum ST_PhotoAlbumFrameShape {
   /** Soft Edge Photo Frame */
   frameStyle7 = 'frameStyle7'
 }
-
 /** Slide Size Coordinate */
 export type ST_SlideSizeCoordinate = ST_PositiveCoordinate32;
-
 /** Slide Size Type */
 export enum ST_SlideSizeType {
   /** Screen 4x3 */
@@ -88,10 +81,8 @@ export enum ST_SlideSizeType {
   /** Screen 16x10 */
   screen16x10 = 'screen16x10'
 }
-
 /** Bookmark ID Seed */
 export type ST_BookmarkIdSeed = number;
-
 /** Cryptographic Provider Type */
 export enum ST_CryptProv {
   /** RSA AES Encryption Scheme */
@@ -101,7 +92,6 @@ export enum ST_CryptProv {
   /** Invalid Encryption Scheme */
   invalid = 'invalid'
 }
-
 /** Cryptographic Algorithm Classes */
 export enum ST_AlgClass {
   /** Hash Algorithm Class */
@@ -109,7 +99,6 @@ export enum ST_AlgClass {
   /** Invalid Algorithm Class */
   invalid = 'invalid'
 }
-
 /** Cryptographic Algorithm Type */
 export enum ST_AlgType {
   /** Any Algorithm Type */
@@ -117,56 +106,46 @@ export enum ST_AlgType {
   /** Invalid Algorithm Type */
   invalid = 'invalid'
 }
-
 /** Slide Identifier */
 export interface CT_SlideIdListEntry {
   id?: ST_SlideId | string;
   extLst?: CT_ExtensionList;
 }
-
 /** Slide ID */
 export interface CT_SlideIdList {
   sldId?: CT_SlideIdListEntry[];
 }
-
 /** Slide Master Identifier */
 export interface CT_SlideMasterIdListEntry {
   id?: ST_SlideMasterId | string;
   extLst?: CT_ExtensionList;
 }
-
 /** Slide Master ID */
 export interface CT_SlideMasterIdList {
   sldMasterId?: CT_SlideMasterIdListEntry[];
 }
-
 /** Relationship Identifier */
 export interface CT_NotesMasterIdListEntry {
   id: string;
   extLst?: CT_ExtensionList;
 }
-
 /** Notes Master ID */
 export interface CT_NotesMasterIdList {
   notesMasterId?: CT_NotesMasterIdListEntry;
 }
-
 /** Relationship Identifier */
 export interface CT_HandoutMasterIdListEntry {
   id: string;
   extLst?: CT_ExtensionList;
 }
-
 /** Handout Master ID */
 export interface CT_HandoutMasterIdList {
   handoutMasterId?: CT_HandoutMasterIdListEntry;
 }
-
 /** Relationship Identifier */
 export interface CT_EmbeddedFontDataId {
   id: string;
 }
-
 /** Embedded Font Name */
 export interface CT_EmbeddedFontListEntry {
   font: CT_TextFont;
@@ -175,17 +154,14 @@ export interface CT_EmbeddedFontListEntry {
   italic?: CT_EmbeddedFontDataId;
   boldItalic?: CT_EmbeddedFontDataId;
 }
-
 /** Embedded Font */
 export interface CT_EmbeddedFontList {
   embeddedFont?: CT_EmbeddedFontListEntry[];
 }
-
 /** Relationship Identifier */
 export interface CT_SmartTags {
   id: string;
 }
-
 /** List of Presentation Slides */
 export interface CT_CustomShow {
   name: ST_Name;
@@ -193,12 +169,10 @@ export interface CT_CustomShow {
   sldLst: CT_SlideRelationshipList;
   extLst?: CT_ExtensionList;
 }
-
 /** Custom Show */
 export interface CT_CustomShowList {
   custShow?: CT_CustomShow[];
 }
-
 /** Black and White */
 export interface CT_PhotoAlbum {
   bw?: boolean;
@@ -207,21 +181,18 @@ export interface CT_PhotoAlbum {
   frame?: ST_PhotoAlbumFrameShape;
   extLst?: CT_ExtensionList;
 }
-
 /** Extent Length */
 export interface CT_SlideSize {
   cx: ST_SlideSizeCoordinate;
   cy: ST_SlideSizeCoordinate;
   type?: ST_SlideSizeType;
 }
-
 /** Language */
 export interface CT_Kinsoku {
   lang?: string;
   invalStChars: string;
   invalEndChars: string;
 }
-
 /** Cryptographic Provider Type */
 export interface CT_ModifyVerifier {
   cryptProviderType: ST_CryptProv;
@@ -237,7 +208,6 @@ export interface CT_ModifyVerifier {
   cryptProviderTypeExt?: number;
   cryptProviderTypeExtSource?: string;
 }
-
 /** List of Slide Master IDs */
 export interface CT_Presentation {
   serverZoom?: ST_Percentage;

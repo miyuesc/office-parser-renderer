@@ -4,7 +4,7 @@
  * 解析 DrawingML 中的自定义几何形状定义 (a:custGeom)，
  * 将 OOXML 路径命令转换为 SVG 路径数据
  */
-import { XmlUtils } from '../../xml';
+import { XmlUtils } from '../../core/xml';
 
 export class CustomGeometryParser {
   /**

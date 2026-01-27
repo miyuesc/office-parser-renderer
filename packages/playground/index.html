@@ -5,12 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Office Canvas Renderer Playground</title>
     <style>
-      body {
+      html, body {
         font-family: sans-serif;
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        margin: 0;
+        padding: 0;
+      }
+      body {
         padding: 20px;
       }
       #app {
         margin-top: 20px;
+        width: 100%;
+        flex: 1;
+        overflow: hidden;
+        box-sizing: border-box;
       }
       canvas {
         border: 1px solid #ccc;
@@ -31,10 +45,7 @@
       <span id="status"></span>
     </div>
     <div id="app">
-      <div
-        id="container"
-        style="border: 1px solid #ccc; width: 100%; min-height: 500px; position: relative; overflow: auto"
-      ></div>
+      <div id="container"></div>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

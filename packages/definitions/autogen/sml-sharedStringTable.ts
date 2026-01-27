@@ -1,4 +1,4 @@
-import { ST_Xstring } from './sml-baseTypes';
+import { ST_Xstring } from './common-types';
 import {
   CT_BooleanProperty,
   CT_FontName,
@@ -10,11 +10,9 @@ import {
   ST_FontId
 } from './sml-styles';
 import { CT_Color } from './wml';
-
 /**
  * sml-sharedStringTable.xsd
  */
-
 /** Phonetic Type */
 export enum ST_PhoneticType {
   /** Half-Width Katakana */
@@ -26,7 +24,6 @@ export enum ST_PhoneticType {
   /** No Conversion */
   noConversion = 'noConversion'
 }
-
 /** Phonetic Alignment Types */
 export enum ST_PhoneticAlignment {
   /** No Control */
@@ -38,7 +35,6 @@ export enum ST_PhoneticAlignment {
   /** Distributed */
   distributed = 'distributed'
 }
-
 /** String Item */
 export interface CT_Sst {
   count?: number;
@@ -46,20 +42,17 @@ export interface CT_Sst {
   si?: CT_Rst[];
   extLst?: any;
 }
-
 /** Text */
 export interface CT_PhoneticRun {
   sb: number;
   eb: number;
   t: ST_Xstring;
 }
-
 /** Run Properties */
 export interface CT_RElt {
   rPr?: CT_RPrElt;
   t: ST_Xstring;
 }
-
 /** Font */
 export interface CT_RPrElt {
   rFont?: CT_FontName;
@@ -78,7 +71,6 @@ export interface CT_RPrElt {
   vertAlign?: CT_VerticalAlignFontProperty;
   scheme?: CT_FontScheme;
 }
-
 /** Text */
 export interface CT_Rst {
   t?: ST_Xstring;
@@ -86,7 +78,6 @@ export interface CT_Rst {
   rPh?: CT_PhoneticRun[];
   phoneticPr?: any;
 }
-
 /** Font Id */
 export interface CT_PhoneticPr {
   fontId: ST_FontId;

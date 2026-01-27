@@ -1,29 +1,18 @@
+import { CT_ExtensionList, ST_Guid, ST_Xstring } from './common-types';
 import { CT_AutoFilter, CT_SortState, ST_IconSetType } from './sml-autoFilter';
-import {
-  CT_ExtensionList,
-  ST_CellRef,
-  ST_Formula,
-  ST_Ref,
-  ST_Sqref,
-  ST_UnsignedShortHex,
-  ST_Xstring
-} from './sml-baseTypes';
+import { ST_CellRef, ST_Formula, ST_Ref, ST_Sqref, ST_UnsignedShortHex } from './sml-baseTypes';
 import { CT_PivotArea, ST_Axis } from './sml-pivotTableShared';
 import { CT_PhoneticPr, CT_Rst } from './sml-sharedStringTable';
 import { ST_DxfId, ST_NumFmtId } from './sml-styles';
 import { CT_SheetBackgroundPicture, ST_SheetState } from './sml-workbook';
-import { CT_Color, ST_Guid } from './wml';
-
+import { CT_Color } from './wml';
 /**
  * sml-sheet.xsd
  */
-
 /** Cell Span Type */
 export type ST_CellSpan = string;
-
 /** Cell Spans */
 export type ST_CellSpans = string;
-
 /** Cell Type */
 export enum ST_CellType {
   /** Boolean */
@@ -39,7 +28,6 @@ export enum ST_CellType {
   /** Inline String */
   inlineStr = 'inlineStr'
 }
-
 /** Formula Type */
 export enum ST_CellFormulaType {
   /** Normal */
@@ -51,7 +39,6 @@ export enum ST_CellFormulaType {
   /** Shared Formula */
   shared = 'shared'
 }
-
 /** Pane Types */
 export enum ST_Pane {
   /** Bottom Right Pane */
@@ -63,7 +50,6 @@ export enum ST_Pane {
   /** Top Left Pane */
   topLeft = 'topLeft'
 }
-
 /** Sheet View Type */
 export enum ST_SheetViewType {
   /** Normal View */
@@ -73,7 +59,6 @@ export enum ST_SheetViewType {
   /** Page Layout View */
   pageLayout = 'pageLayout'
 }
-
 /** Data Consolidation Functions */
 export enum ST_DataConsolidateFunction {
   /** Average */
@@ -99,7 +84,6 @@ export enum ST_DataConsolidateFunction {
   /** VarP */
   varp = 'varp'
 }
-
 /** Data Validation Type */
 export enum ST_DataValidationType {
   /** None */
@@ -119,7 +103,6 @@ export enum ST_DataValidationType {
   /** Custom */
   custom = 'custom'
 }
-
 /** Data Validation Operator */
 export enum ST_DataValidationOperator {
   /** Between */
@@ -139,7 +122,6 @@ export enum ST_DataValidationOperator {
   /** Greater Than Or Equal */
   greaterThanOrEqual = 'greaterThanOrEqual'
 }
-
 /** Data Validation Error Styles */
 export enum ST_DataValidationErrorStyle {
   /** Stop Icon */
@@ -149,7 +131,6 @@ export enum ST_DataValidationErrorStyle {
   /** Information Icon */
   information = 'information'
 }
-
 /** Data Validation IME Mode */
 export enum ST_DataValidationImeMode {
   /** IME Mode Not Controlled */
@@ -175,7 +156,6 @@ export enum ST_DataValidationImeMode {
   /** Half-Width Hangul IME Mode */
   halfHangul = 'halfHangul'
 }
-
 /** Conditional Format Type */
 export enum ST_CfType {
   /** Expression */
@@ -215,7 +195,6 @@ export enum ST_CfType {
   /** Above or Below Average */
   aboveAverage = 'aboveAverage'
 }
-
 /** Time Period Types */
 export enum ST_TimePeriod {
   /** Today */
@@ -239,7 +218,6 @@ export enum ST_TimePeriod {
   /** Next Week */
   nextWeek = 'nextWeek'
 }
-
 /** Conditional Format Operators */
 export enum ST_ConditionalFormattingOperator {
   /** Less Than */
@@ -267,7 +245,6 @@ export enum ST_ConditionalFormattingOperator {
   /** Ends With */
   endsWith = 'endsWith'
 }
-
 /** Conditional Format Value Object Type */
 export enum ST_CfvoType {
   /** Number */
@@ -283,7 +260,6 @@ export enum ST_CfvoType {
   /** Percentile */
   percentile = 'percentile'
 }
-
 /** Page Order */
 export enum ST_PageOrder {
   /** Down Then Over */
@@ -291,7 +267,6 @@ export enum ST_PageOrder {
   /** Over Then Down */
   overThenDown = 'overThenDown'
 }
-
 /** Orientation */
 export enum ST_Orientation {
   /** Default */
@@ -301,7 +276,6 @@ export enum ST_Orientation {
   /** Landscape */
   landscape = 'landscape'
 }
-
 /** Cell Comments */
 export enum ST_CellComments {
   /** None */
@@ -311,7 +285,6 @@ export enum ST_CellComments {
   /** Print At End */
   atEnd = 'atEnd'
 }
-
 /** Print Errors */
 export enum ST_PrintError {
   /** Display Cell Errors */
@@ -323,7 +296,6 @@ export enum ST_PrintError {
   /** NA */
   NA = 'NA'
 }
-
 /** Data View Aspect Type */
 export enum ST_DvAspect {
   /** Object Display Content */
@@ -331,7 +303,6 @@ export enum ST_DvAspect {
   /** Object Display Icon */
   DVASPECT_ICON = 'DVASPECT_ICON'
 }
-
 /** OLE Update Types */
 export enum ST_OleUpdate {
   /** Always Update OLE */
@@ -339,7 +310,6 @@ export enum ST_OleUpdate {
   /** Update OLE On Call */
   OLEUPDATE_ONCALL = 'OLEUPDATE_ONCALL'
 }
-
 /** Web Source Type */
 export enum ST_WebSourceType {
   /** All Sheet Content */
@@ -359,7 +329,6 @@ export enum ST_WebSourceType {
   /** Label */
   label = 'label'
 }
-
 /** Pane State */
 export enum ST_PaneState {
   /** Split */
@@ -369,7 +338,6 @@ export enum ST_PaneState {
   /** Frozen Split */
   frozenSplit = 'frozenSplit'
 }
-
 /** Sheet Properties */
 export interface CT_Macrosheet {
   sheetPr?: CT_SheetPr;
@@ -399,7 +367,6 @@ export interface CT_Macrosheet {
   oleObjects?: CT_OleObjects;
   extLst?: any;
 }
-
 /** Sheet Properties */
 export interface CT_Dialogsheet {
   sheetPr?: any;
@@ -417,7 +384,6 @@ export interface CT_Dialogsheet {
   oleObjects?: CT_OleObjects;
   extLst?: any;
 }
-
 /** Worksheet Properties */
 export interface CT_Worksheet {
   sheetPr?: CT_SheetPr;
@@ -459,17 +425,14 @@ export interface CT_Worksheet {
   tableParts?: CT_TableParts;
   extLst?: CT_ExtensionList;
 }
-
 /** Row */
 export interface CT_SheetData {
   row?: CT_Row[];
 }
-
 /** Full Calculation On Load */
 export interface CT_SheetCalcPr {
   fullCalcOnLoad?: boolean;
 }
-
 /** Base Column Width */
 export interface CT_SheetFormatPr {
   baseColWidth?: number;
@@ -482,12 +445,10 @@ export interface CT_SheetFormatPr {
   outlineLevelRow?: number;
   outlineLevelCol?: number;
 }
-
 /** Column Width &amp; Formatting */
 export interface CT_Cols {
   col: CT_Col[];
 }
-
 /** Minimum Column */
 export interface CT_Col {
   min: number;
@@ -501,7 +462,6 @@ export interface CT_Col {
   outlineLevel?: number;
   collapsed?: boolean;
 }
-
 /** Cell */
 export interface CT_Row {
   r?: number;
@@ -519,7 +479,6 @@ export interface CT_Row {
   c?: CT_Cell[];
   extLst?: any;
 }
-
 /** Formula */
 export interface CT_Cell {
   r?: ST_CellRef;
@@ -533,7 +492,6 @@ export interface CT_Cell {
   is?: CT_Rst;
   extLst?: any;
 }
-
 /** Sheet Tab Color */
 export interface CT_SheetPr {
   syncHorizontal?: boolean;
@@ -549,18 +507,15 @@ export interface CT_SheetPr {
   outlinePr?: CT_OutlinePr;
   pageSetUpPr?: CT_PageSetUpPr;
 }
-
 /** Reference */
 export interface CT_SheetDimension {
   ref: ST_Ref;
 }
-
 /** Worksheet View */
 export interface CT_SheetViews {
   sheetView: CT_SheetView[];
   extLst?: CT_ExtensionList;
 }
-
 /** View Pane */
 export interface CT_SheetView {
   windowProtection?: boolean;
@@ -587,7 +542,6 @@ export interface CT_SheetView {
   pivotSelection?: CT_PivotSelection[];
   extLst?: any;
 }
-
 /** Horizontal Split Position */
 export interface CT_Pane {
   xSplit?: number;
@@ -596,7 +550,6 @@ export interface CT_Pane {
   activePane?: ST_Pane;
   state?: ST_PaneState;
 }
-
 /** Pivot Area */
 export interface CT_PivotSelection {
   pane?: ST_Pane;
@@ -618,7 +571,6 @@ export interface CT_PivotSelection {
   id: string;
   pivotArea: CT_PivotArea;
 }
-
 /** Pane */
 export interface CT_Selection {
   pane?: ST_Pane;
@@ -626,14 +578,12 @@ export interface CT_Selection {
   activeCellId?: number;
   sqref?: ST_Sqref;
 }
-
 /** Break */
 export interface CT_PageBreak {
   count?: number;
   manualBreakCount?: number;
   brk?: CT_Break[];
 }
-
 /** Id */
 export interface CT_Break {
   id?: number;
@@ -642,7 +592,6 @@ export interface CT_Break {
   man?: boolean;
   pt?: boolean;
 }
-
 /** Apply Styles in Outline */
 export interface CT_OutlinePr {
   applyStyles?: boolean;
@@ -650,13 +599,11 @@ export interface CT_OutlinePr {
   summaryRight?: boolean;
   showOutlineSymbols?: boolean;
 }
-
 /** Show Auto Page Breaks */
 export interface CT_PageSetUpPr {
   autoPageBreaks?: boolean;
   fitToPage?: boolean;
 }
-
 /** Data Consolidation References */
 export interface CT_DataConsolidate {
   function?: ST_DataConsolidateFunction;
@@ -665,13 +612,11 @@ export interface CT_DataConsolidate {
   link?: boolean;
   dataRefs?: CT_DataRefs;
 }
-
 /** Data Consolidation Reference */
 export interface CT_DataRefs {
   count?: number;
   dataRef?: CT_DataRef[];
 }
-
 /** Reference */
 export interface CT_DataRef {
   ref?: ST_Ref;
@@ -679,29 +624,24 @@ export interface CT_DataRef {
   sheet?: ST_Xstring;
   id: string;
 }
-
 /** Merged Cell */
 export interface CT_MergeCells {
   count?: number;
   mergeCell: CT_MergeCell[];
 }
-
 /** Reference */
 export interface CT_MergeCell {
   ref: ST_Ref;
 }
-
 /** Cell Smart Tags */
 export interface CT_SmartTags {
   cellSmartTags: CT_CellSmartTags[];
 }
-
 /** Cell Smart Tag */
 export interface CT_CellSmartTags {
   r: ST_CellRef;
   cellSmartTag: CT_CellSmartTag[];
 }
-
 /** Smart Tag Properties */
 export interface CT_CellSmartTag {
   type: number;
@@ -709,28 +649,23 @@ export interface CT_CellSmartTag {
   xmlBased?: boolean;
   cellSmartTagPr?: any[];
 }
-
 /** Key Name */
 export interface CT_CellSmartTagPr {
   key: ST_Xstring;
   val: ST_Xstring;
 }
-
 /** Relationship id */
 export interface CT_Drawing {
   id: string;
 }
-
 /** Relationship Id */
 export interface CT_LegacyDrawing {
   id: string;
 }
-
 /** Custom Sheet View */
 export interface CT_CustomSheetViews {
   customSheetView: any[];
 }
-
 /** Pane Split Information */
 export interface CT_CustomSheetView {
   guid: ST_Guid;
@@ -764,7 +699,6 @@ export interface CT_CustomSheetView {
   autoFilter?: CT_AutoFilter;
   extLst?: any;
 }
-
 /** Data Validation */
 export interface CT_DataValidations {
   disablePrompts?: boolean;
@@ -773,7 +707,6 @@ export interface CT_DataValidations {
   count?: number;
   dataValidation: CT_DataValidation[];
 }
-
 /** Formula 1 */
 export interface CT_DataValidation {
   type?: ST_DataValidationType;
@@ -792,7 +725,6 @@ export interface CT_DataValidation {
   formula1?: ST_Formula;
   formula2?: ST_Formula;
 }
-
 /** Conditional Formatting Rule */
 export interface CT_ConditionalFormatting {
   pivot?: boolean;
@@ -800,7 +732,6 @@ export interface CT_ConditionalFormatting {
   cfRule: CT_CfRule[];
   extLst?: any;
 }
-
 /** Formula */
 export interface CT_CfRule {
   type?: ST_CfType;
@@ -822,12 +753,10 @@ export interface CT_CfRule {
   iconSet?: CT_IconSet;
   extLst?: any;
 }
-
 /** Hyperlink */
 export interface CT_Hyperlinks {
   hyperlink: CT_Hyperlink[];
 }
-
 /** Reference */
 export interface CT_Hyperlink {
   ref: ST_Ref;
@@ -836,7 +765,6 @@ export interface CT_Hyperlink {
   tooltip?: ST_Xstring;
   display?: ST_Xstring;
 }
-
 /** Formula Type */
 export interface CT_CellFormula {
   val?: ST_Formula;
@@ -853,13 +781,11 @@ export interface CT_CellFormula {
   si?: number;
   bx?: boolean;
 }
-
 /** Conditional Format Value Object */
 export interface CT_ColorScale {
   cfvo: CT_Cfvo[];
   color: CT_Color[];
 }
-
 /** Conditional Format Value Object */
 export interface CT_DataBar {
   minLength?: number;
@@ -868,7 +794,6 @@ export interface CT_DataBar {
   cfvo: CT_Cfvo[];
   color: CT_Color;
 }
-
 /** Conditional Formatting Object */
 export interface CT_IconSet {
   iconSet?: ST_IconSetType;
@@ -877,7 +802,6 @@ export interface CT_IconSet {
   reverse?: boolean;
   cfvo: CT_Cfvo[];
 }
-
 /** Type */
 export interface CT_Cfvo {
   type: ST_CfvoType;
@@ -885,7 +809,6 @@ export interface CT_Cfvo {
   gte?: boolean;
   extLst?: CT_ExtensionList;
 }
-
 /** Left Page Margin */
 export interface CT_PageMargins {
   left: number;
@@ -895,7 +818,6 @@ export interface CT_PageMargins {
   header: number;
   footer: number;
 }
-
 /** Horizontal Centered */
 export interface CT_PrintOptions {
   horizontalCentered?: boolean;
@@ -904,7 +826,6 @@ export interface CT_PrintOptions {
   gridLines?: boolean;
   gridLinesSet?: boolean;
 }
-
 /** Paper Size */
 export interface CT_PageSetup {
   paperSize?: number;
@@ -925,7 +846,6 @@ export interface CT_PageSetup {
   copies?: number;
   id: string;
 }
-
 /** Odd Header */
 export interface CT_HeaderFooter {
   differentOddEven?: boolean;
@@ -939,7 +859,6 @@ export interface CT_HeaderFooter {
   firstHeader?: ST_Xstring;
   firstFooter?: ST_Xstring;
 }
-
 /** Scenario */
 export interface CT_Scenarios {
   current?: number;
@@ -947,7 +866,6 @@ export interface CT_Scenarios {
   sqref?: ST_Sqref;
   scenario: CT_Scenario[];
 }
-
 /** Password */
 export interface CT_SheetProtection {
   password?: ST_UnsignedShortHex;
@@ -968,12 +886,10 @@ export interface CT_SheetProtection {
   pivotTables?: boolean;
   selectUnlockedCells?: boolean;
 }
-
 /** Protected Range */
 export interface CT_ProtectedRanges {
   protectedRange: CT_ProtectedRange[];
 }
-
 /** Password */
 export interface CT_ProtectedRange {
   password?: ST_UnsignedShortHex;
@@ -981,7 +897,6 @@ export interface CT_ProtectedRange {
   name: ST_Xstring;
   securityDescriptor?: string;
 }
-
 /** Input Cells */
 export interface CT_Scenario {
   name: ST_Xstring;
@@ -992,7 +907,6 @@ export interface CT_Scenario {
   comment?: ST_Xstring;
   inputCells: CT_InputCells[];
 }
-
 /** Reference */
 export interface CT_InputCells {
   r: ST_CellRef;
@@ -1001,17 +915,14 @@ export interface CT_InputCells {
   val: ST_Xstring;
   numFmtId?: ST_NumFmtId;
 }
-
 /** Cell Watch Item */
 export interface CT_CellWatches {
   cellWatch: CT_CellWatch[];
 }
-
 /** Reference */
 export interface CT_CellWatch {
   r: ST_CellRef;
 }
-
 /** Chart Sheet Properties */
 export interface CT_Chartsheet {
   sheetPr?: CT_ChartsheetPr;
@@ -1028,20 +939,17 @@ export interface CT_Chartsheet {
   webPublishItems?: CT_WebPublishItems;
   extLst?: CT_ExtensionList;
 }
-
 /** Published */
 export interface CT_ChartsheetPr {
   published?: boolean;
   codeName?: string;
   tabColor?: CT_Color;
 }
-
 /** Chart Sheet View */
 export interface CT_ChartsheetViews {
   sheetView: CT_ChartsheetView[];
   extLst?: CT_ExtensionList;
 }
-
 /** Sheet Tab Selected */
 export interface CT_ChartsheetView {
   tabSelected?: boolean;
@@ -1050,14 +958,12 @@ export interface CT_ChartsheetView {
   zoomToFit?: boolean;
   extLst?: CT_ExtensionList;
 }
-
 /** Password */
 export interface CT_ChartsheetProtection {
   password?: ST_UnsignedShortHex;
   content?: boolean;
   objects?: boolean;
 }
-
 /** Paper Size */
 export interface CT_CsPageSetup {
   paperSize?: number;
@@ -1072,12 +978,10 @@ export interface CT_CsPageSetup {
   copies?: number;
   id: string;
 }
-
 /** Custom Chart Sheet View */
 export interface CT_CustomChartsheetViews {
   customSheetView?: any[];
 }
-
 /** Chart Sheet Page Setup */
 export interface CT_CustomChartsheetView {
   guid: ST_Guid;
@@ -1088,23 +992,19 @@ export interface CT_CustomChartsheetView {
   pageSetup?: CT_CsPageSetup;
   headerFooter?: CT_HeaderFooter;
 }
-
 /** Custom Property */
 export interface CT_CustomProperties {
   customPr: CT_CustomProperty[];
 }
-
 /** Custom Property Name */
 export interface CT_CustomProperty {
   name: ST_Xstring;
   id: string;
 }
-
 /** OLE Object */
 export interface CT_OleObjects {
   oleObject: CT_OleObject[];
 }
-
 /** OLE ProgId */
 export interface CT_OleObject {
   progId?: string;
@@ -1115,13 +1015,11 @@ export interface CT_OleObject {
   shapeId: number;
   id: string;
 }
-
 /** Web Publishing Item */
 export interface CT_WebPublishItems {
   count?: number;
   webPublishItem: CT_WebPublishItem[];
 }
-
 /** Id */
 export interface CT_WebPublishItem {
   id: number;
@@ -1133,25 +1031,21 @@ export interface CT_WebPublishItem {
   title?: ST_Xstring;
   autoRepublish?: boolean;
 }
-
 /** Embedded Control */
 export interface CT_Controls {
   control: CT_Control[];
 }
-
 /** Shape Id */
 export interface CT_Control {
   shapeId: number;
   id: string;
   name?: string;
 }
-
 /** Ignored Error */
 export interface CT_IgnoredErrors {
   ignoredError: CT_IgnoredError[];
   extLst?: CT_ExtensionList;
 }
-
 /** Sequence of References */
 export interface CT_IgnoredError {
   sqref: ST_Sqref;
@@ -1165,13 +1059,11 @@ export interface CT_IgnoredError {
   listDataValidation?: boolean;
   calculatedColumn?: boolean;
 }
-
 /** Table Part */
 export interface CT_TableParts {
   count?: number;
   tablePart?: CT_TablePart[];
 }
-
 /** Relationship Id */
 export interface CT_TablePart {
   id: string;

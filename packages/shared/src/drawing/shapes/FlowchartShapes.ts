@@ -1,5 +1,5 @@
-import { ST_ShapeType } from '@ai-space/definitions/autogen/dml-shapeGeometry';
-import { ShapeGenerator } from './types';
+import { ST_ShapeType } from '@ai-space/definitions/dml-shapeGeometry';
+import { ShapeGenerator } from '../../types/shapes';
 import { GeoUtils } from './GeoUtils';
 
 export const FlowchartShapes: Record<string, ShapeGenerator> = {
@@ -7,7 +7,8 @@ export const FlowchartShapes: Record<string, ShapeGenerator> = {
   [ST_ShapeType.flowChartProcess]: (w, h) => GeoUtils.rect(0, 0, w, h),
 
   // Decision
-  [ST_ShapeType.flowChartDecision]: (w, h) => `M ${w / 2} 0 L ${w} ${h / 2} L ${w / 2} ${h} L 0 ${h / 2} Z`,
+  [ST_ShapeType.flowChartDecision]: (w, h) =>
+    `M ${w / 2} 0 L ${w} ${h / 2} L ${w / 2} ${h} L 0 ${h / 2} Z`,
 
   // Input/Output
   [ST_ShapeType.flowChartInputOutput]: (w, h) => {
@@ -80,7 +81,8 @@ export const FlowchartShapes: Record<string, ShapeGenerator> = {
   },
 
   // Connector
-  [ST_ShapeType.flowChartConnector]: (w, h) => GeoUtils.ellipse(w / 2, h / 2, Math.min(w, h) / 2, Math.min(w, h) / 2),
+  [ST_ShapeType.flowChartConnector]: (w, h) =>
+    GeoUtils.ellipse(w / 2, h / 2, Math.min(w, h) / 2, Math.min(w, h) / 2),
 
   // Offpage Connector
   [ST_ShapeType.flowChartOffpageConnector]: (w, h) => {
@@ -215,5 +217,5 @@ export const FlowchartShapes: Record<string, ShapeGenerator> = {
   // Delay (D-shape)
   [ST_ShapeType.flowChartDelay]: (w, h) => {
     return `M 0 0 L ${w * 0.7} 0 A ${w * 0.3} ${h / 2} 0 0 1 ${w * 0.7} ${h} L 0 ${h} Z`;
-  }
+  },
 };

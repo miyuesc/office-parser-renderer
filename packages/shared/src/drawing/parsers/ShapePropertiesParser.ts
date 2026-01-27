@@ -3,7 +3,7 @@
  *
  * 解析 DrawingML 中的形状属性定义 (a:spPr)
  */
-import { XmlUtils } from '../../xml';
+import { XmlUtils } from '../../core/xml';
 import { OfficeFill, OfficeStroke, OfficeEffect } from '../types';
 import { FillParser } from './FillParser';
 import { EffectParser } from './EffectParser';

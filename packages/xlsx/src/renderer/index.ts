@@ -17,7 +17,7 @@ export type { RenderRect } from './ChartRenderer';
 export { ShapeRenderer } from './ShapeRenderer';
 
 // 图片渲染器
-export { ImageRenderer } from './ImageRenderer';
+export { ImageRenderer } from '@ai-space/shared';
 
 // 连接符渲染器
 export { ConnectorRenderer } from './ConnectorRenderer';

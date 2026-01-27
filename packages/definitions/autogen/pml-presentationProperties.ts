@@ -1,11 +1,9 @@
+import { CT_ExtensionList } from './common-types';
 import { CT_ColorMRU } from './dml-baseTypes';
-import { CT_ExtensionList } from './sml-baseTypes';
 import { CT_Color } from './wml';
-
 /**
  * pml-presentationProperties.xsd
  */
-
 /** Web browsers supported for HTML output */
 export enum ST_HtmlPublishWebBrowserSupport {
   /** Browser v4 */
@@ -15,7 +13,6 @@ export enum ST_HtmlPublishWebBrowserSupport {
   /** Browser v3v4 */
   v3v4 = 'v3v4'
 }
-
 /** HTML Slide Navigation Control Colors */
 export enum ST_WebColorType {
   /** Non-specific Colors */
@@ -31,7 +28,6 @@ export enum ST_WebColorType {
   /** Black Text on White Colors */
   blackTextOnWhite = 'blackTextOnWhite'
 }
-
 /** HTML/Web Screen Size Target */
 export enum ST_WebScreenSize {
   /** HTML/Web Size Enumeration 544x376 */
@@ -57,10 +53,8 @@ export enum ST_WebScreenSize {
   /** HTML/Web Size Enumeration 1920x1200 */
   _1920x1200 = '1920x1200'
 }
-
 /** Web Encoding */
 export type ST_WebEncoding = string;
-
 /** Default print output */
 export enum ST_PrintWhat {
   /** Slides */
@@ -82,7 +76,6 @@ export enum ST_PrintWhat {
   /** Outline */
   outline = 'outline'
 }
-
 /** Print Color Mode */
 export enum ST_PrintColorMode {
   /** Black and White Mode */
@@ -92,7 +85,6 @@ export enum ST_PrintColorMode {
   /** Color Mode */
   clr = 'clr'
 }
-
 /** Show Speaker Notes */
 export interface CT_HtmlPublishProperties {
   showSpeakerNotes?: boolean;
@@ -101,7 +93,6 @@ export interface CT_HtmlPublishProperties {
   id: string;
   extLst?: CT_ExtensionList;
 }
-
 /** Show animation in HTML output */
 export interface CT_WebProperties {
   showAnimation?: boolean;
@@ -115,7 +106,6 @@ export interface CT_WebProperties {
   clr?: ST_WebColorType;
   extLst?: CT_ExtensionList;
 }
-
 /** Print Output */
 export interface CT_PrintProperties {
   prnWhat?: ST_PrintWhat;
@@ -125,17 +115,14 @@ export interface CT_PrintProperties {
   frameSlides?: boolean;
   extLst?: CT_ExtensionList;
 }
-
 /** Show Scroll Bar in Window */
 export interface CT_ShowInfoBrowse {
   showScrollbar?: boolean;
 }
-
 /** Restart Show */
 export interface CT_ShowInfoKiosk {
   restart?: number;
 }
-
 /** Pen Color for Slide Show */
 export interface CT_ShowProperties {
   loop?: boolean;
@@ -145,7 +132,6 @@ export interface CT_ShowProperties {
   penClr?: CT_Color;
   extLst?: CT_ExtensionList;
 }
-
 /** HTML Publishing Properties */
 export interface CT_PresentationProperties {
   htmlPubPr?: CT_HtmlPublishProperties;

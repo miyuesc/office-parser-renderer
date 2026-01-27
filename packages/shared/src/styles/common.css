@@ -8,8 +8,8 @@
    公共重置样式
    ============================================================================ */
 
-[class^="docx-"],
-[class^="xlsx-"] {
+[class^='docx-'],
+[class^='xlsx-'] {
   box-sizing: border-box;
 }
 
@@ -18,11 +18,11 @@
    ============================================================================ */
 
 @media print {
-  [class^="docx-container"],
-  [class^="xlsx-container"] {
+  [class^='docx-container'],
+  [class^='xlsx-container'] {
     background-color: white !important;
   }
-  
+
   /* 隐藏打印时不需要的元素 */
   .no-print {
     display: none !important;
@@ -33,24 +33,39 @@
    公共滚动条样式
    ============================================================================ */
 
-[class^="docx-"]::-webkit-scrollbar,
-[class^="xlsx-"]::-webkit-scrollbar {
+[class^='docx-']::-webkit-scrollbar,
+[class^='xlsx-']::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
-[class^="docx-"]::-webkit-scrollbar-track,
-[class^="xlsx-"]::-webkit-scrollbar-track {
+[class^='docx-']::-webkit-scrollbar-track,
+[class^='xlsx-']::-webkit-scrollbar-track {
   background: #f1f1f1;
 }
 
-[class^="docx-"]::-webkit-scrollbar-thumb,
-[class^="xlsx-"]::-webkit-scrollbar-thumb {
+[class^='docx-']::-webkit-scrollbar-thumb,
+[class^='xlsx-']::-webkit-scrollbar-thumb {
   background: #c1c1c1;
   border-radius: 4px;
 }
 
-[class^="docx-"]::-webkit-scrollbar-thumb:hover,
-[class^="xlsx-"]::-webkit-scrollbar-thumb:hover {
+[class^='docx-']::-webkit-scrollbar-thumb:hover,
+[class^='xlsx-']::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
+}
+
+/* ============================================================================
+   性能优化样式
+   ============================================================================ */
+
+/* 渲染隔离：限制布局和绘制的范围，避免局部变更触发全局重排 */
+.docx-page {
+  contain: content;
+  /* content 相当于 layout + paint + style (部分) */
+}
+
+/* 确保虚拟滚动的渲染区域正确定位 */
+.xlsx-render-area {
+  will-change: transform; /* 提示浏览器优化变换 */
 }

@@ -1,5 +1,5 @@
-import { ST_ShapeType } from '@ai-space/definitions/autogen/dml-shapeGeometry';
-import { ShapeGenerator } from './types';
+import { ST_ShapeType } from '@ai-space/definitions/dml-shapeGeometry';
+import { ShapeGenerator } from '../../types/shapes';
 import { GeoUtils } from './GeoUtils';
 import { Rectangles } from './Rectangles';
 
@@ -153,5 +153,5 @@ export const ActionShapes: Record<string, ShapeGenerator> = {
       cx + s * 0.6
     } ${cy + s * 0.3} Z`;
     return createButton(w, h, cam);
-  }
+  },
 };

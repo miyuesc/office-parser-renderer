@@ -2,6 +2,7 @@
  * DOCX 渲染配置相关类型定义
  */
 
+import type { DocxElement } from './paragraph';
 import type { WatermarkConfig } from './section';
 import type { DocxSection } from './section';
 
@@ -33,6 +34,8 @@ export interface DocxRenderOptions {
   useDocumentBackground?: boolean;
   /** 是否使用文档解析的水印（默认 true，设为 false 则只使用 API 设置的值) */
   useDocumentWatermark?: boolean;
+  /** 是否自动注入样式（默认为 true） */
+  injectStyles?: boolean;
   /** 每页渲染回调 */
   onPageRender?: (pageIndex: number, pageElement: HTMLElement) => void;
 }
@@ -91,4 +94,11 @@ export interface PageInfo {
   pageConfig: ResolvedPageConfig;
   /** 所属分节 */
   section: DocxSection;
+}
+
+/**
+ * 带有 Docx 元素数据的 HTML 元素
+ */
+export interface DocxHTMLElement extends HTMLElement {
+  _docxElement?: DocxElement;
 }

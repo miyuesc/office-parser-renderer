@@ -1,3 +1,4 @@
+import { ST_ColorType, ST_TrueFalse } from './common-types';
 /**
  * vml-main.xsd
  */
@@ -13,19 +14,8 @@ export enum ST_Ext {
 }
 
 /** Boolean Value */
-export enum ST_TrueFalse {
-  /** True */
-  t = 't',
-  /** False */
-  f = 'f',
-  /** True */
-  true = 'true',
-  /** False */
-  false = 'false'
-}
 
 /** Color Type */
-export type ST_ColorType = string;
 
 /** Shape Fill Type */
 export enum ST_FillType {

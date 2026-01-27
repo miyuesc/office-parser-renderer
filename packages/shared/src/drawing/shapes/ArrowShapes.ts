@@ -1,5 +1,5 @@
-import { ST_ShapeType } from '@ai-space/definitions/autogen/dml-shapeGeometry';
-import { ShapeGenerator } from './types';
+import { ST_ShapeType } from '@ai-space/definitions/dml-shapeGeometry';
+import { ShapeGenerator } from '../../types/shapes';
 
 /**
  * 箭头形状
@@ -937,5 +937,5 @@ export const ArrowShapes: Record<string, ShapeGenerator> = {
       `L ${cx - armW / 2} ${headL} ` + // 向上到上箭头茎
       `L ${cx - headW} ${headL} Z` // 闭合
     );
-  }
+  },
 };

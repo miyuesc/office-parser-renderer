@@ -1,5 +1,5 @@
-import { ST_ShapeType } from '@ai-space/definitions/autogen/dml-shapeGeometry';
-import { ShapeGenerator, ShapeResult } from './types';
+import { ST_ShapeType } from '@ai-space/definitions/dml-shapeGeometry';
+import { ShapeGenerator, ShapeResult } from '../../types/shapes';
 
 /**
  * 装饰形状
@@ -475,5 +475,5 @@ export const DecorationShapes: Record<string, ShapeGenerator> = {
       `M ${w} ${h} L ${w - t} ${h} A ${t} ${t} 0 0 0 ${w} ${h - t} Z ` + // 右下
       `M 0 ${h} L 0 ${h - t} A ${t} ${t} 0 0 0 ${t} ${h} Z`
     ); // 左下
-  }
+  },
 };
