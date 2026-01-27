@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Office Canvas Renderer Playground</title>
+    <title>Office Parser Renderer Playground</title>
     <style>
       body {
         font-family: sans-serif;
@@ -23,11 +23,11 @@
   </head>
   <body>
     <div class="controls">
-      <h1>Office Canvas Renderer</h1>
+      <h1>Office Parser Renderer</h1>
       <input type="file" id="fileInput" accept=".docx,.pptx,.xlsx" />
       <button id="loadDocxBtn">测试 DOCX</button>
       <button id="loadXlsxBtn">测试 XLSX</button>
-      <button id="galleryBtn">Shape Gallery</button>
+      <button id="loadXlsxBtn">测试 PPTX</button>
       <span id="status"></span>
     </div>
     <div id="app">
@@ -36,6 +36,5 @@
         style="border: 1px solid #ccc; width: 100%; min-height: 500px; position: relative; overflow: auto"
       ></div>
     </div>
-    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
