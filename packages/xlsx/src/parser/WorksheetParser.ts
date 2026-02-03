@@ -97,6 +97,12 @@ export class WorksheetParser {
           }
         }
       }
+
+      // 5. Parse Drawing
+      const drawingNode = doc.querySelector('drawing');
+      if (drawingNode) {
+        worksheet.drawingRId = drawingNode.getAttribute('r:id') || drawingNode.getAttribute('id') || undefined;
+      }
     } catch (e) {
       logger.error('Failed to parse worksheet', e);
     }

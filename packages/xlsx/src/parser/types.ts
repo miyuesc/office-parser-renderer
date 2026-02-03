@@ -9,6 +9,8 @@ export interface XlsxDocument {
   styles?: Styles;
 }
 
+import { OfficeImage } from '@opr/shared';
+
 export interface Worksheet {
   name: string;
   rows: Map<number, Row>; // rowIndex (1-based) -> Row
@@ -29,6 +31,8 @@ export interface Worksheet {
     topLeftCell?: string;
     state?: string; // 'frozen' | 'split'
   };
+  images?: OfficeImage[];
+  drawingRId?: string;
 }
 
 export interface Column {

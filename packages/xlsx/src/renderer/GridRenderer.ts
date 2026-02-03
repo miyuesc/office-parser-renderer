@@ -6,7 +6,8 @@ import {
   BorderStyle,
   UnitConversion,
   FontMapping,
-  ColorUtils
+  ColorUtils,
+  OfficeImage
 } from '@opr/shared';
 
 export interface GridRendererOptions {
@@ -57,6 +58,10 @@ export class GridRenderer {
   private readonly SCROLLBAR_SIZE = 10;
   private readonly SCROLLBAR_PADDING = 2;
   private readonly SCROLLBAR_MIN_THUMB = 20;
+
+  // Image Cache
+  private imageCache: Map<string, ImageBitmap> = new Map();
+  private imageLoading: Set<string> = new Set();
 
   constructor(container: HTMLElement, options: Partial<GridRendererOptions> = {}) {
     this.canvas = document.createElement('canvas');
@@ -621,7 +626,122 @@ export class GridRenderer {
     }
     ctx.stroke();
 
+    this.renderImages(ctx, width, height);
     this.drawScrollBars(ctx, width, height);
+  }
+
+  private renderImages(ctx: CanvasRenderingContext2D, viewWidth: number, viewHeight: number) {
+    if (!this.worksheet || !this.worksheet.images) return;
+
+    for (const img of this.worksheet.images) {
+      // Check cache
+      if (!this.imageCache.has(img.id)) {
+        if (!this.imageLoading.has(img.id)) {
+          this.imageLoading.add(img.id);
+          createImageBitmap(img.blob)
+            .then(bitmap => {
+              this.imageCache.set(img.id, bitmap);
+              this.imageLoading.delete(img.id);
+              this.render(); // Re-render when loaded
+            })
+            .catch(e => {
+              console.error('Failed to load image', e);
+              this.imageLoading.delete(img.id);
+            });
+        }
+        continue;
+      }
+
+      const bitmap = this.imageCache.get(img.id)!;
+      let x = 0,
+        y = 0,
+        w = 0,
+        h = 0;
+
+      // Calculate Position
+      if (img.position.type === 'twoCellAnchor' && img.position.from && img.position.to) {
+        const fromPos = this.getPixelPos(
+          img.position.from.col,
+          img.position.from.row,
+          img.position.from.colOff,
+          img.position.from.rowOff
+        );
+        const toPos = this.getPixelPos(
+          img.position.to.col,
+          img.position.to.row,
+          img.position.to.colOff,
+          img.position.to.rowOff
+        );
+        x = fromPos.x;
+        y = fromPos.y;
+        w = toPos.x - fromPos.x;
+        h = toPos.y - fromPos.y;
+      } else {
+        // OneCellAnchor or Absolute
+        if (img.position.type === 'oneCellAnchor' && img.position.from) {
+          const fromPos = this.getPixelPos(
+            img.position.from.col,
+            img.position.from.row,
+            img.position.from.colOff,
+            img.position.from.rowOff
+          );
+          x = fromPos.x;
+          y = fromPos.y;
+        } else {
+          x = img.position.x || 0;
+          y = img.position.y || 0;
+        }
+        w = img.position.width;
+        h = img.position.height;
+      }
+
+      // Apply Scroll
+      const screenX = x - this.scrollX;
+      const screenY = y - this.scrollY;
+
+      // Skip if out of view
+      // Simple culling
+      /* if (screenX + w < 0 || screenY + h < 0 || screenX > viewWidth || screenY > viewHeight) continue; */ // Rotation makes simple culling risky
+
+      // Draw
+      ctx.save();
+
+      const cx = screenX + w / 2;
+      const cy = screenY + h / 2;
+
+      ctx.translate(cx, cy);
+
+      if (img.position.rotation) {
+        // Excel rotation is in degrees. Canvas uses radians.
+        ctx.rotate((img.position.rotation * Math.PI) / 180);
+      }
+
+      if (img.position.flipH) ctx.scale(-1, 1);
+      if (img.position.flipV) ctx.scale(1, -1);
+
+      ctx.drawImage(bitmap, -w / 2, -h / 2, w, h);
+
+      ctx.restore();
+    }
+  }
+
+  private getPixelPos(colIdx: number, rowIdx: number, colOff: number, rowOff: number): { x: number; y: number } {
+    let x = 0;
+    // Sum columns 0 to colIdx-1 -> indices 1 to colIdx
+    for (let c = 0; c < colIdx; c++) {
+      // Excel columns are 1-based in our map
+      x += this.getColWidth(c + 1);
+    }
+    x += colOff;
+
+    let y = 0;
+    for (let r = 0; r < rowIdx; r++) {
+      // Excel rows are 1-based in our map
+      y += this.getRowHeight(r + 1);
+    }
+    y += rowOff;
+
+    return { x, y };
   }
 
   private drawScrollBars(ctx: CanvasRenderingContext2D, width: number, height: number) {

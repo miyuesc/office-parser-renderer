@@ -3,6 +3,7 @@ import { XlsxDocument } from './types';
 import { SharedStringsParser } from './SharedStringsParser';
 import { StylesParser } from './StylesParser';
 import { WorksheetParser } from './WorksheetParser';
+import { DrawingParser } from './DrawingParser';
 
 const logger = new Logger('XlsxParser');
 
@@ -59,6 +60,51 @@ export class XlsxParser {
         if (path.match(/^xl\/worksheets\/sheet\d+\.xml$/)) {
           const xmlStr = FileHandler.readText(content);
           const worksheet = WorksheetParser.parse(xmlStr, doc.sharedStrings);
+
+          // Image parsing
+          if (worksheet.drawingRId) {
+            // 1. Get sheet rels
+            // path: xl/worksheets/sheet1.xml
+            // rels: xl/worksheets/_rels/sheet1.xml.rels
+            const pathParts = path.split('/');
+            const filename = pathParts.pop();
+            const folder = pathParts.join('/');
+            const relsPath = `${folder}/_rels/${filename}.rels`;
+
+            const relsFile = files.get(relsPath);
+            if (relsFile) {
+              const relsXml = FileHandler.readText(relsFile);
+              const relsMap = this.parseRels(relsXml);
+
+              const drawingTarget = relsMap.get(worksheet.drawingRId);
+              if (drawingTarget) {
+                // Resolve drawing path
+                // folder: xl/worksheets
+                // target: ../drawings/drawing1.xml
+                const drawingPath = this.resolvePath(folder, drawingTarget);
+                const drawingFile = files.get(drawingPath);
+
+                if (drawingFile) {
+                  const drawingXml = FileHandler.readText(drawingFile);
+
+                  // Get drawing rels (for images)
+                  // drawingPath: xl/drawings/drawing1.xml
+                  // rels: xl/drawings/_rels/drawing1.xml.rels
+                  const dParts = drawingPath.split('/');
+                  const dName = dParts.pop();
+                  const dFolder = dParts.join('/');
+                  const dRelsPath = `${dFolder}/_rels/${dName}.rels`;
+
+                  const dRelsFile = files.get(dRelsPath);
+                  const dRelsMap = dRelsFile ? this.parseRels(FileHandler.readText(dRelsFile)) : new Map();
+
+                  // Parse images
+                  worksheet.images = DrawingParser.parse(drawingXml, dRelsMap, files, dFolder + '/');
+                }
+              }
+            }
+          }
+
           // 从 path 提取 id 或者 name
           const match = path.match(/sheet(\d+)\.xml/);
           const id = match ? match[1] : path;
@@ -72,5 +118,39 @@ export class XlsxParser {
     }
 
     return doc;
+  }
+
+  private static parseRels(xmlString: string): Map<string, string> {
+    const rels = new Map<string, string>();
+    try {
+      const doc = FileHandler.parseXML(xmlString);
+      const nodes = doc.querySelectorAll('Relationship');
+      for (let i = 0; i < nodes.length; i++) {
+        const id = nodes[i].getAttribute('Id');
+        const target = nodes[i].getAttribute('Target');
+        if (id && target) {
+          rels.set(id, target);
+        }
+      }
+    } catch (e) {
+      logger.warn('Failed to parse rels', e);
+    }
+    return rels;
+  }
+
+  private static resolvePath(base: string, relative: string): string {
+    // base: xl/worksheets
+    // relative: ../drawings/drawing1.xml
+    const parts = base.split('/');
+    const relParts = relative.split('/');
+
+    for (const p of relParts) {
+      if (p === '..') {
+        parts.pop();
+      } else if (p !== '.') {
+        parts.push(p);
+      }
+    }
+    return parts.join('/');
   }
 }
