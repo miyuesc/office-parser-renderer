@@ -20,23 +20,23 @@ English | [简体中文](./README.md)
 
 ```bash
 # Using npm
-npm install @ai-space/office-parser-renderer
+npm install @opr/office-parser-renderer
 
 # Using pnpm
-pnpm add @ai-space/office-parser-renderer
+pnpm add @opr/office-parser-renderer
 
 # Using yarn
-yarn add @ai-space/office-parser-renderer
+yarn add @opr/office-parser-renderer
 ```
 
 Or install sub-packages individually:
 
 ```bash
 # Install DOCX support only
-pnpm add @ai-space/docx
+pnpm add @opr/docx
 
 # Install XLSX support only
-pnpm add @ai-space/xlsx
+pnpm add @opr/xlsx
 ```
 
 ## 🚀 Quick Start
@@ -44,7 +44,7 @@ pnpm add @ai-space/xlsx
 ### DOCX Document Rendering
 
 ```typescript
-import { DocxParser, DocxRenderer } from '@ai-space/docx';
+import { DocxParser, DocxRenderer } from '@opr/docx';
 
 // Create container element
 const container = document.getElementById('docx-container');
@@ -66,7 +66,7 @@ fetch('/path/to/document.docx')
 ### XLSX Spreadsheet Rendering
 
 ```typescript
-import { XlsxParser, XlsxRenderer } from '@ai-space/xlsx';
+import { XlsxParser, XlsxRenderer } from '@opr/xlsx';
 
 // Create container element
 const container = document.getElementById('xlsx-container');

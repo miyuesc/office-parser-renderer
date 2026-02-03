@@ -27,7 +27,7 @@ const renderer = new DocxRenderer(container, {
 ### 3. 日志记录
 
 ```typescript
-import { Logger } from '@ai-space/docx/utils';
+import { Logger } from '@opr/docx/utils';
 Logger.setLevel('debug');
 ```
 

@@ -3,7 +3,7 @@
   "private": true,
   "description": "High-fidelity pure front-end Office document renderer using Canvas",
   "scripts": {
-    "pg:dev": "cd packages/playground && pnpm run dev",
+    "pg:dev": "cd playground && pnpm run dev",
     "build": "pnpm -r run build",
     "dev": "pnpm -r run dev",
     "test": "pnpm -r run test"

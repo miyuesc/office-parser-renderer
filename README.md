@@ -20,23 +20,23 @@
 
 ```bash
 # 使用 npm
-npm install @ai-space/office-parser-renderer
+npm install @opr/office-parser-renderer
 
 # 使用 pnpm
-pnpm add @ai-space/office-parser-renderer
+pnpm add @opr/office-parser-renderer
 
 # 使用 yarn
-yarn add @ai-space/office-parser-renderer
+yarn add @opr/office-parser-renderer
 ```
 
 或者单独安装子包：
 
 ```bash
 # 仅安装 DOCX 支持
-pnpm add @ai-space/docx
+pnpm add @opr/docx
 
 # 仅安装 XLSX 支持
-pnpm add @ai-space/xlsx
+pnpm add @opr/xlsx
 ```
 
 ## 🚀 快速开始
@@ -44,7 +44,7 @@ pnpm add @ai-space/xlsx
 ### DOCX 文档渲染
 
 ```typescript
-import { DocxParser, DocxRenderer } from '@ai-space/docx';
+import { DocxParser, DocxRenderer } from '@opr/docx';
 
 // 创建容器元素
 const container = document.getElementById('docx-container');
@@ -66,7 +66,7 @@ fetch('/path/to/document.docx')
 ### XLSX 表格渲染
 
 ```typescript
-import { XlsxParser, XlsxRenderer } from '@ai-space/xlsx';
+import { XlsxParser, XlsxRenderer } from '@opr/xlsx';
 
 // 创建容器元素
 const container = document.getElementById('xlsx-container');

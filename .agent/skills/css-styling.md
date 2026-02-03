@@ -48,7 +48,7 @@ trigger: context
 位置: `packages/shared/src/styles/StyleUtils.ts`
 
 ```typescript
-import { StyleUtils } from '@ai-space/shared';
+import { StyleUtils } from '@opr/shared';
 
 // 设置绝对定位
 StyleUtils.setAbsolutePosition(element, left, top);
@@ -117,7 +117,7 @@ packages/
 ### 自动注入（开发）
 
 ```typescript
-import { StyleInjector } from '@ai-space/docx';
+import { StyleInjector } from '@opr/docx';
 StyleInjector.inject(); // 注入到 <head>
 ```
 

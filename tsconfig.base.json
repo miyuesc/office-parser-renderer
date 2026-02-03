@@ -13,6 +13,14 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@opr/definitions": ["definitions/src"],
+      "@opr/shared": ["packages/shared/src"],
+      "@opr/xlsx": ["packages/xlsx/src"],
+      "@opr/docx": ["packages/docx/src"],
+      "@opr/pptx": ["packages/pptx/src"]
+    }
   }
 }

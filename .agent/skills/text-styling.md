@@ -464,7 +464,7 @@ font-size: 0.8em;
 ### 使用方法
 
 ```typescript
-import { FontManager } from '@ai-space/shared';
+import { FontManager } from '@opr/shared';
 
 // 获取 CSS font-family
 const family = FontManager.getFontFamily('微软雅黑');
@@ -525,7 +525,7 @@ const defaultFont = FontManager.getDefaultFontFamily();
 ### 使用方法
 
 ```typescript
-import { TextStyles } from '@ai-space/shared';
+import { TextStyles } from '@opr/shared';
 
 // 获取下划线样式
 const decoration = TextStyles.getTextDecoration('single');

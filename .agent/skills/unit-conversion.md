@@ -251,7 +251,7 @@ decimal = percent / 100;
 ### EMU 转换方法
 
 ```typescript
-import { UnitConverter } from '@ai-space/shared';
+import { UnitConverter } from '@opr/shared';
 
 // EMU 与像素
 UnitConverter.emuToPixels(914400);      // 96

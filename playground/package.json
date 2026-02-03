@@ -1,15 +1,15 @@
 {
-  "name": "@ai-space/playground",
+  "name": "@opr/playground",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "vite"
+    "dev": "vite --port 5555"
   },
   "dependencies": {
-    "@ai-space/shared": "workspace:*",
-    "@ai-space/docx": "workspace:*",
-    "@ai-space/pptx": "workspace:*",
-    "@ai-space/xlsx": "workspace:*"
+    "@opr/shared": "workspace:*",
+    "@opr/docx": "workspace:*",
+    "@opr/pptx": "workspace:*",
+    "@opr/xlsx": "workspace:*"
   },
   "devDependencies": {
     "vite": "^5.0.0",

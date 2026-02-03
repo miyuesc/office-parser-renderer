@@ -83,7 +83,7 @@ trigger: context
 ## 🛠️ 使用 ColorUtils
 
 ```typescript
-import { ColorUtils, resolveThemeColor } from '@ai-space/shared';
+import { ColorUtils, resolveThemeColor } from '@opr/shared';
 
 // Hex → RGB
 const rgb = ColorUtils.hexToRgb('#FF0000');
