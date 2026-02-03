@@ -62,4 +62,63 @@ describe('WorksheetParser', () => {
     expect(sheet.cols.get(2)?.width).toBe(15);
     expect(sheet.cols.get(3)?.width).toBe(15);
   });
+
+  it('should parse merge cells', () => {
+    const xml = `
+        <worksheet>
+            <sheetData>
+                <row r="1"><c r="A1"><v>1</v></c></row>
+            </sheetData>
+            <mergeCells>
+                <mergeCell ref="A1:C1"/>
+                <mergeCell ref="A2:B3"/>
+            </mergeCells>
+        </worksheet>
+    `;
+    const sheet = WorksheetParser.parse(xml, []);
+    expect(sheet.merges).toBeDefined();
+    expect(sheet.merges!.length).toBe(2);
+    expect(sheet.merges![0]).toBe('A1:C1');
+    expect(sheet.merges![1]).toBe('A2:B3');
+  });
+
+  it('should parse freeze panes', () => {
+    const xml = `
+        <worksheet>
+            <sheetViews>
+                <sheetView>
+                    <pane xSplit="1" ySplit="2" state="frozen" topLeftCell="B3"/>
+                </sheetView>
+            </sheetViews>
+        </worksheet>
+    `;
+    const sheet = WorksheetParser.parse(xml, []);
+    expect(sheet.frozen).toBeDefined();
+    expect(sheet.frozen?.xSplit).toBe(1);
+    expect(sheet.frozen?.ySplit).toBe(2);
+    expect(sheet.frozen?.state).toBe('frozen');
+    expect(sheet.frozen?.topLeftCell).toBe('B3');
+  });
+
+  it('should parse rich text cell', () => {
+    const richContent = [{ text: 'Red', font: { color: 'red' } }, { text: 'Black' }];
+    // Need to cast to match type signature if TS complains about mixed array
+    const sharedStrings: (string | any[])[] = ['Simple', richContent];
+
+    const xml = `
+      <worksheet>
+          <sheetData>
+              <row r="1">
+                  <c r="A1" t="s"><v>1</v></c>
+              </row>
+          </sheetData>
+      </worksheet>
+    `;
+    const sheet = WorksheetParser.parse(xml, sharedStrings);
+    const cell = sheet.rows.get(1)!.cells.get(1)!;
+
+    expect(cell.value).toBe('RedBlack'); // Fallback text
+    expect(cell.richText).toBeDefined();
+    expect(cell.richText).toEqual(richContent);
+  });
 });

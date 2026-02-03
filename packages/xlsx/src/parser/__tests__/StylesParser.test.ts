@@ -77,4 +77,58 @@ describe('StylesParser', () => {
     expect(styles.cellXfs[0].alignment?.horizontal).toBe('center');
     expect(styles.cellXfs[0].alignment?.vertical).toBe('center');
   });
+
+  it('should parse numFmts', () => {
+    const xml = `
+      <styleSheet>
+        <numFmts count="1">
+          <numFmt numFmtId="164" formatCode="yyyy-mm-dd"/>
+        </numFmts>
+        <cellXfs count="1">
+          <xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>
+        </cellXfs>
+      </styleSheet>
+    `;
+    const styles = StylesParser.parse(xml);
+
+    // Check numFmts map
+    expect(styles.numFmts).toBeDefined();
+    expect(styles.numFmts!.has(164)).toBe(true);
+    expect(styles.numFmts!.get(164)).toBe('yyyy-mm-dd');
+
+    // Check cellXf reference
+    expect(styles.cellXfs[0].numFmtId).toBe(164);
+    expect(styles.cellXfs[0].applyNumberFormat).toBe(true);
+  });
+
+  it('should parse borders', () => {
+    const xml = `
+      <styleSheet>
+        <borders count="1">
+          <border>
+            <left style="thin"><color rgb="FF000000"/></left>
+            <right style="medium"><color rgb="FFFF0000"/></right>
+            <top style="none"/>
+            <bottom/> 
+            <diagonal/>
+          </border>
+        </borders>
+        <cellXfs count="1">
+            <xf borderId="0" applyBorder="1"/>
+        </cellXfs>
+      </styleSheet>
+    `;
+    const styles = StylesParser.parse(xml);
+    expect(styles.borders.length).toBe(1);
+
+    const border = styles.borders[0];
+    expect(border.left?.style).toBe('thin');
+    expect(border.right?.style).toBe('medium');
+    expect(border.right?.color).toBeDefined();
+
+    // Check cellXf linkage
+    const xf = styles.cellXfs[0];
+    expect(xf.borderId).toBe(0);
+    expect(xf.applyBorder).toBe(true);
+  });
 });

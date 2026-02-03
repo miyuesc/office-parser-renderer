@@ -46,3 +46,33 @@ fileInput.addEventListener('change', async e => {
     alert('Failed to process file. Check console for details.');
   }
 });
+
+async function loadXlsx() {
+  const file = await fetch('./测试xlsx.xlsx');
+  const buffer = await file.arrayBuffer();
+
+  const doc = await XlsxParser.parse(buffer);
+
+  if (doc.worksheets.size > 0) {
+    const worksheet = doc.worksheets.values().next().value;
+    if (worksheet) {
+      logger.info('Rendering worksheet:', worksheet);
+
+      // 初始化渲染器
+      if (renderer) {
+        renderer.destroy();
+      }
+
+      renderer = new GridRenderer(container, {
+        width: container.clientWidth,
+        height: container.clientHeight
+      });
+
+      renderer.setWorksheet(worksheet, doc);
+    }
+  } else {
+    logger.warn('No worksheets found');
+  }
+}
+
+document.getElementById('loadXlsxBtn')?.addEventListener('click', loadXlsx);

@@ -5,7 +5,7 @@
 
 export interface XlsxDocument {
   worksheets: Map<string, Worksheet>; // sheetId -> Worksheet
-  sharedStrings: string[];
+  sharedStrings: (string | RichTextRun[])[];
   styles?: Styles;
 }
 
@@ -13,6 +13,7 @@ export interface Worksheet {
   name: string;
   rows: Map<number, Row>; // rowIndex (1-based) -> Row
   cols: Map<number, Column>; // colIndex -> Column info
+  merges?: string[]; // Array of ref strings, e.g., "A1:C3"
   dimension?: {
     // A1:C10
     startStr: string;
@@ -21,6 +22,12 @@ export interface Worksheet {
     endRow: number;
     startCol: number;
     endCol: number;
+  };
+  frozen?: {
+    xSplit: number;
+    ySplit: number;
+    topLeftCell?: string;
+    state?: string; // 'frozen' | 'split'
   };
 }
 
@@ -38,21 +45,42 @@ export interface Row {
   customHeight?: boolean;
 }
 
+export type CellType = 'string' | 'number' | 'boolean' | 'date' | 'error' | 'sharedString' | 'inlineString';
+
+export interface RichTextRun {
+  text: string;
+  font?: Font;
+}
+
 export interface Cell {
   row: number; // 1-based
   col: number; // 1-based
   value: string | number | boolean;
+  richText?: RichTextRun[]; // Add this
   type: CellType;
   formula?: string;
   styleId?: number;
 }
 
-export type CellType = 'string' | 'number' | 'boolean' | 'date' | 'error' | 'sharedString' | 'inlineString';
-
 export interface Styles {
   fonts: Font[];
   fills: Fill[];
+  borders: Border[]; // Index -> Border
   cellXfs: CellXf[]; // Index -> Style
+  numFmts: Map<number, string>; // numFmtId -> formatCode
+}
+
+export interface Border {
+  left?: BorderPr;
+  right?: BorderPr;
+  top?: BorderPr;
+  bottom?: BorderPr;
+  diagonal?: BorderPr;
+}
+
+export interface BorderPr {
+  style?: string; // 'thin', 'medium', 'thick', 'double', etc.
+  color?: string; // CSS color string
 }
 
 export interface Font {
@@ -61,6 +89,8 @@ export interface Font {
   color?: string; // CSS color string
   bold?: boolean;
   italic?: boolean;
+  underline?: boolean;
+  strike?: boolean;
 }
 
 export interface Fill {
@@ -71,10 +101,14 @@ export interface Fill {
 }
 
 export interface CellXf {
+  numFmtId?: number;
   fontId: number;
   fillId: number;
+  borderId: number; // Add this
   applyFont?: boolean;
   applyFill?: boolean;
+  applyBorder?: boolean; // Add this
+  applyNumberFormat?: boolean;
   alignment?: Alignment;
 }
 

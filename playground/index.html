@@ -5,12 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Office Parser Renderer Playground</title>
     <style>
+      * {
+        box-sizing: border-box;
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
       body {
         font-family: sans-serif;
         padding: 20px;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        width: 100vw;
+        overflow: hidden;
       }
       #app {
         margin-top: 20px;
+        flex: 1;
+        overflow: hidden;
+      }
+      #container {
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
       }
       canvas {
         border: 1px solid #ccc;

@@ -1,5 +1,5 @@
-import { FileHandler, Logger, UnitConversion } from '@opr/shared';
-import { Worksheet, Row, Cell, CellType } from './types';
+import { FileHandler, Logger } from '@opr/shared';
+import { Worksheet, Row, Cell, RichTextRun } from './types';
 
 const logger = new Logger('WorksheetParser');
 
@@ -10,7 +10,7 @@ export class WorksheetParser {
    * @param sharedStrings 共享字符串表
    * @returns Worksheet 对象
    */
-  static parse(xmlString: string, sharedStrings: string[]): Worksheet {
+  static parse(xmlString: string, sharedStrings: (string | RichTextRun[])[]): Worksheet {
     const worksheet: Worksheet = {
       name: '', // 在 workbook.xml 中定义，这里暂时为空
       rows: new Map(),
@@ -19,6 +19,31 @@ export class WorksheetParser {
 
     try {
       const doc = FileHandler.parseXML(xmlString);
+
+      // 0. 解析 SheetViews (Freeze Panes)
+      const sheetViewsNode = doc.querySelector('sheetViews');
+      if (sheetViewsNode) {
+        const sheetViewNodes = sheetViewsNode.querySelectorAll('sheetView');
+        if (sheetViewNodes.length > 0) {
+          // Usually take the first one
+          const paneNode = sheetViewNodes[0].querySelector('pane');
+          if (paneNode) {
+            const xSplit = parseFloat(paneNode.getAttribute('xSplit') || '0');
+            const ySplit = parseFloat(paneNode.getAttribute('ySplit') || '0');
+            const topLeftCell = paneNode.getAttribute('topLeftCell');
+            const state = paneNode.getAttribute('state');
+
+            if (state === 'frozen' || xSplit > 0 || ySplit > 0) {
+              worksheet.frozen = {
+                xSplit,
+                ySplit,
+                topLeftCell: topLeftCell || undefined,
+                state: state || 'split'
+              };
+            }
+          }
+        }
+      }
 
       // 1. 解析维度 dimension
       const dimNode = doc.querySelector('dimension');
@@ -43,13 +68,6 @@ export class WorksheetParser {
           const colInfo = { min, max, width, customWidth };
 
           // 展开 col 范围 (min-max) 到每一列
-          // 实际存储可以优化为 Range, 但 MVP 为了查询方便，可以暂时不展开，或者渲染时查 Range
-          // 为了 GridRenderer 简单，我们暂时存储 Range?
-          // 不，TYPES里定义的是 Map<number, Column>，key是colIndex?
-          // 不太好，Excel col 定义通常是 Ranges.
-          // 这里我们做一个简单的 Range 展开，或者让 Map key 代表 min?
-          // 还是展开吧，通常 max - min 不会太大。
-
           for (let c = min; c <= max; c++) {
             worksheet.cols.set(c, colInfo);
           }
@@ -66,6 +84,19 @@ export class WorksheetParser {
           worksheet.rows.set(row.index, row);
         }
       }
+
+      // 4. 解析 Merged Cells
+      const mergeCellsNode = doc.querySelector('mergeCells');
+      if (mergeCellsNode) {
+        worksheet.merges = [];
+        const mergeNodes = mergeCellsNode.querySelectorAll('mergeCell');
+        for (let i = 0; i < mergeNodes.length; i++) {
+          const ref = mergeNodes[i].getAttribute('ref');
+          if (ref) {
+            worksheet.merges.push(ref);
+          }
+        }
+      }
     } catch (e) {
       logger.error('Failed to parse worksheet', e);
     }
@@ -73,7 +104,7 @@ export class WorksheetParser {
     return worksheet;
   }
 
-  private static parseRow(rowNode: Element, sharedStrings: string[]): Row {
+  private static parseRow(rowNode: Element, sharedStrings: (string | RichTextRun[])[]): Row {
     const rIndex = parseInt(rowNode.getAttribute('r') || '0', 10);
     const ht = rowNode.getAttribute('ht');
     const customHeight = rowNode.getAttribute('customHeight') === '1';
@@ -98,7 +129,7 @@ export class WorksheetParser {
     return row;
   }
 
-  private static parseCell(cNode: Element, rowIndex: number, sharedStrings: string[]): Cell {
+  private static parseCell(cNode: Element, rowIndex: number, sharedStrings: (string | RichTextRun[])[]): Cell {
     const rAttr = cNode.getAttribute('r'); // e.g. "A1"
     const tAttr = cNode.getAttribute('t') || 'n'; // type: s, b, e, str, inlineStr, n(default)
     const sAttr = cNode.getAttribute('s'); // style index
@@ -129,7 +160,15 @@ export class WorksheetParser {
         cell.type = 'sharedString';
         const idx = parseInt(vText, 10);
         if (idx >= 0 && idx < sharedStrings.length) {
-          cell.value = sharedStrings[idx];
+          const content = sharedStrings[idx];
+          if (typeof content === 'string') {
+            cell.value = content;
+          } else {
+            // Rich Text
+            cell.richText = content;
+            // Concatenate text for fallback
+            cell.value = content.map(r => r.text).join('');
+          }
         } else {
           cell.value = vText; // Fallback
         }
@@ -139,12 +178,33 @@ export class WorksheetParser {
         cell.type = 'inlineString';
         const isNode = cNode.querySelector('is');
         if (isNode) {
-          const tNodes = isNode.querySelectorAll('t');
-          let text = '';
-          for (let j = 0; j < tNodes.length; j++) {
-            text += tNodes[j].textContent || '';
+          // Check for runs <r>
+          const rNodes = isNode.querySelectorAll('r');
+          if (rNodes.length > 0) {
+            const runs: RichTextRun[] = [];
+            let fullText = '';
+            for (let j = 0; j < rNodes.length; j++) {
+              const r = rNodes[j];
+              const t = r.querySelector('t')?.textContent || '';
+              // const rPr = r.querySelector('rPr');
+              // TODO: parse rPr inline - reusing similar logic?
+              // For MVP, if SharedStrings has helpers, maybe genericize?
+              // Copy-paste simple logic for now.
+              const run: RichTextRun = { text: t };
+              fullText += t;
+              // ... parse font (simplified)
+              runs.push(run);
+            }
+            cell.richText = runs;
+            cell.value = fullText;
+          } else {
+            const tNodes = isNode.querySelectorAll('t');
+            let text = '';
+            for (let j = 0; j < tNodes.length; j++) {
+              text += tNodes[j].textContent || '';
+            }
+            cell.value = text;
           }
-          cell.value = text;
         }
         break;
 
@@ -217,6 +277,19 @@ export class WorksheetParser {
       endStr: endPos.colStr,
       startRow: startPos.row,
       endRow: endPos.row,
+      startCol: this.getColumnIndex(start),
+      endCol: this.getColumnIndex(end)
+    };
+  }
+
+  public static parseRange(ref: string) {
+    const parts = ref.split(':');
+    const start = parts[0];
+    const end = parts.length > 1 ? parts[1] : start;
+
+    return {
+      startRow: parseInt(start.replace(/[A-Z]+/, ''), 10),
+      endRow: parseInt(end.replace(/[A-Z]+/, ''), 10),
       startCol: this.getColumnIndex(start),
       endCol: this.getColumnIndex(end)
     };
