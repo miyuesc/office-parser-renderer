@@ -46,6 +46,18 @@ export class GridRenderer {
   public scrollX = 0;
   public scrollY = 0;
 
+  private totalWidth = 0;
+  private totalHeight = 0;
+
+  // Scrollbar Interaction State
+  private isDraggingV = false;
+  private isDraggingH = false;
+  private dragStart = { x: 0, y: 0 };
+  private dragStartScroll = { x: 0, y: 0 };
+  private readonly SCROLLBAR_SIZE = 10;
+  private readonly SCROLLBAR_PADDING = 2;
+  private readonly SCROLLBAR_MIN_THUMB = 20;
+
   constructor(container: HTMLElement, options: Partial<GridRendererOptions> = {}) {
     this.canvas = document.createElement('canvas');
     container.appendChild(this.canvas);
@@ -62,7 +74,14 @@ export class GridRenderer {
 
     // Bind Events
     this.handleWheel = this.handleWheel.bind(this);
+    this.handleMouseDown = this.handleMouseDown.bind(this);
+    this.handleMouseMove = this.handleMouseMove.bind(this);
+    this.handleMouseUp = this.handleMouseUp.bind(this);
+
     this.canvas.addEventListener('wheel', this.handleWheel, { passive: false });
+    this.canvas.addEventListener('mousedown', this.handleMouseDown);
+    window.addEventListener('mousemove', this.handleMouseMove);
+    window.addEventListener('mouseup', this.handleMouseUp);
   }
 
   private handleWheel(event: WheelEvent) {
@@ -80,6 +99,75 @@ export class GridRenderer {
     this.scrollY = Math.max(0, Math.min(this.scrollY, maxScrollY));
 
     this.render();
+  }
+
+  private handleMouseDown(e: MouseEvent) {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const { width, height } = this.options;
+
+    // Check Vertical Scrollbar
+    if (x > width - this.SCROLLBAR_SIZE && this.totalHeight > height) {
+      this.isDraggingV = true;
+      this.dragStart = { x, y };
+      this.dragStartScroll = { x: this.scrollX, y: this.scrollY };
+      return;
+    }
+
+    // Check Horizontal Scrollbar
+    if (y > height - this.SCROLLBAR_SIZE && this.totalWidth > width) {
+      this.isDraggingH = true;
+      this.dragStart = { x, y };
+      this.dragStartScroll = { x: this.scrollX, y: this.scrollY };
+      return;
+    }
+  }
+
+  private handleMouseMove(e: MouseEvent) {
+    if (!this.isDraggingV && !this.isDraggingH) return;
+
+    e.preventDefault();
+    const rect = this.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const { width, height } = this.options;
+
+    if (this.isDraggingV) {
+      const deltaY = y - this.dragStart.y;
+      const trackHeight = height - this.SCROLLBAR_SIZE; // Leave space for corner
+      const thumbHeight = Math.max(this.SCROLLBAR_MIN_THUMB, (height / this.totalHeight) * trackHeight);
+      const scrollableHeight = trackHeight - thumbHeight;
+      const scrollableContent = this.totalHeight - height;
+
+      if (scrollableHeight > 0) {
+        const ratio = scrollableContent / scrollableHeight;
+        this.scrollY = Math.max(0, Math.min(scrollableContent, this.dragStartScroll.y + deltaY * ratio));
+      }
+    }
+
+    if (this.isDraggingH) {
+      const deltaX = x - this.dragStart.x;
+      const trackWidth = width - this.SCROLLBAR_SIZE;
+      const thumbWidth = Math.max(this.SCROLLBAR_MIN_THUMB, (width / this.totalWidth) * trackWidth);
+      const scrollableWidth = trackWidth - thumbWidth;
+      const scrollableContent = this.totalWidth - width;
+
+      if (scrollableWidth > 0) {
+        const ratio = scrollableContent / scrollableWidth;
+        this.scrollX = Math.max(0, Math.min(scrollableContent, this.dragStartScroll.x + deltaX * ratio));
+      }
+    }
+
+    this.render();
+  }
+
+  // Fix ratio variable scope issue in handleMouseMove (redeclaration)
+  // Re-implement specialized ratios for H scroll
+
+  private handleMouseUp() {
+    this.isDraggingV = false;
+    this.isDraggingH = false;
   }
 
   private calculateContentSize() {
@@ -134,6 +222,9 @@ export class GridRenderer {
 
     // Add some padding
     contentHeight += 100;
+
+    this.totalWidth = contentWidth;
+    this.totalHeight = contentHeight;
 
     return { contentWidth, contentHeight };
   }
@@ -529,6 +620,63 @@ export class GridRenderer {
       ctx.lineTo(width, fixedHeight);
     }
     ctx.stroke();
+
+    this.drawScrollBars(ctx, width, height);
+  }
+
+  private drawScrollBars(ctx: CanvasRenderingContext2D, width: number, height: number) {
+    const trackColor = 'rgba(0, 0, 0, 0.05)';
+    const thumbColor = 'rgba(0, 0, 0, 0.3)';
+    const thumbHoverColor = 'rgba(0, 0, 0, 0.5)';
+
+    // Vertical Scrollbar
+    if (this.totalHeight > height) {
+      const trackHeight = height - this.SCROLLBAR_SIZE;
+      const thumbHeight = Math.max(this.SCROLLBAR_MIN_THUMB, (height / this.totalHeight) * trackHeight);
+      const scrollRatio = this.scrollY / (this.totalHeight - height);
+      const thumbY = scrollRatio * (trackHeight - thumbHeight);
+
+      // Track
+      ctx.fillStyle = trackColor;
+      ctx.fillRect(width - this.SCROLLBAR_SIZE, 0, this.SCROLLBAR_SIZE, trackHeight);
+
+      // Thumb
+      ctx.fillStyle = this.isDraggingV ? thumbHoverColor : thumbColor;
+      // Rounded Rect for nice look? Simple rect for now
+      ctx.fillRect(
+        width - this.SCROLLBAR_SIZE + this.SCROLLBAR_PADDING,
+        thumbY + this.SCROLLBAR_PADDING,
+        this.SCROLLBAR_SIZE - this.SCROLLBAR_PADDING * 2,
+        thumbHeight - this.SCROLLBAR_PADDING * 2
+      );
+    }
+
+    // Horizontal Scrollbar
+    if (this.totalWidth > width) {
+      const trackWidth = width - this.SCROLLBAR_SIZE;
+      const thumbWidth = Math.max(this.SCROLLBAR_MIN_THUMB, (width / this.totalWidth) * trackWidth);
+      const scrollRatio = this.scrollX / (this.totalWidth - width);
+      const thumbX = scrollRatio * (trackWidth - thumbWidth);
+
+      // Track
+      ctx.fillStyle = trackColor;
+      ctx.fillRect(0, height - this.SCROLLBAR_SIZE, trackWidth, this.SCROLLBAR_SIZE);
+
+      // Thumb
+      ctx.fillStyle = this.isDraggingH ? thumbHoverColor : thumbColor;
+      ctx.fillRect(
+        thumbX + this.SCROLLBAR_PADDING,
+        height - this.SCROLLBAR_SIZE + this.SCROLLBAR_PADDING,
+        thumbWidth - this.SCROLLBAR_PADDING * 2,
+        this.SCROLLBAR_SIZE - this.SCROLLBAR_PADDING * 2
+      );
+    }
+
+    // Corner
+    if (this.totalHeight > height && this.totalWidth > width) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(width - this.SCROLLBAR_SIZE, height - this.SCROLLBAR_SIZE, this.SCROLLBAR_SIZE, this.SCROLLBAR_SIZE);
+    }
   }
 
   private renderCellBgAndText(
