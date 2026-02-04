@@ -27,6 +27,14 @@ export const shapeArc = (
 export const arcToPath = (d: string) => d.replace(/^M/, 'L');
 
 export const getRect = (w: number, h: number, _adj?: any) => `M 0 0 L ${w} 0 L ${w} ${h} L 0 ${h} Z`;
+
+/** 圆角矩形 */
+export const getRoundRect = (w: number, h: number, adj?: any) => {
+  let r = Math.min(w, h) * 0.16667;
+  if (adj?.val) r = Math.min(w, h) * (adj.val / 100000);
+  return `M ${r} 0 L ${w - r} 0 Q ${w} 0 ${w} ${r} L ${w} ${h - r} Q ${w} ${h} ${w - r} ${h} L ${r} ${h} Q 0 ${h} 0 ${h - r} L 0 ${r} Q 0 0 ${r} 0 Z`;
+};
+
 export const getEllipse = (w: number, h: number) =>
   `M 0 ${h / 2} A ${w / 2} ${h / 2} 0 1 1 ${w} ${h / 2} A ${w / 2} ${h / 2} 0 1 1 0 ${h / 2} Z`;
 export const getDiamond = (w: number, h: number, _adj?: any) =>

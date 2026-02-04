@@ -827,58 +827,234 @@ const getLeftCircularArrow = (w: number, h: number, adj?: any) => {
   );
 };
 
-const getSwooshArrow = (w: number, h: number, _adj?: any) => {
-  // L7566
-  const xB = w * 0.8;
-  const yB = h * 0.15;
-  const xC = w * 0.7;
-  const yD = h * 0.3;
-  const xE = w * 0.9;
-  const yE = h * 0.2;
+const getSwooshArrow = (w: number, h: number, adj?: any) => {
+  const ss = Math.min(w, h);
+  const cnstVal1 = 1;
+  const cnstVal2 = 70000;
+  const cnstVal3 = 75000;
+  const cnstVal4 = 100000;
 
-  // Approximate a swoosh.
+  let adj1 = adj?.adj1 ?? 25000;
+  let adj2 = adj?.adj2 ?? 16667;
+
+  // Clamping
+  const a1Val = adj1 < cnstVal1 ? cnstVal1 : adj1 > cnstVal3 ? cnstVal3 : adj1;
+  const a1 = a1Val;
+
+  const maxAdj2 = (cnstVal2 * w) / ss;
+  const a2Val = adj2 < 0 ? 0 : adj2 > maxAdj2 ? maxAdj2 : adj2;
+  const a2 = a2Val;
+
+  const ssd8 = ss / 8;
+  const hd6 = h / 6;
+
+  const ad1 = (h * a1) / cnstVal4;
+  const ad2 = (ss * a2) / cnstVal4;
+  const xB = w - ad2;
+  const yB = ssd8;
+  const alfa = Math.PI / 2 / 14;
+  const dx0 = ssd8 * Math.tan(alfa);
+  const xC = xB - dx0;
+  const dx1 = ad1 * Math.tan(alfa);
+  const yF = yB + ad1;
+  const xF = xB + dx1;
+  const xE = xF + dx0;
+  const yE = yF + ssd8;
+  const dy2 = yE - 0;
+  const dy22 = dy2 / 2;
+  const dy3 = h / 20;
+  const yD = dy22 - dy3;
+  const dy4 = hd6;
+  const yP1 = hd6 + dy4;
+  const xP1 = w / 6;
+  const dy5 = hd6 / 2;
+  const yP2 = yF + dy5;
+  const xP2 = w / 4;
+
   return (
-    `M 0 ${h} Q ${w / 6} ${h} ${xB} ${yB} L ${xC} 0 L ${w} ${yD} L ${xE} ${yE} ` +
-    `L ${w * 0.8} ${h * 0.3} Q ${w / 3} ${h * 0.8} 0 ${h} Z`
+    `M 0 ${h} ` +
+    `Q ${xP1} ${yP1} ${xB} ${yB} ` +
+    `L ${xC} 0 ` +
+    `L ${w} ${yD} ` +
+    `L ${xE} ${yE} ` +
+    `L ${xF} ${yF} ` +
+    `Q ${xP2} ${yP2} 0 ${h} ` +
+    `Z`
   );
 };
 
-const getCurvedRightArrow = (w: number, h: number, adj?: any) => {
+const getCurvedDownArrow = (w: number, h: number, adj?: any) => {
+  const ss = Math.min(w, h);
   const cnstVal1 = 50000;
   const cnstVal2 = 100000;
 
-  const minWH = Math.min(w, h);
-  const maxAdj2 = (cnstVal1 * h) / minWH;
+  let adj1 = adj?.adj1 ?? 25000;
+  let adj2 = adj?.adj2 ?? 50000;
+  let adj3 = adj?.adj3 ?? 25000;
 
-  let adj1 = (adj?.adj1 ?? 25000) / 100000;
-  let adj2 = (adj?.adj2 ?? 50000) / 100000;
-  let adj3 = (adj?.adj3 ?? 25000) / 100000;
+  const maxAdj2 = (cnstVal1 * w) / ss;
+  const a2Val = adj2 < 0 ? 0 : adj2 > maxAdj2 ? maxAdj2 : adj2;
+  const a2 = a2Val;
 
-  // Clamping logic from pptx.js
-  const a2Val = adj2 > maxAdj2 / 100000 ? maxAdj2 / 100000 : adj2; // normalize logic
-  const a2 = a2Val < 0 ? 0 : a2Val;
+  const a1Val = adj1 < 0 ? 0 : adj1 > cnstVal2 ? cnstVal2 : adj1;
+  const a1 = a1Val;
 
-  const a1Val = adj1 > a2 ? a2 : adj1;
-  const a1 = a1Val < 0 ? 0 : a1Val;
+  const th = (ss * a1) / cnstVal2;
+  const aw = (ss * a2) / cnstVal2;
+  const q1 = (th + aw) / 4;
+  const wR = w / 2 - q1;
+  const q7 = wR * 2;
+  const q8 = q7 * q7;
+  const q9 = th * th;
+  const q10 = q8 - q9;
+  const q11 = Math.sqrt(Math.max(0, q10));
+  const idy = (q11 * h) / q7;
+  const maxAdj3 = (cnstVal2 * idy) / ss;
+  const a3Val = adj3 < 0 ? 0 : adj3 > maxAdj3 ? maxAdj3 : adj3;
+  const a3 = a3Val;
+  const ah = (ss * a3) / cnstVal2;
+  const x3 = wR + th;
+  const q2 = h * h;
+  const q3 = ah * ah;
+  const q4 = q2 - q3;
+  const q5 = Math.sqrt(Math.max(0, q4));
+  const dx = (q5 * wR) / h;
+  const x5 = wR + dx;
+  const x7 = x3 + dx;
+  const q6 = aw - th;
+  const dh = q6 / 2;
+  const x4 = x5 - dh;
+  const x8 = x7 + dh;
+  const aw2 = aw / 2;
+  const x6 = w - aw2;
+  const y1 = h - ah;
+  const swAng = Math.atan(dx / ah);
+  const swAngDeg = (swAng * 180) / Math.PI;
+  const mswAng = -swAngDeg;
+  // const iy = h - idy;
+  // const ix = (wR + x3) / 2;
+  const q12 = th / 2;
+  const dang2 = Math.atan(q12 / idy);
+  const dang2Deg = (dang2 * 180) / Math.PI;
+  const stAng = 270 + swAngDeg;
+  const stAng2 = 270 - dang2Deg;
+  const swAng2 = dang2Deg - 90;
+  const swAng3 = 90 + dang2Deg;
 
-  const th = minWH * a1; // thickness
-  const aw = minWH * a2; // arrow width
+  return (
+    `M ${x6} ${h} L ${x4} ${y1} L ${x5} ${y1} ` +
+    `${arcToPath(shapeArc(wR, h, wR, h, stAng, stAng + mswAng, false))} ` +
+    `L ${x3} 0 ` +
+    `${arcToPath(shapeArc(x3, h, wR, h, 270, 270 + swAngDeg, false))} ` +
+    `L ${x5 + th} ${y1} L ${x8} ${y1} z ` +
+    `M ${x3} 0 ` +
+    `${arcToPath(shapeArc(x3, h, wR, h, stAng2, stAng2 + swAng2, false))} ` +
+    `${arcToPath(shapeArc(wR, h, wR, h, 180, 180 + swAng3, false))}`
+  );
+};
 
+const getCurvedLeftArrow = (w: number, h: number, adj?: any) => {
+  const ss = Math.min(w, h);
+  const cnstVal1 = 50000;
+  const cnstVal2 = 100000;
+
+  let adj1 = adj?.adj1 ?? 25000;
+  let adj2 = adj?.adj2 ?? 50000;
+  let adj3 = adj?.adj3 ?? 25000;
+
+  const maxAdj2 = (cnstVal1 * h) / ss;
+  const a2Val = adj2 < 0 ? 0 : adj2 > maxAdj2 ? maxAdj2 : adj2;
+  const a2 = a2Val;
+  const a1Val = adj1 < 0 ? 0 : adj1 > a2 ? a2 : adj1;
+  const a1 = a1Val;
+
+  const th = (ss * a1) / cnstVal2;
+  const aw = (ss * a2) / cnstVal2;
   const q1 = (th + aw) / 4;
   const hR = h / 2 - q1;
   const q7 = hR * 2;
   const q8 = q7 * q7;
   const q9 = th * th;
   const q10 = q8 - q9;
-  const q11 = Math.sqrt(Math.max(0, q10)); // Ensure non-negative
+  const q11 = Math.sqrt(Math.max(0, q10));
   const iDx = (q11 * w) / q7;
+  const maxAdj3 = (cnstVal2 * iDx) / ss;
+  const a3Val = adj3 < 0 ? 0 : adj3 > maxAdj3 ? maxAdj3 : adj3;
+  const a3 = a3Val;
+  const ah = (ss * a3) / cnstVal2;
+  const y3 = hR + th;
+  const q2 = w * w;
+  const q3 = ah * ah;
+  const q4 = q2 - q3;
+  const q5 = Math.sqrt(Math.max(0, q4));
+  const dy = (q5 * hR) / w;
+  const y5 = hR + dy;
+  const y7 = y3 + dy;
+  const q6 = aw - th;
+  const dh = q6 / 2;
+  const y4 = y5 - dh;
+  const y8 = y7 + dh;
+  const aw2 = aw / 2;
+  const y6 = h - aw2;
+  const x1 = ah;
+  const swAng = Math.atan(dy / ah);
+  // const mswAng = -swAng;
+  // const ix = iDx;
+  // const iy = (hR + y3) / 2;
+  const q12 = th / 2;
+  const dang2 = Math.atan(q12 / iDx);
+  const swAng2 = dang2 - swAng;
+  // const swAng3 = swAng + dang2;
+  // const stAng3 = -dang2;
 
-  const maxAdj3 = (cnstVal2 * iDx) / minWH;
-  const a3Val = adj3 > maxAdj3 / 100000 ? maxAdj3 / 100000 : adj3;
-  const a3 = a3Val < 0 ? 0 : a3Val;
+  const swAngDg = (swAng * 180) / Math.PI;
+  const swAng2Dg = (swAng2 * 180) / Math.PI;
+  // const swAng3Dg = (swAng3 * 180) / Math.PI;
+  // const stAng3dg = (stAng3 * 180) / Math.PI;
 
-  const ah = minWH * a3;
+  return (
+    `M ${w} ${y3} ` +
+    `${arcToPath(shapeArc(0, hR, w, hR, 0, -90, false))} ` +
+    `L 0 0 ` +
+    `${arcToPath(shapeArc(0, y3, w, hR, 270, 360, false))} ` +
+    `L ${w} ${y3} ` +
+    `${arcToPath(shapeArc(0, y3, w, hR, 0, swAngDg, false))} ` +
+    `L ${x1} ${y7} L ${x1} ${y8} L 0 ${y6} L ${x1} ${y4} L ${x1} ${y5} ` +
+    `${arcToPath(shapeArc(0, hR, w, hR, swAngDg, swAngDg + swAng2Dg, false))} ` +
+    `${arcToPath(shapeArc(0, hR, w, hR, 0, -90, false))} ` +
+    `${arcToPath(shapeArc(0, y3, w, hR, 270, 360, false))}`
+  );
+};
 
+const getCurvedRightArrow = (w: number, h: number, adj?: any) => {
+  const ss = Math.min(w, h);
+  const cnstVal1 = 50000;
+  const cnstVal2 = 100000;
+
+  let adj1 = adj?.adj1 ?? 25000;
+  let adj2 = adj?.adj2 ?? 50000;
+  let adj3 = adj?.adj3 ?? 25000;
+
+  const maxAdj2 = (cnstVal1 * h) / ss;
+  const a2Val = adj2 < 0 ? 0 : adj2 > maxAdj2 ? maxAdj2 : adj2;
+  const a2 = a2Val;
+  const a1Val = adj1 < 0 ? 0 : adj1 > a2 ? a2 : adj1;
+  const a1 = a1Val;
+
+  const th = (ss * a1) / cnstVal2;
+  const aw = (ss * a2) / cnstVal2;
+  const q1 = (th + aw) / 4;
+  const hR = h / 2 - q1;
+  const q7 = hR * 2;
+  const q8 = q7 * q7;
+  const q9 = th * th;
+  const q10 = q8 - q9;
+  const q11 = Math.sqrt(Math.max(0, q10));
+  const iDx = (q11 * w) / q7;
+  const maxAdj3 = (cnstVal2 * iDx) / ss;
+  const a3Val = adj3 < 0 ? 0 : adj3 > maxAdj3 ? maxAdj3 : adj3;
+  const a3 = a3Val;
+  const ah = (ss * a3) / cnstVal2;
   const y3 = hR + th;
   const q2 = w * w;
   const q3 = ah * ah;
@@ -894,55 +1070,103 @@ const getCurvedRightArrow = (w: number, h: number, adj?: any) => {
   const aw2 = aw / 2;
   const y6 = h - aw2;
   const x1 = w - ah;
-
   const swAng = Math.atan(dy / ah);
   const stAng = Math.PI - swAng;
   const mswAng = -swAng;
-
-  // const ix = w - iDx;
-  // const iy = (hR + y3) / 2;
   const q12 = th / 2;
   const dang2 = Math.atan(q12 / iDx);
   const swAng2 = dang2 - Math.PI / 2;
-  // const swAng3 = Math.PI / 2 + dang2;
-  // const stAng3 = Math.PI - dang2;
 
-  const rDeg = (r: number) => (r * 180) / Math.PI;
-
-  const stAngDg = rDeg(stAng);
-  const mswAngDg = rDeg(mswAng);
-  const swAngDg = rDeg(swAng);
-  const swAng2dg = rDeg(swAng2);
-
-  const cd2 = 180;
-  const cd4 = 90;
-  const c3d4 = 270;
-
-  // Path Construction
-  // shapeArc center is 'w' (right edge alignment?)
-  // Actually in pptx logic, arcs used w as center X?
-  // "shapeArc(w, hR, w, hR..." -> cx=w, cy=hR, rx=w, ry=hR.
+  const stAngDg = (stAng * 180) / Math.PI;
+  const mswAngDg = (mswAng * 180) / Math.PI;
+  const swAngDg = (swAng * 180) / Math.PI;
+  const swAng2dg = (swAng2 * 180) / Math.PI;
 
   return (
     `M 0 ${hR} ` +
-    `${arcToPath(shapeArc(w, hR, w, hR, cd2, cd2 + mswAngDg, false))} ` +
+    `${arcToPath(shapeArc(w, hR, w, hR, 180, 180 + mswAngDg, false))} ` +
     `L ${x1} ${y5} L ${x1} ${y4} L ${w} ${y6} L ${x1} ${y8} L ${x1} ${y7} ` +
     `${arcToPath(shapeArc(w, y3, w, hR, stAngDg, stAngDg + swAngDg, false))} ` +
     `L 0 ${hR} ` +
-    `${arcToPath(shapeArc(w, hR, w, hR, cd2, cd2 + cd4, false))} ` +
+    `${arcToPath(shapeArc(w, hR, w, hR, 180, 270, false))} ` +
     `L ${w} ${th} ` +
-    `${arcToPath(shapeArc(w, y3, w, hR, c3d4, c3d4 + swAng2dg, false))}` +
-    // Note: The last part of pptx code seems open loop?
-    // pptx code ends with `...replace("M", "L")` then nothing.
-    // SVG path auto-closes if Z is used, or just ends.
-    // We should probably allow it to close naturally or add Z.
-    // For now, following exact sequence.
-    ` Z`
+    `${arcToPath(shapeArc(w, y3, w, hR, 270, 270 + swAng2dg, false))}`
+  );
+};
+
+const getCurvedUpArrow = (w: number, h: number, adj?: any) => {
+  const ss = Math.min(w, h);
+  const cnstVal1 = 50000;
+  const cnstVal2 = 100000;
+
+  let adj1 = adj?.adj1 ?? 25000;
+  let adj2 = adj?.adj2 ?? 50000;
+  let adj3 = adj?.adj3 ?? 25000;
+
+  const maxAdj2 = (cnstVal1 * w) / ss;
+  const a2Val = adj2 < 0 ? 0 : adj2 > maxAdj2 ? maxAdj2 : adj2;
+  const a2 = a2Val;
+  const a1Val = adj1 < 0 ? 0 : adj1 > cnstVal2 ? cnstVal2 : adj1;
+  const a1 = a1Val;
+
+  const th = (ss * a1) / cnstVal2;
+  const aw = (ss * a2) / cnstVal2;
+  const q1 = (th + aw) / 4;
+  const wR = w / 2 - q1;
+  const q7 = wR * 2;
+  const q8 = q7 * q7;
+  const q9 = th * th;
+  const q10 = q8 - q9;
+  const q11 = Math.sqrt(Math.max(0, q10));
+  const idy = (q11 * h) / q7;
+  const maxAdj3 = (cnstVal2 * idy) / ss;
+  const a3Val = adj3 < 0 ? 0 : adj3 > maxAdj3 ? maxAdj3 : adj3;
+  const a3 = a3Val;
+  const ah = (ss * a3) / cnstVal2;
+  const x3 = wR + th;
+  // const q2 = h * h;
+  const q3 = ah * ah;
+  // const q4 = h * h - q3; // typo in pptxjs logic? Use q2=h*h
+  const q5 = Math.sqrt(Math.max(0, h * h - q3));
+  const dx = (q5 * wR) / h;
+  const x5 = wR + dx;
+  const x7 = x3 + dx;
+  const q6 = aw - th;
+  const dh = q6 / 2;
+  const x4 = x5 - dh;
+  const x8 = x7 + dh;
+  const aw2 = aw / 2;
+  const x6 = w - aw2;
+  const y1 = ah; // t + ah. t=0.
+  const swAng = Math.atan(dx / ah);
+  // const mswAng = -swAng;
+  // const iy = idy;
+  // const ix = (wR + x3) / 2;
+  const q12 = th / 2;
+  const dang2 = Math.atan(q12 / idy);
+  const swAng2 = dang2 - swAng;
+  // const mswAng2 = -swAng2;
+  const stAng3 = Math.PI / 2 - swAng;
+  // const swAng3 = swAng + dang2;
+  const stAng2 = Math.PI / 2 - dang2;
+
+  const stAng2dg = (stAng2 * 180) / Math.PI;
+  const swAng2dg = (swAng2 * 180) / Math.PI;
+  const stAng3dg = (stAng3 * 180) / Math.PI;
+  const swAngDg = (swAng * 180) / Math.PI;
+
+  return (
+    `${arcToPath(shapeArc(wR, 0, wR, h, stAng2dg, stAng2dg + swAng2dg, false))} ` +
+    `L ${x5} ${y1} L ${x4} ${y1} L ${x6} 0 L ${x8} ${y1} L ${x7} ${y1} ` +
+    `${arcToPath(shapeArc(x3, 0, wR, h, stAng3dg, stAng3dg + swAngDg, false))} ` +
+    `${arcToPath(shapeArc(x3, 0, wR, h, 270, 360, false))} ` +
+    `${arcToPath(shapeArc(wR, 0, wR, h, 180, 270, false))} ` +
+    `${arcToPath(shapeArc(wR, 0, wR, h, stAng2dg, stAng2dg + swAng2dg, false))}`
   );
 };
 
 const getStripedRightArrow = (w: number, h: number, adj?: any) => {
-  const cnstVal1 = 100000;
+  // const cnstVal1 = 100000;
   // const cnstVal2 = 200000;
   const cnstVal3 = 84375;
 
@@ -1009,7 +1233,7 @@ export const arrows = {
   swooshArrow: getSwooshArrow,
 
   curvedRightArrow: getCurvedRightArrow,
-  curvedLeftArrow: getCurvedRightArrow, // TODO: Mirror
-  curvedUpArrow: getCurvedRightArrow, // TODO: Rotate
-  curvedDownArrow: getCurvedRightArrow // TODO: Rotate
+  curvedLeftArrow: getCurvedLeftArrow,
+  curvedUpArrow: getCurvedUpArrow,
+  curvedDownArrow: getCurvedDownArrow
 };
