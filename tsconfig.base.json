@@ -16,7 +16,8 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@opr/definitions": ["definitions/src"],
+
+      "@opr/definitions": ["definitions/autogen"],
       "@opr/shared": ["packages/shared/src"],
       "@opr/xlsx": ["packages/xlsx/src"],
       "@opr/docx": ["packages/docx/src"],
