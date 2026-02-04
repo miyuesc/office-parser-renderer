@@ -1,5 +1,5 @@
 import { Worksheet, XlsxDocument, Styles } from '../parser/types';
-import { UnitConversion, FontMapping, ImageRenderer } from '@opr/shared';
+import { UnitConversion, FontMapping, ImageRenderer, ShapeRenderer } from '@opr/shared';
 import { VirtualScrollbar } from './VirtualScrollbar';
 import { CellRenderer } from './CellRenderer';
 import { BorderRenderer, DrawCmd } from './BorderRenderer';
@@ -278,6 +278,55 @@ export class GridRenderer {
       contentHeight = currentY;
     }
     contentHeight += 100; // Padding
+
+    // Check Drawings/Images for bounds extension
+    if (this.worksheet.drawings) {
+      for (const drawing of this.worksheet.drawings) {
+        let x = 0,
+          y = 0,
+          w = 0,
+          h = 0;
+
+        // Logic duplicated from renderDrawings (could refactor, but kept inline for now)
+        if (drawing.position.type === 'twoCellAnchor' && drawing.position.from && drawing.position.to) {
+          const fromPos = this.getPixelPos(
+            drawing.position.from.col,
+            drawing.position.from.row,
+            drawing.position.from.colOff,
+            drawing.position.from.rowOff
+          );
+          const toPos = this.getPixelPos(
+            drawing.position.to.col,
+            drawing.position.to.row,
+            drawing.position.to.colOff,
+            drawing.position.to.rowOff
+          );
+          x = fromPos.x;
+          y = fromPos.y;
+          w = toPos.x - fromPos.x;
+          h = toPos.y - fromPos.y;
+        } else if (drawing.position.type === 'oneCellAnchor' && drawing.position.from) {
+          const fromPos = this.getPixelPos(
+            drawing.position.from.col,
+            drawing.position.from.row,
+            drawing.position.from.colOff,
+            drawing.position.from.rowOff
+          );
+          x = fromPos.x;
+          y = fromPos.y;
+          w = drawing.position.width;
+          h = drawing.position.height;
+        } else {
+          x = drawing.position.x || 0;
+          y = drawing.position.y || 0;
+          w = drawing.position.width;
+          h = drawing.position.height;
+        }
+
+        if (x + w > contentWidth) contentWidth = x + w + 50; // Add some margin
+        if (y + h > contentHeight) contentHeight = y + h + 50;
+      }
+    }
 
     this.totalWidth = contentWidth;
     this.totalHeight = contentHeight;
@@ -696,71 +745,85 @@ export class GridRenderer {
     }
     ctx.stroke();
 
-    this.renderImages(ctx, width, height);
+    this.renderDrawings(ctx, width, height);
     this.drawScrollBars(ctx, width, height);
   }
 
-  private renderImages(ctx: CanvasRenderingContext2D, viewWidth: number, viewHeight: number) {
-    if (!this.worksheet || !this.worksheet.images) return;
-    for (const img of this.worksheet.images) {
-      if (!this.imageCache.has(img.id)) {
-        if (!this.imageLoading.has(img.id)) {
-          this.imageLoading.add(img.id);
-          createImageBitmap(img.blob)
-            .then(bitmap => {
-              this.imageCache.set(img.id, bitmap);
-              this.imageLoading.delete(img.id);
-              this.render();
-            })
-            .catch(e => {
-              this.imageLoading.delete(img.id);
-            });
-        }
-        continue;
-      }
-      const bitmap = this.imageCache.get(img.id)!;
+  private renderDrawings(ctx: CanvasRenderingContext2D, viewWidth: number, viewHeight: number) {
+    if (!this.worksheet || !this.worksheet.drawings) return;
+    for (const drawing of this.worksheet.drawings) {
       let x = 0,
         y = 0,
         w = 0,
         h = 0;
 
-      if (img.position.type === 'twoCellAnchor' && img.position.from && img.position.to) {
+      // Calculate Position (Shared Logic)
+      if (drawing.position.type === 'twoCellAnchor' && drawing.position.from && drawing.position.to) {
         const fromPos = this.getPixelPos(
-          img.position.from.col,
-          img.position.from.row,
-          img.position.from.colOff,
-          img.position.from.rowOff
+          drawing.position.from.col,
+          drawing.position.from.row,
+          drawing.position.from.colOff,
+          drawing.position.from.rowOff
         );
         const toPos = this.getPixelPos(
-          img.position.to.col,
-          img.position.to.row,
-          img.position.to.colOff,
-          img.position.to.rowOff
+          drawing.position.to.col,
+          drawing.position.to.row,
+          drawing.position.to.colOff,
+          drawing.position.to.rowOff
         );
         x = fromPos.x;
         y = fromPos.y;
         w = toPos.x - fromPos.x;
         h = toPos.y - fromPos.y;
       } else {
-        if (img.position.type === 'oneCellAnchor' && img.position.from) {
+        if (drawing.position.type === 'oneCellAnchor' && drawing.position.from) {
           const fromPos = this.getPixelPos(
-            img.position.from.col,
-            img.position.from.row,
-            img.position.from.colOff,
-            img.position.from.rowOff
+            drawing.position.from.col,
+            drawing.position.from.row,
+            drawing.position.from.colOff,
+            drawing.position.from.rowOff
           );
           x = fromPos.x;
           y = fromPos.y;
         } else {
-          x = img.position.x || 0;
-          y = img.position.y || 0;
+          x = drawing.position.x || 0;
+          y = drawing.position.y || 0;
         }
-        w = img.position.width;
-        h = img.position.height;
+        w = drawing.position.width;
+        h = drawing.position.height;
       }
+
       const screenX = x - this.scrollX;
       const screenY = y - this.scrollY;
-      ImageRenderer.render(ctx, img, bitmap, screenX, screenY, w, h);
+
+      // Check if visible (simple culling)
+      if (screenX + w < 0 || screenX > viewWidth || screenY + h < 0 || screenY > viewHeight) {
+        continue;
+      }
+
+      if ('blob' in drawing) {
+        // Image
+        if (!this.imageCache.has(drawing.id)) {
+          if (!this.imageLoading.has(drawing.id)) {
+            this.imageLoading.add(drawing.id);
+            createImageBitmap(drawing.blob)
+              .then(bitmap => {
+                this.imageCache.set(drawing.id, bitmap);
+                this.imageLoading.delete(drawing.id);
+                this.render();
+              })
+              .catch(e => {
+                this.imageLoading.delete(drawing.id);
+              });
+          }
+          continue;
+        }
+        const bitmap = this.imageCache.get(drawing.id)!;
+        ImageRenderer.render(ctx, drawing, bitmap, screenX, screenY, w, h);
+      } else {
+        // Shape
+        ShapeRenderer.render(ctx, drawing, screenX, screenY, w, h);
+      }
     }
   }
 

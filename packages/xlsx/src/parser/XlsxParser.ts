@@ -156,7 +156,7 @@ export class XlsxParser {
             const dRelsFile = files.get(dRelsPath);
             const dRelsMap = dRelsFile ? this.parseRels(FileHandler.readText(dRelsFile)) : new Map();
 
-            worksheet.images = DrawingParser.parse(drawingXml, dRelsMap, files, dFolder + '/');
+            worksheet.drawings = DrawingParser.parse(drawingXml, dRelsMap, files, dFolder + '/');
           }
         }
       }
