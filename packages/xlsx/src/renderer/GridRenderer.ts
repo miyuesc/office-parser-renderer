@@ -1,14 +1,8 @@
-import { Worksheet, Cell, XlsxDocument, Styles, BorderPr, Border } from '../parser/types';
-import {
-  NumberFormatter,
-  BorderConflictResolver,
-  IBorder,
-  BorderStyle,
-  UnitConversion,
-  FontMapping,
-  ColorUtils,
-  OfficeImage
-} from '@opr/shared';
+import { Worksheet, XlsxDocument, Styles } from '../parser/types';
+import { UnitConversion, FontMapping, ImageRenderer } from '@opr/shared';
+import { VirtualScrollbar } from './VirtualScrollbar';
+import { CellRenderer } from './CellRenderer';
+import { BorderRenderer, DrawCmd } from './BorderRenderer';
 
 export interface GridRendererOptions {
   width: number;
@@ -27,14 +21,6 @@ interface MergeInfo {
   height: number;
 }
 
-interface DrawCmd {
-  x: number;
-  y: number;
-  len: number;
-  isVertical: boolean; // true = vertical (Left/Right), false = horizontal (Top/Bottom)
-  border: IBorder;
-}
-
 export class GridRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -50,14 +36,8 @@ export class GridRenderer {
   private totalWidth = 0;
   private totalHeight = 0;
 
-  // Scrollbar Interaction State
-  private isDraggingV = false;
-  private isDraggingH = false;
-  private dragStart = { x: 0, y: 0 };
-  private dragStartScroll = { x: 0, y: 0 };
-  private readonly SCROLLBAR_SIZE = 10;
-  private readonly SCROLLBAR_PADDING = 2;
-  private readonly SCROLLBAR_MIN_THUMB = 20;
+  // Components
+  private scrollbar = new VirtualScrollbar();
 
   // Image Cache
   private imageCache: Map<string, ImageBitmap> = new Map();
@@ -65,6 +45,7 @@ export class GridRenderer {
 
   constructor(container: HTMLElement, options: Partial<GridRendererOptions> = {}) {
     this.canvas = document.createElement('canvas');
+    this.canvas.style.display = 'block'; // Prevent inline-block baseline issues
     container.appendChild(this.canvas);
     this.ctx = this.canvas.getContext('2d')!;
 
@@ -108,71 +89,49 @@ export class GridRenderer {
 
   private handleMouseDown(e: MouseEvent) {
     const rect = this.canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
     const { width, height } = this.options;
 
-    // Check Vertical Scrollbar
-    if (x > width - this.SCROLLBAR_SIZE && this.totalHeight > height) {
-      this.isDraggingV = true;
-      this.dragStart = { x, y };
-      this.dragStartScroll = { x: this.scrollX, y: this.scrollY };
-      return;
-    }
+    // Delegate to Scrollbar
+    const handled = this.scrollbar.handleMouseDown(
+      e,
+      rect,
+      { width, height },
+      { totalWidth: this.totalWidth, totalHeight: this.totalHeight },
+      { scrollX: this.scrollX, scrollY: this.scrollY }
+    );
 
-    // Check Horizontal Scrollbar
-    if (y > height - this.SCROLLBAR_SIZE && this.totalWidth > width) {
-      this.isDraggingH = true;
-      this.dragStart = { x, y };
-      this.dragStartScroll = { x: this.scrollX, y: this.scrollY };
-      return;
-    }
+    if (handled) return;
+
+    // Handle other clicks (e.g. cell selection) here later
   }
 
   private handleMouseMove(e: MouseEvent) {
-    if (!this.isDraggingV && !this.isDraggingH) return;
-
-    e.preventDefault();
     const rect = this.canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
     const { width, height } = this.options;
 
-    if (this.isDraggingV) {
-      const deltaY = y - this.dragStart.y;
-      const trackHeight = height - this.SCROLLBAR_SIZE; // Leave space for corner
-      const thumbHeight = Math.max(this.SCROLLBAR_MIN_THUMB, (height / this.totalHeight) * trackHeight);
-      const scrollableHeight = trackHeight - thumbHeight;
-      const scrollableContent = this.totalHeight - height;
+    // Delegate
+    const newScroll = this.scrollbar.handleMouseMove(
+      e,
+      rect,
+      { width, height },
+      { totalWidth: this.totalWidth, totalHeight: this.totalHeight }
+    );
 
-      if (scrollableHeight > 0) {
-        const ratio = scrollableContent / scrollableHeight;
-        this.scrollY = Math.max(0, Math.min(scrollableContent, this.dragStartScroll.y + deltaY * ratio));
-      }
+    if (newScroll) {
+      this.scrollX = newScroll.scrollX; // Note: helper returns {scrollX} object match?
+      // Check interface: helper returns ScrollState { scrollX, scrollY }
+      if (newScroll.scrollX !== undefined) this.scrollX = newScroll.scrollX;
+      if (newScroll.scrollY !== undefined) this.scrollY = newScroll.scrollY;
+      this.render();
+      return; // Stop processing transparency/etc if dragging scrollbar
     }
-
-    if (this.isDraggingH) {
-      const deltaX = x - this.dragStart.x;
-      const trackWidth = width - this.SCROLLBAR_SIZE;
-      const thumbWidth = Math.max(this.SCROLLBAR_MIN_THUMB, (width / this.totalWidth) * trackWidth);
-      const scrollableWidth = trackWidth - thumbWidth;
-      const scrollableContent = this.totalWidth - width;
-
-      if (scrollableWidth > 0) {
-        const ratio = scrollableContent / scrollableWidth;
-        this.scrollX = Math.max(0, Math.min(scrollableContent, this.dragStartScroll.x + deltaX * ratio));
-      }
-    }
-
-    this.render();
   }
 
   // Fix ratio variable scope issue in handleMouseMove (redeclaration)
   // Re-implement specialized ratios for H scroll
 
   private handleMouseUp() {
-    this.isDraggingV = false;
-    this.isDraggingH = false;
+    this.scrollbar.handleMouseUp();
   }
 
   private calculateContentSize() {
@@ -311,8 +270,8 @@ export class GridRenderer {
           const padding = 2; // Reduced padding
           const effectiveW = colW - padding;
 
-          const text = this.getCellText(cell, styles);
-          const lines = this.breakTextIntoLines(this.ctx, text, effectiveW);
+          const text = CellRenderer.getCellText(cell, styles);
+          const lines = CellRenderer.breakTextIntoLines(this.ctx, text, effectiveW);
 
           // Estimate height: lines * lineHeight + padding
           const lineHeight = fontSize * 1.25; // Tighter line height
@@ -487,6 +446,7 @@ export class GridRenderer {
 
     const rows = Array.from(this.worksheet.rows.values()).sort((a, b) => a.index - b.index);
     const borderCmds = new Map<string, DrawCmd>();
+    const renderedMerges = new Set<string>();
 
     // Render Loop
     let currentY = 0;
@@ -542,13 +502,41 @@ export class GridRenderer {
           let colSpan = 1;
           let shouldRender = true;
 
+          let targetR = r;
+          let targetC = c;
+          let targetScreenX = screenX;
+          let targetScreenY = screenY;
+          let targetRow = row;
+
           if (mergeInfo) {
-            if (!mergeInfo.isMaster) shouldRender = false;
-            else {
+            const masterKey = `${mergeInfo.masterRow},${mergeInfo.masterCol}`;
+
+            if (renderedMerges.has(masterKey)) {
+              shouldRender = false;
+            } else {
+              renderedMerges.add(masterKey);
+
+              if (!mergeInfo.isMaster) {
+                // Determine Master Position (getPixelPos expects 0-based index)
+                const masterPos = this.getPixelPos(mergeInfo.masterCol - 1, mergeInfo.masterRow - 1, 0, 0);
+                targetScreenX = masterPos.x - (mergeInfo.masterCol > frozenCols ? this.scrollX : 0);
+                targetScreenY = masterPos.y - (mergeInfo.masterRow > frozenRows ? this.scrollY : 0);
+
+                // Adjust for frozen panes logic broadly (simplification)
+                // If master is in frozen area but we are scrolling, coords might be fixed.
+                // But getPixelPos gives absolute raw.
+                // Let's rely on standard scroll offset for now, assuming standard flow.
+
+                targetR = mergeInfo.masterRow;
+                targetC = mergeInfo.masterCol;
+                targetRow = this.worksheet.rows.get(targetR)!;
+              }
+
               renderW = mergeInfo.width;
               renderH = mergeInfo.height;
               rowSpan = mergeInfo.rowSpan;
               colSpan = mergeInfo.colSpan;
+              shouldRender = true;
             }
           }
 
@@ -563,42 +551,43 @@ export class GridRenderer {
             ctx.beginPath();
             // Draw full rect for grid?
             // Vertical line at right
-            ctx.moveTo(Math.floor(screenX + renderW) + 0.5, Math.floor(screenY));
-            ctx.lineTo(Math.floor(screenX + renderW) + 0.5, Math.floor(screenY + renderH));
+            ctx.moveTo(Math.floor(targetScreenX + renderW) + 0.5, Math.floor(targetScreenY));
+            ctx.lineTo(Math.floor(targetScreenX + renderW) + 0.5, Math.floor(targetScreenY + renderH));
             // Horizontal line at bottom
-            ctx.moveTo(Math.floor(screenX), Math.floor(screenY + renderH) + 0.5);
-            ctx.lineTo(Math.floor(screenX + renderW), Math.floor(screenY + renderH) + 0.5);
+            ctx.moveTo(Math.floor(targetScreenX), Math.floor(targetScreenY + renderH) + 0.5);
+            ctx.lineTo(Math.floor(targetScreenX + renderW), Math.floor(targetScreenY + renderH) + 0.5);
             ctx.stroke();
             ctx.restore();
 
-            this.renderCellBgAndText(
-              ctx,
-              row,
-              c,
-              screenX,
-              screenY,
-              renderW,
-              renderH,
-              styles,
-              defaultFont,
-              frozenRows,
-              frozenCols,
-              fixedWidth,
-              fixedHeight
-            );
+            if (targetRow) {
+              CellRenderer.render(
+                ctx,
+                targetRow,
+                targetC,
+                targetScreenX,
+                targetScreenY,
+                renderW,
+                renderH,
+                styles,
+                defaultFont
+              );
+            }
 
-            this.calculateBordersForCell(
-              r,
-              c,
-              rowSpan,
-              colSpan,
-              screenX,
-              screenY,
-              renderW,
-              renderH,
-              styles,
-              borderCmds
-            );
+            if (styles) {
+              BorderRenderer.calculateBordersForCell(
+                this.worksheet,
+                styles,
+                borderCmds,
+                targetR,
+                targetC,
+                rowSpan,
+                colSpan,
+                targetScreenX,
+                targetScreenY,
+                renderW,
+                renderH
+              );
+            }
           }
         }
         rawX += colW;
@@ -609,7 +598,7 @@ export class GridRenderer {
     ctx.lineWidth = 1;
     ctx.strokeStyle = '#000000';
     for (const cmd of borderCmds.values()) {
-      this.renderBorderCmd(ctx, cmd, frozenRows, frozenCols, fixedWidth, fixedHeight);
+      BorderRenderer.renderCmd(ctx, cmd, frozenRows, frozenCols, fixedWidth, fixedHeight);
     }
 
     // Draw Freeze Separators
@@ -699,29 +688,8 @@ export class GridRenderer {
       const screenX = x - this.scrollX;
       const screenY = y - this.scrollY;
 
-      // Skip if out of view
-      // Simple culling
-      /* if (screenX + w < 0 || screenY + h < 0 || screenX > viewWidth || screenY > viewHeight) continue; */ // Rotation makes simple culling risky
-
       // Draw
-      ctx.save();
-
-      const cx = screenX + w / 2;
-      const cy = screenY + h / 2;
-
-      ctx.translate(cx, cy);
-
-      if (img.position.rotation) {
-        // Excel rotation is in degrees. Canvas uses radians.
-        ctx.rotate((img.position.rotation * Math.PI) / 180);
-      }
-
-      if (img.position.flipH) ctx.scale(-1, 1);
-      if (img.position.flipV) ctx.scale(1, -1);
-
-      ctx.drawImage(bitmap, -w / 2, -h / 2, w, h);
-
-      ctx.restore();
+      ImageRenderer.render(ctx, img, bitmap, screenX, screenY, w, h);
     }
   }
 
@@ -745,503 +713,12 @@ export class GridRenderer {
   }
 
   private drawScrollBars(ctx: CanvasRenderingContext2D, width: number, height: number) {
-    const trackColor = 'rgba(0, 0, 0, 0.05)';
-    const thumbColor = 'rgba(0, 0, 0, 0.3)';
-    const thumbHoverColor = 'rgba(0, 0, 0, 0.5)';
-
-    // Vertical Scrollbar
-    if (this.totalHeight > height) {
-      const trackHeight = height - this.SCROLLBAR_SIZE;
-      const thumbHeight = Math.max(this.SCROLLBAR_MIN_THUMB, (height / this.totalHeight) * trackHeight);
-      const scrollRatio = this.scrollY / (this.totalHeight - height);
-      const thumbY = scrollRatio * (trackHeight - thumbHeight);
-
-      // Track
-      ctx.fillStyle = trackColor;
-      ctx.fillRect(width - this.SCROLLBAR_SIZE, 0, this.SCROLLBAR_SIZE, trackHeight);
-
-      // Thumb
-      ctx.fillStyle = this.isDraggingV ? thumbHoverColor : thumbColor;
-      // Rounded Rect for nice look? Simple rect for now
-      ctx.fillRect(
-        width - this.SCROLLBAR_SIZE + this.SCROLLBAR_PADDING,
-        thumbY + this.SCROLLBAR_PADDING,
-        this.SCROLLBAR_SIZE - this.SCROLLBAR_PADDING * 2,
-        thumbHeight - this.SCROLLBAR_PADDING * 2
-      );
-    }
-
-    // Horizontal Scrollbar
-    if (this.totalWidth > width) {
-      const trackWidth = width - this.SCROLLBAR_SIZE;
-      const thumbWidth = Math.max(this.SCROLLBAR_MIN_THUMB, (width / this.totalWidth) * trackWidth);
-      const scrollRatio = this.scrollX / (this.totalWidth - width);
-      const thumbX = scrollRatio * (trackWidth - thumbWidth);
-
-      // Track
-      ctx.fillStyle = trackColor;
-      ctx.fillRect(0, height - this.SCROLLBAR_SIZE, trackWidth, this.SCROLLBAR_SIZE);
-
-      // Thumb
-      ctx.fillStyle = this.isDraggingH ? thumbHoverColor : thumbColor;
-      ctx.fillRect(
-        thumbX + this.SCROLLBAR_PADDING,
-        height - this.SCROLLBAR_SIZE + this.SCROLLBAR_PADDING,
-        thumbWidth - this.SCROLLBAR_PADDING * 2,
-        this.SCROLLBAR_SIZE - this.SCROLLBAR_PADDING * 2
-      );
-    }
-
-    // Corner
-    if (this.totalHeight > height && this.totalWidth > width) {
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(width - this.SCROLLBAR_SIZE, height - this.SCROLLBAR_SIZE, this.SCROLLBAR_SIZE, this.SCROLLBAR_SIZE);
-    }
-  }
-
-  private renderCellBgAndText(
-    ctx: CanvasRenderingContext2D,
-    row: any,
-    c: number,
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    styles: Styles | undefined,
-    defaultFont: string,
-    frozenRows: number,
-    frozenCols: number,
-    fixedWidth: number,
-    fixedHeight: number
-  ) {
-    const cell = row.cells.get(c);
-    let cellStyleStr = defaultFont;
-    let fgColor = '#000000';
-    let bgColor = 'transparent';
-    let align = 'left';
-    let vAlign = 'center';
-    let wrapText = false;
-    let fontSize = 12;
-    let isUnderline = false;
-    let isStrike = false;
-
-    if (cell && cell.styleId !== undefined && styles && styles.cellXfs[cell.styleId]) {
-      const xf = styles.cellXfs[cell.styleId];
-      if (xf.applyFont && styles.fonts[xf.fontId]) {
-        const font = styles.fonts[xf.fontId];
-        const sizePt = font.size || 11;
-        fontSize = UnitConversion.ptToPixel(sizePt);
-        if (font.underline) isUnderline = true;
-        if (font.strike) isStrike = true;
-
-        // Resolve Font Family
-        const rawName = font.name || 'Arial';
-        const safeFamily = FontMapping[rawName]?.safe_css_family || `"${rawName}", Arial, sans-serif`;
-
-        const bold = font.bold ? 'bold ' : '';
-        const italic = font.italic ? 'italic ' : '';
-        cellStyleStr = `${italic}${bold}${fontSize}px ${safeFamily}`;
-        if (font.color) fgColor = ColorUtils.formatColor(font.color) || '#000000';
-      }
-      if (xf.applyFill && styles.fills[xf.fillId]) {
-        const fill = styles.fills[xf.fillId];
-        if (fill.type === 'pattern' && fill.fgColor) {
-          // For pattern fills, fgColor is the background color of the cell
-          bgColor = ColorUtils.formatColor(fill.fgColor) || 'transparent';
-        }
-      }
-      if (xf.alignment) {
-        if (xf.alignment.horizontal) align = xf.alignment.horizontal;
-        if (xf.alignment.vertical) vAlign = xf.alignment.vertical;
-        wrapText = !!xf.alignment.wrapText;
-      }
-    }
-
-    // CLIPPING
-    const rIndex = row.index;
-    const isFrozenRow = rIndex <= frozenRows;
-    const isFrozenCol = c <= frozenCols;
-
-    ctx.save();
-    ctx.beginPath();
-    if (!isFrozenRow && !isFrozenCol) ctx.rect(fixedWidth, fixedHeight, 99999, 99999);
-    else if (!isFrozenRow) ctx.rect(0, fixedHeight, fixedWidth, 99999);
-    else if (!isFrozenCol) ctx.rect(fixedWidth, 0, 99999, fixedHeight);
-    else ctx.rect(0, 0, fixedWidth, fixedHeight);
-    ctx.clip();
-
-    if (bgColor !== 'transparent') {
-      ctx.fillStyle = bgColor;
-      ctx.fillRect(x, y, w, h);
-    }
-
-    if (cell) {
-      ctx.beginPath();
-      ctx.rect(x, y, w, h);
-      ctx.clip();
-
-      const padding = 2;
-      const effectiveW = w - padding * 2;
-
-      if (cell.richText && cell.richText.length > 0) {
-        let totalWidth = 0;
-        for (const run of cell.richText) {
-          const f = run.font;
-          let fStr = cellStyleStr;
-          if (f) {
-            const sizePt = f.size || 11;
-            const sizePx = UnitConversion.ptToPixel(sizePt);
-
-            const rawName = f.name || 'Arial';
-            const safeFamily = FontMapping[rawName]?.safe_css_family || `"${rawName}", Arial, sans-serif`;
-
-            const bold = f.bold ? 'bold ' : '';
-            const italic = f.italic ? 'italic ' : '';
-            fStr = `${italic}${bold}${sizePx}px ${safeFamily}`;
-          }
-          ctx.font = fStr;
-          totalWidth += ctx.measureText(run.text).width;
-        }
-
-        let curX = x + padding;
-        if (align === 'center') curX = x + w / 2 - totalWidth / 2;
-        else if (align === 'right') curX = x + w - totalWidth - padding;
-
-        let curY = y + h / 2;
-        if (vAlign === 'top') curY = y + padding + fontSize / 2;
-        else if (vAlign === 'bottom') curY = y + h - padding - fontSize / 2;
-
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-
-        for (const run of cell.richText) {
-          const f = run.font;
-          let fStr = cellStyleStr;
-          let fColor = fgColor;
-          if (f) {
-            const sizePt = f.size || 11;
-            const sizePx = UnitConversion.ptToPixel(sizePt);
-
-            const rawName = f.name || 'Arial';
-            const safeFamily = FontMapping[rawName]?.safe_css_family || `"${rawName}", Arial, sans-serif`;
-
-            const bold = f.bold ? 'bold ' : '';
-            const italic = f.italic ? 'italic ' : '';
-            fStr = `${italic}${bold}${sizePx}px ${safeFamily}`;
-            if (f.color) fColor = ColorUtils.formatColor(f.color) || '#000000';
-          }
-          ctx.font = fStr;
-          ctx.fillStyle = fColor;
-          ctx.fillText(run.text, curX, curY);
-
-          // Decorations
-          const textMetric = ctx.measureText(run.text);
-          const textW = textMetric.width;
-
-          if (f.underline) {
-            ctx.beginPath();
-            ctx.moveTo(curX, curY + fontSize / 2 + 1);
-            ctx.lineTo(curX + textW, curY + fontSize / 2 + 1);
-            ctx.strokeStyle = fColor;
-            ctx.lineWidth = 1;
-            ctx.stroke();
-          }
-          if (f.strike) {
-            ctx.beginPath();
-            ctx.moveTo(curX, curY);
-            ctx.lineTo(curX + textW, curY);
-            ctx.strokeStyle = fColor;
-            ctx.lineWidth = 1;
-            ctx.stroke();
-          }
-
-          curX += textW;
-        }
-      } else {
-        const text = this.getCellText(cell, styles);
-        ctx.font = cellStyleStr;
-        ctx.fillStyle = fgColor;
-
-        let textX = x + padding;
-        if (align === 'center') textX = x + w / 2;
-        else if (align === 'right') textX = x + w - padding;
-
-        ctx.textAlign = align === 'center' ? 'center' : align === 'right' ? 'right' : 'left';
-
-        const lines = wrapText ? this.breakTextIntoLines(ctx, text, effectiveW) : [text];
-        const lineHeight = fontSize * 1.3;
-        const totalTextHeight = lines.length * lineHeight;
-
-        let startY = y + (h - totalTextHeight) / 2 + lineHeight / 2;
-        if (vAlign === 'top') startY = y + padding + lineHeight / 2;
-        else if (vAlign === 'bottom') startY = y + h - padding - totalTextHeight + lineHeight / 2;
-
-        for (let i = 0; i < lines.length; i++) {
-          const lineY = Math.round(startY + i * lineHeight);
-          const lineX = Math.round(textX);
-          ctx.fillText(lines[i], lineX, lineY);
-
-          // Decorations
-          if (isUnderline || isStrike) {
-            const textW = ctx.measureText(lines[i]).width;
-            // Alignment adjustment for line start X
-            let startLX = lineX;
-            if (align === 'center') startLX = lineX - textW / 2;
-            else if (align === 'right') startLX = lineX - textW;
-
-            if (isUnderline) {
-              ctx.beginPath();
-              ctx.moveTo(startLX, lineY + fontSize / 2 + 1);
-              ctx.lineTo(startLX + textW, lineY + fontSize / 2 + 1);
-              ctx.strokeStyle = fgColor;
-              ctx.lineWidth = 1;
-              ctx.stroke();
-            }
-            if (isStrike) {
-              ctx.beginPath();
-              ctx.moveTo(startLX, lineY);
-              ctx.lineTo(startLX + textW, lineY);
-              ctx.strokeStyle = fgColor;
-              ctx.lineWidth = 1;
-              ctx.stroke();
-            }
-          }
-        }
-      }
-    }
-    ctx.restore();
-  }
-
-  private breakTextIntoLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-    const lines: string[] = [];
-    const paragraphs = text.split('\n');
-
-    for (const para of paragraphs) {
-      if (ctx.measureText(para).width <= maxWidth) {
-        lines.push(para);
-        continue;
-      }
-
-      let currentLine = '';
-      for (let i = 0; i < para.length; i++) {
-        const char = para[i];
-        const testLine = currentLine + char;
-        if (ctx.measureText(testLine).width > maxWidth && currentLine.length > 0) {
-          lines.push(currentLine);
-          currentLine = char;
-        } else {
-          currentLine = testLine;
-        }
-      }
-      if (currentLine.length > 0) lines.push(currentLine);
-    }
-    return lines;
-  }
-
-  private calculateBordersForCell(
-    r: number,
-    c: number,
-    rowSpan: number,
-    colSpan: number,
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    styles: Styles | undefined,
-    cmds: Map<string, DrawCmd>
-  ) {
-    if (!styles) return;
-
-    const getStyleBorder = (rr: number, cc: number): Border | undefined => {
-      const row = this.worksheet?.rows.get(rr);
-      if (!row) return undefined;
-      const cell = row.cells.get(cc);
-      if (!cell || cell.styleId === undefined) return undefined;
-      const xf = styles.cellXfs[cell.styleId];
-      if (!xf) return undefined;
-      return styles.borders[xf.borderId];
-    };
-
-    const myBorder = getStyleBorder(r, c);
-
-    const toShared = (pr?: BorderPr): IBorder | undefined => {
-      if (!pr || !pr.style || pr.style === 'none') return undefined;
-      let style: BorderStyle = 'solid';
-      let width = 1;
-      switch (pr.style) {
-        case 'medium':
-          width = 2;
-          break;
-        case 'thick':
-          width = 3;
-          break;
-        case 'double':
-          width = 3;
-          style = 'double';
-          break;
-        case 'dashed':
-          style = 'dashed';
-          break;
-        case 'dotted':
-          style = 'dotted';
-          break;
-        default:
-          width = 1;
-          style = 'solid';
-      }
-      return { style, width, color: pr.color || '#000000' };
-    };
-
-    const resolve = (b1?: BorderPr, b2?: BorderPr) => {
-      return BorderConflictResolver.resolve(toShared(b1), toShared(b2));
-    };
-
-    // 1. Right Edge
-    const rightKey = `V-${r}-${c + colSpan}`;
-    if (!cmds.has(rightKey)) {
-      const neighbor = getStyleBorder(r, c + colSpan);
-      const winner = resolve(myBorder?.right, neighbor?.left);
-      if (winner) {
-        cmds.set(rightKey, {
-          x: x + w,
-          y: y,
-          len: h,
-          isVertical: true,
-          border: winner
-        });
-      }
-    }
-
-    // 2. Bottom Edge
-    // Fix: use rowSpan correctly to determine bottom row index
-    const bottomKey = `H-${r + rowSpan}-${c}`;
-    if (!cmds.has(bottomKey)) {
-      // Neighbor is row + rowSpan
-      const neighbor = getStyleBorder(r + rowSpan, c);
-      const winner = resolve(myBorder?.bottom, neighbor?.top);
-      if (winner) {
-        cmds.set(bottomKey, {
-          x: x,
-          y: y + h,
-          len: w,
-          isVertical: false,
-          border: winner
-        });
-      }
-    }
-
-    // 3. Left Edge
-    const leftKey = `V-${r}-${c}`;
-    if (!cmds.has(leftKey)) {
-      const neighbor = getStyleBorder(r, c - 1);
-      const winner = resolve(myBorder?.left, neighbor?.right);
-      if (winner) {
-        cmds.set(leftKey, { x, y, len: h, isVertical: true, border: winner });
-      }
-    }
-
-    // 4. Top Edge
-    const topKey = `H-${r}-${c}`;
-    if (!cmds.has(topKey)) {
-      const neighbor = getStyleBorder(r - 1, c);
-      const winner = resolve(myBorder?.top, neighbor?.bottom);
-      if (winner) {
-        cmds.set(topKey, { x, y, len: w, isVertical: false, border: winner });
-      }
-    }
-  }
-
-  private renderBorderCmd(
-    ctx: CanvasRenderingContext2D,
-    cmd: DrawCmd,
-    frozenRows: number,
-    frozenCols: number,
-    fixedWidth: number,
-    fixedHeight: number
-  ) {
-    const cx = cmd.isVertical ? cmd.x : cmd.x + cmd.len / 2;
-    const cy = cmd.isVertical ? cmd.y + cmd.len / 2 : cmd.y;
-
-    ctx.save();
-    ctx.beginPath();
-    if (cx <= fixedWidth && cy <= fixedHeight) {
-      ctx.rect(0, 0, fixedWidth + 1, fixedHeight + 1);
-    } else if (cx <= fixedWidth) {
-      ctx.rect(0, fixedHeight, fixedWidth + 1, 99999);
-    } else if (cy <= fixedHeight) {
-      ctx.rect(fixedWidth, 0, 99999, fixedHeight + 1);
-    } else {
-      ctx.rect(fixedWidth, fixedHeight, 99999, 99999);
-    }
-    ctx.clip();
-
-    ctx.lineWidth = cmd.border.width;
-    ctx.strokeStyle = cmd.border.color;
-
-    if (cmd.border.style === 'dashed') ctx.setLineDash([5, 5]);
-    else if (cmd.border.style === 'dotted') ctx.setLineDash([2, 2]);
-    else ctx.setLineDash([]);
-
-    ctx.beginPath();
-    // Offset by 0.5 to align with pixel grid for 1px width
-    const offset = cmd.border.width % 2 !== 0 ? 0.5 : 0;
-
-    if (cmd.isVertical) {
-      ctx.moveTo(Math.floor(cmd.x) + offset, Math.floor(cmd.y));
-      ctx.lineTo(Math.floor(cmd.x) + offset, Math.floor(cmd.y + cmd.len));
-    } else {
-      ctx.moveTo(Math.floor(cmd.x), Math.floor(cmd.y) + offset);
-      ctx.lineTo(Math.floor(cmd.x + cmd.len), Math.floor(cmd.y) + offset);
-    }
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  private getCellText(cell: Cell, styles?: Styles): string {
-    if (cell.value === undefined || cell.value === null) return '';
-
-    if (cell.type === 'number' && typeof cell.value === 'number' && styles && cell.styleId !== undefined) {
-      const xf = styles.cellXfs[cell.styleId];
-      if (xf && (xf.applyNumberFormat || xf.numFmtId !== undefined)) {
-        const numFmtId = xf.numFmtId || 0;
-        let formatCode = 'General';
-        if (styles.numFmts && styles.numFmts.has(numFmtId)) {
-          formatCode = styles.numFmts.get(numFmtId)!;
-        } else {
-          switch (numFmtId) {
-            case 0:
-              formatCode = 'General';
-              break;
-            case 1:
-              formatCode = '0';
-              break;
-            case 2:
-              formatCode = '0.00';
-              break;
-            case 9:
-              formatCode = '0%';
-              break;
-            case 10:
-              formatCode = '0.00%';
-              break;
-            case 14:
-              formatCode = 'm/d/yy';
-              break;
-          }
-        }
-
-        if (formatCode !== 'General') {
-          const isDateFormat = (fmt: string) => /y|m|d|h|s|am\/pm/i.test(fmt);
-          if (isDateFormat(formatCode) || (numFmtId >= 14 && numFmtId <= 22)) {
-            const dateValue = new Date(Math.round((cell.value - 25569) * 86400 * 1000));
-            return NumberFormatter.format(dateValue, formatCode);
-          }
-          return NumberFormatter.format(cell.value, formatCode);
-        }
-      }
-    }
-
-    return String(cell.value);
+    this.scrollbar.draw(
+      ctx,
+      { width, height },
+      { totalWidth: this.totalWidth, totalHeight: this.totalHeight },
+      { scrollX: this.scrollX, scrollY: this.scrollY }
+    );
   }
 
   destroy() {
