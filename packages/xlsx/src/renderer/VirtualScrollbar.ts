@@ -24,7 +24,68 @@ export class VirtualScrollbar {
   private dragStart = { x: 0, y: 0 };
   private dragStartScroll = { scrollX: 0, scrollY: 0 };
 
-  constructor() {}
+  // Animation State
+  private opacity = 0;
+  private targetOpacity = 0;
+  private animationRunning = false;
+  private lastTime = 0;
+  private readonly FADE_SPEED = 0.005; // Opacity per ms
+
+  private onRequestRender: (() => void) | null = null;
+
+  constructor(onRequestRender?: () => void) {
+    this.onRequestRender = onRequestRender || null;
+  }
+
+  setOpacity(val: number) {
+    this.opacity = val;
+    this.targetOpacity = val;
+    this.animationRunning = false;
+    if (this.onRequestRender) this.onRequestRender();
+  }
+
+  fadeIn() {
+    this.targetOpacity = 1;
+    if (!this.animationRunning) {
+      this.lastTime = performance.now();
+      this.animationRunning = true;
+      requestAnimationFrame(this.animate.bind(this));
+    }
+  }
+
+  fadeOut() {
+    this.targetOpacity = 0;
+    if (!this.animationRunning) {
+      this.lastTime = performance.now();
+      this.animationRunning = true;
+      requestAnimationFrame(this.animate.bind(this));
+    }
+  }
+
+  private animate(time: number) {
+    if (!this.animationRunning) return;
+
+    const dt = time - this.lastTime;
+    this.lastTime = time;
+
+    let changed = false;
+    if (this.opacity < this.targetOpacity) {
+      this.opacity = Math.min(this.targetOpacity, this.opacity + this.FADE_SPEED * dt);
+      changed = true;
+    } else if (this.opacity > this.targetOpacity) {
+      this.opacity = Math.max(this.targetOpacity, this.opacity - this.FADE_SPEED * dt);
+      changed = true;
+    }
+
+    if (this.onRequestRender) this.onRequestRender();
+
+    if (Math.abs(this.opacity - this.targetOpacity) < 0.001) {
+      this.opacity = this.targetOpacity;
+      this.animationRunning = false;
+    } else {
+      requestAnimationFrame(this.animate.bind(this));
+    }
+  }
 
   /**
    * Handle Mouse Down
@@ -41,20 +102,37 @@ export class VirtualScrollbar {
     const y = e.clientY - rect.top;
     const { width, height } = viewport;
 
-    // Check Vertical Scrollbar
-    if (x > width - this.SCROLLBAR_SIZE && content.totalHeight > height) {
-      this.isDraggingV = true;
-      this.dragStart = { x, y };
-      this.dragStartScroll = { ...currentScroll };
-      return true;
+    // Determine visibility
+    const hasV = content.totalHeight > height;
+    const hasH = content.totalWidth > width;
+
+    // Check effective zones even if opacity is low (user might blindly grab?)
+    // User requested "only show on hover", usually interacting implies hover.
+    // If opacity is 0, arguably we shouldn't interact.
+    if (this.opacity < 0.1) return false;
+
+    // Effective dimensions
+    const trackWidth = width - (hasV ? this.SCROLLBAR_SIZE : 0);
+    const trackHeight = height - (hasH ? this.SCROLLBAR_SIZE : 0);
+
+    // Vertical
+    if (hasV) {
+      if (x >= width - this.SCROLLBAR_SIZE && x <= width && y >= 0 && y <= trackHeight) {
+        this.isDraggingV = true;
+        this.dragStart = { x, y };
+        this.dragStartScroll = { ...currentScroll };
+        return true;
+      }
     }
 
-    // Check Horizontal Scrollbar
-    if (y > height - this.SCROLLBAR_SIZE && content.totalWidth > width) {
-      this.isDraggingH = true;
-      this.dragStart = { x, y };
-      this.dragStartScroll = { ...currentScroll };
-      return true;
+    // Horizontal
+    if (hasH) {
+      if (y >= height - this.SCROLLBAR_SIZE && y <= height && x >= 0 && x <= trackWidth) {
+        this.isDraggingH = true;
+        this.dragStart = { x, y };
+        this.dragStartScroll = { ...currentScroll };
+        return true;
+      }
     }
 
     return false;
@@ -73,41 +151,37 @@ export class VirtualScrollbar {
     const { width, height } = viewport;
     const { totalWidth, totalHeight } = content;
 
-    // Wait, dragStartScroll is captured at start.
-    // If we return absolute scroll, we need to respect the "current" scroll?
-    // Actually standard drag logic: delta from scan start applied to start scroll.
-
     let changed = false;
-    const resultScroll = { scrollX: this.dragStartScroll.scrollX, scrollY: this.dragStartScroll.scrollY };
+    const resultScroll = { ...this.dragStartScroll };
 
-    if (this.isDraggingV) {
+    const hasV = totalHeight > height;
+    const hasH = totalWidth > width;
+
+    // Recalculate track sizes
+    const trackWidth = width - (hasV ? this.SCROLLBAR_SIZE : 0);
+    const trackHeight = height - (hasH ? this.SCROLLBAR_SIZE : 0);
+
+    if (this.isDraggingV && hasV) {
       const deltaY = y - this.dragStart.y;
-      const trackHeight = height - this.SCROLLBAR_SIZE;
       const thumbHeight = Math.max(this.SCROLLBAR_MIN_THUMB, (height / totalHeight) * trackHeight);
-      const scrollableHeight = trackHeight - thumbHeight;
+      const scrollableTrack = trackHeight - thumbHeight;
       const scrollableContent = totalHeight - height;
 
-      if (scrollableHeight > 0) {
-        const ratio = scrollableContent / scrollableHeight;
+      if (scrollableTrack > 0) {
+        const ratio = scrollableContent / scrollableTrack;
         resultScroll.scrollY = Math.max(0, Math.min(scrollableContent, this.dragStartScroll.scrollY + deltaY * ratio));
         changed = true;
       }
-    } else {
-      // If not dragging V, keep current Y?
-      // No, dragStartScroll has the snapshot.
-      // But if outside code changed scrollY while dragging X?
-      // Usually scrollbar drags are exclusive.
     }
 
-    if (this.isDraggingH) {
+    if (this.isDraggingH && hasH) {
       const deltaX = x - this.dragStart.x;
-      const trackWidth = width - this.SCROLLBAR_SIZE;
       const thumbWidth = Math.max(this.SCROLLBAR_MIN_THUMB, (width / totalWidth) * trackWidth);
-      const scrollableWidth = trackWidth - thumbWidth;
+      const scrollableTrack = trackWidth - thumbWidth;
       const scrollableContent = totalWidth - width;
 
-      if (scrollableWidth > 0) {
-        const ratio = scrollableContent / scrollableWidth;
+      if (scrollableTrack > 0) {
+        const ratio = scrollableContent / scrollableTrack;
         resultScroll.scrollX = Math.max(0, Math.min(scrollableContent, this.dragStartScroll.scrollX + deltaX * ratio));
         changed = true;
       }
@@ -122,19 +196,36 @@ export class VirtualScrollbar {
   }
 
   draw(ctx: CanvasRenderingContext2D, viewport: Viewport, content: ContentSize, scroll: ScrollState) {
+    if (this.opacity <= 0.01) return;
+
     const { width, height } = viewport;
     const { totalWidth, totalHeight } = content;
     const { scrollX, scrollY } = scroll;
 
-    const trackColor = 'rgba(0, 0, 0, 0.05)';
+    const hasV = totalHeight > height;
+    const hasH = totalWidth > width;
+
+    if (!hasV && !hasH) return;
+
+    ctx.save();
+    ctx.globalAlpha = this.opacity;
+
+    // Use a slighly darker track for better visibility on white sheets
+    const trackColor = 'rgba(0, 0, 0, 0.03)';
     const thumbColor = 'rgba(0, 0, 0, 0.3)';
     const thumbHoverColor = 'rgba(0, 0, 0, 0.5)';
 
+    const trackHeight = height - (hasH ? this.SCROLLBAR_SIZE : 0);
+    const trackWidth = width - (hasV ? this.SCROLLBAR_SIZE : 0);
+
     // Vertical Scrollbar
-    if (totalHeight > height) {
-      const trackHeight = height - this.SCROLLBAR_SIZE;
+    if (hasV) {
       const thumbHeight = Math.max(this.SCROLLBAR_MIN_THUMB, (height / totalHeight) * trackHeight);
-      const scrollRatio = scrollY / (totalHeight - height);
+      // scrollRatio is based on safely movable area
+      // maxScrollY = totalHeight - height
+      const maxScrollY = totalHeight - height;
+      const scrollRatio = maxScrollY > 0 ? scrollY / maxScrollY : 0;
+
       const thumbY = scrollRatio * (trackHeight - thumbHeight);
 
       // Track
@@ -152,10 +243,11 @@ export class VirtualScrollbar {
     }
 
     // Horizontal Scrollbar
-    if (totalWidth > width) {
-      const trackWidth = width - this.SCROLLBAR_SIZE;
+    if (hasH) {
       const thumbWidth = Math.max(this.SCROLLBAR_MIN_THUMB, (width / totalWidth) * trackWidth);
-      const scrollRatio = scrollX / (totalWidth - width);
+      const maxScrollX = totalWidth - width;
+      const scrollRatio = maxScrollX > 0 ? scrollX / maxScrollX : 0;
+
       const thumbX = scrollRatio * (trackWidth - thumbWidth);
 
       // Track
@@ -173,9 +265,11 @@ export class VirtualScrollbar {
     }
 
     // Corner
-    if (totalHeight > height && totalWidth > width) {
-      ctx.fillStyle = '#ffffff';
+    if (hasV && hasH) {
+      ctx.fillStyle = '#fdfdfd';
       ctx.fillRect(width - this.SCROLLBAR_SIZE, height - this.SCROLLBAR_SIZE, this.SCROLLBAR_SIZE, this.SCROLLBAR_SIZE);
     }
+
+    ctx.restore();
   }
 }

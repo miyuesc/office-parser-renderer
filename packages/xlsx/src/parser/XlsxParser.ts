@@ -38,78 +38,86 @@ export class XlsxParser {
       }
 
       // 3. 解析 Workbook (获取 Sheet 列表)
-      // MVP 简化: 尝试读取 sheet1.xml, sheet2.xml ...
-      // TODO: 正确做法是解析 xl/workbook.xml 和 xl/_rels/workbook.xml.rels
-
       const workbookXmlBtn = files.get('xl/workbook.xml');
-      if (workbookXmlBtn) {
+      const workbookRelsBtn = files.get('xl/_rels/workbook.xml.rels');
+
+      let sheetMapping = new Map<string, { name: string; path: string }>();
+
+      if (workbookXmlBtn && workbookRelsBtn) {
+        // Parse Rels: rId -> Target (e.g., "rId1" -> "worksheets/sheet1.xml")
+        const relsXml = FileHandler.readText(workbookRelsBtn);
+        const relsMap = this.parseRels(relsXml);
+
+        // Parse Workbook: name, r:id
         const workbookXml = FileHandler.readText(workbookXmlBtn);
         const wbDoc = FileHandler.parseXML(workbookXml);
         const sheets = wbDoc.querySelectorAll('sheet');
 
         for (let i = 0; i < sheets.length; i++) {
-          // 假设 r:id 对应 sheetX, 这里做个简单映射还是直接找文件?
-          // 标准流程需要查 refs。这里先暴力尝试 xl/worksheets/sheet{id}.xml
-          // 注意: sheetId 不一定等于文件名里的 index，通常是 rId 决定。
-          // 更加暴力的 MVP: 遍历 files 找 xl/worksheets/sheet*.xml
+          const name = sheets[i].getAttribute('name');
+          let rId = sheets[i].getAttribute('r:id');
+          if (!rId) rId = sheets[i].getAttribute('id'); // Fallback for namespace issues
+
+          if (name && rId) {
+            const target = relsMap.get(rId);
+            if (target) {
+              let path = target;
+              if (path.startsWith('/')) {
+                path = path.substring(1); // Absolute path in zip. e.g. /xl/worksheets/sheet1.xml -> xl/worksheets/sheet1.xml
+              } else {
+                path = `xl/${path}`; // Relative to workbook.xml (which is in xl/)
+              }
+              sheetMapping.set(path, { name, path });
+            }
+          }
         }
       }
 
-      // 暴力遍历所有 sheet 文件
-      for (const [path, content] of files.entries()) {
-        if (path.match(/^xl\/worksheets\/sheet\d+\.xml$/)) {
-          const xmlStr = FileHandler.readText(content);
-          const worksheet = WorksheetParser.parse(xmlStr, doc.sharedStrings);
+      // 如果解析到了 sheetMapping，优先使用 mapping 加载
+      if (sheetMapping.size > 0) {
+        for (const [path, info] of sheetMapping.entries()) {
+          let file = files.get(path); // Try direct match
 
-          // Image parsing
-          if (worksheet.drawingRId) {
-            // 1. Get sheet rels
-            // path: xl/worksheets/sheet1.xml
-            // rels: xl/worksheets/_rels/sheet1.xml.rels
-            const pathParts = path.split('/');
-            const filename = pathParts.pop();
-            const folder = pathParts.join('/');
-            const relsPath = `${folder}/_rels/${filename}.rels`;
-
-            const relsFile = files.get(relsPath);
-            if (relsFile) {
-              const relsXml = FileHandler.readText(relsFile);
-              const relsMap = this.parseRels(relsXml);
-
-              const drawingTarget = relsMap.get(worksheet.drawingRId);
-              if (drawingTarget) {
-                // Resolve drawing path
-                // folder: xl/worksheets
-                // target: ../drawings/drawing1.xml
-                const drawingPath = this.resolvePath(folder, drawingTarget);
-                const drawingFile = files.get(drawingPath);
-
-                if (drawingFile) {
-                  const drawingXml = FileHandler.readText(drawingFile);
-
-                  // Get drawing rels (for images)
-                  // drawingPath: xl/drawings/drawing1.xml
-                  // rels: xl/drawings/_rels/drawing1.xml.rels
-                  const dParts = drawingPath.split('/');
-                  const dName = dParts.pop();
-                  const dFolder = dParts.join('/');
-                  const dRelsPath = `${dFolder}/_rels/${dName}.rels`;
-
-                  const dRelsFile = files.get(dRelsPath);
-                  const dRelsMap = dRelsFile ? this.parseRels(FileHandler.readText(dRelsFile)) : new Map();
-
-                  // Parse images
-                  worksheet.images = DrawingParser.parse(drawingXml, dRelsMap, files, dFolder + '/');
-                }
+          // Case-insensitive fallback
+          if (!file) {
+            const lowerPath = path.toLowerCase();
+            for (const [key, val] of files.entries()) {
+              if (key.toLowerCase() === lowerPath) {
+                file = val;
+                break;
               }
             }
           }
 
-          // 从 path 提取 id 或者 name
-          const match = path.match(/sheet(\d+)\.xml/);
-          const id = match ? match[1] : path;
-          worksheet.name = `Sheet${id}`; // 临时名
-          doc.worksheets.set(id, worksheet);
+          if (file) {
+            const xmlStr = FileHandler.readText(file);
+            const worksheet = WorksheetParser.parse(xmlStr, doc.sharedStrings);
+
+            worksheet.name = info.name;
+
+            // Parse Images (Shared logic, extracted or duplicated slightly for now)
+            await this.parseImagesForWorksheet(worksheet, path, files);
+
+            doc.worksheets.set(info.name, worksheet); // Use name as ID or keep internal ID?
+            // Using name as key makes sense for display, but ensure uniqueness.
+            // Sheet names are unique in Excel.
+          }
+        }
+      } else {
+        // Fallback: 暴力遍历所有 sheet 文件 (Legacy Mode)
+        for (const [path, content] of files.entries()) {
+          if (path.match(/^xl\/worksheets\/sheet\d+\.xml$/)) {
+            const xmlStr = FileHandler.readText(content);
+            const worksheet = WorksheetParser.parse(xmlStr, doc.sharedStrings);
+
+            await this.parseImagesForWorksheet(worksheet, path, files);
+
+            // 从 path 提取 id 或者 name
+            const match = path.match(/sheet(\d+)\.xml/);
+            const id = match ? match[1] : path;
+            worksheet.name = `Sheet${id}`; // 临时名
+            doc.worksheets.set(id, worksheet);
+          }
         }
       }
     } catch (e) {
@@ -118,6 +126,41 @@ export class XlsxParser {
     }
 
     return doc;
+  }
+
+  private static async parseImagesForWorksheet(worksheet: any, path: string, files: Map<string, Uint8Array>) {
+    if (worksheet.drawingRId) {
+      const pathParts = path.split('/');
+      const filename = pathParts.pop();
+      const folder = pathParts.join('/');
+      const relsPath = `${folder}/_rels/${filename}.rels`;
+
+      const relsFile = files.get(relsPath);
+      if (relsFile) {
+        const relsXml = FileHandler.readText(relsFile);
+        const relsMap = this.parseRels(relsXml);
+
+        const drawingTarget = relsMap.get(worksheet.drawingRId);
+        if (drawingTarget) {
+          const drawingPath = this.resolvePath(folder, drawingTarget);
+          const drawingFile = files.get(drawingPath);
+
+          if (drawingFile) {
+            const drawingXml = FileHandler.readText(drawingFile);
+
+            const dParts = drawingPath.split('/');
+            const dName = dParts.pop();
+            const dFolder = dParts.join('/');
+            const dRelsPath = `${dFolder}/_rels/${dName}.rels`;
+
+            const dRelsFile = files.get(dRelsPath);
+            const dRelsMap = dRelsFile ? this.parseRels(FileHandler.readText(dRelsFile)) : new Map();
+
+            worksheet.images = DrawingParser.parse(drawingXml, dRelsMap, files, dFolder + '/');
+          }
+        }
+      }
+    }
   }
 
   private static parseRels(xmlString: string): Map<string, string> {
