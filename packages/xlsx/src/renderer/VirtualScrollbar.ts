@@ -11,12 +11,15 @@ export interface Viewport {
 export interface ContentSize {
   totalWidth: number;
   totalHeight: number;
+  contentWidth?: number; // Add these as optional legacy support or ensure caller passes expected keys
+  contentHeight?: number;
 }
 
 export class VirtualScrollbar {
-  private readonly SCROLLBAR_SIZE = 10;
+  private readonly SCROLLBAR_SIZE = 14; // Increased size
   private readonly SCROLLBAR_PADDING = 2;
   private readonly SCROLLBAR_MIN_THUMB = 20;
+  private hoverState: 'none' | 'vertical' | 'horizontal' = 'none';
 
   // Interaction State
   private isDraggingV = false;
@@ -142,57 +145,73 @@ export class VirtualScrollbar {
    * Handle Mouse Move
    * Returns new scroll state if changed, or null if no change/not dragging
    */
-  handleMouseMove(e: MouseEvent, rect: DOMRect, viewport: Viewport, content: ContentSize): ScrollState | null {
-    if (!this.isDraggingV && !this.isDraggingH) return null;
+  handleMouseMove(
+    e: MouseEvent,
+    rect: DOMRect,
+    viewport: Viewport,
+    content: ContentSize,
+    currentScroll: ScrollState
+  ): { scrollX: number; scrollY: number; handled: boolean } {
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
 
-    e.preventDefault();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const { width, height } = viewport;
-    const { totalWidth, totalHeight } = content;
+    if (this.isDraggingV) {
+      const deltaY = mouseY - this.dragStart.y;
+      const barHeight = viewport.height - this.SCROLLBAR_SIZE; // Horizontal bar space
+      const thumbHeight = Math.max(this.SCROLLBAR_MIN_THUMB, (viewport.height / content.totalHeight) * barHeight);
+      const scrollableBarHeight = barHeight - thumbHeight;
+      const scrollableContentHeight = content.totalHeight - viewport.height;
 
-    let changed = false;
-    const resultScroll = { ...this.dragStartScroll };
+      let newScrollY = this.dragStartScroll.scrollY + (deltaY / scrollableBarHeight) * scrollableContentHeight;
+      newScrollY = Math.max(0, Math.min(newScrollY, scrollableContentHeight));
 
-    const hasV = totalHeight > height;
-    const hasH = totalWidth > width;
-
-    // Recalculate track sizes
-    const trackWidth = width - (hasV ? this.SCROLLBAR_SIZE : 0);
-    const trackHeight = height - (hasH ? this.SCROLLBAR_SIZE : 0);
-
-    if (this.isDraggingV && hasV) {
-      const deltaY = y - this.dragStart.y;
-      const thumbHeight = Math.max(this.SCROLLBAR_MIN_THUMB, (height / totalHeight) * trackHeight);
-      const scrollableTrack = trackHeight - thumbHeight;
-      const scrollableContent = totalHeight - height;
-
-      if (scrollableTrack > 0) {
-        const ratio = scrollableContent / scrollableTrack;
-        resultScroll.scrollY = Math.max(0, Math.min(scrollableContent, this.dragStartScroll.scrollY + deltaY * ratio));
-        changed = true;
-      }
+      return { scrollX: currentScroll.scrollX, scrollY: newScrollY, handled: true };
     }
 
-    if (this.isDraggingH && hasH) {
-      const deltaX = x - this.dragStart.x;
-      const thumbWidth = Math.max(this.SCROLLBAR_MIN_THUMB, (width / totalWidth) * trackWidth);
-      const scrollableTrack = trackWidth - thumbWidth;
-      const scrollableContent = totalWidth - width;
+    if (this.isDraggingH) {
+      const deltaX = mouseX - this.dragStart.x;
+      const barWidth = viewport.width - this.SCROLLBAR_SIZE; // Vertical bar space
+      const thumbWidth = Math.max(this.SCROLLBAR_MIN_THUMB, (viewport.width / content.totalWidth) * barWidth);
+      const scrollableBarWidth = barWidth - thumbWidth;
+      const scrollableContentWidth = content.totalWidth - viewport.width;
 
-      if (scrollableTrack > 0) {
-        const ratio = scrollableContent / scrollableTrack;
-        resultScroll.scrollX = Math.max(0, Math.min(scrollableContent, this.dragStartScroll.scrollX + deltaX * ratio));
-        changed = true;
-      }
+      let newScrollX = this.dragStartScroll.scrollX + (deltaX / scrollableBarWidth) * scrollableContentWidth;
+      newScrollX = Math.max(0, Math.min(newScrollX, scrollableContentWidth));
+
+      return { scrollX: newScrollX, scrollY: currentScroll.scrollY, handled: true };
     }
 
-    return changed ? resultScroll : null;
+    return { scrollX: currentScroll.scrollX, scrollY: currentScroll.scrollY, handled: false };
   }
 
-  handleMouseUp() {
+  handleMouseUp(e: MouseEvent) {
     this.isDraggingV = false;
     this.isDraggingH = false;
+  }
+
+  handleHover(mouseX: number, mouseY: number, viewport: Viewport) {
+    const oldHover = this.hoverState;
+    // Check Vertical Scrollbar
+    // Right side
+    if (
+      mouseX >= viewport.width - this.SCROLLBAR_SIZE &&
+      mouseX <= viewport.width &&
+      mouseY < viewport.height - this.SCROLLBAR_SIZE
+    ) {
+      this.hoverState = 'vertical';
+    } else if (
+      mouseY >= viewport.height - this.SCROLLBAR_SIZE &&
+      mouseY <= viewport.height &&
+      mouseX < viewport.width - this.SCROLLBAR_SIZE
+    ) {
+      this.hoverState = 'horizontal';
+    } else {
+      this.hoverState = 'none';
+    }
+
+    if (oldHover !== this.hoverState && this.onRequestRender) {
+      this.onRequestRender();
+    }
   }
 
   draw(ctx: CanvasRenderingContext2D, viewport: Viewport, content: ContentSize, scroll: ScrollState) {
@@ -201,7 +220,6 @@ export class VirtualScrollbar {
     const { width, height } = viewport;
     const { totalWidth, totalHeight } = content;
     const { scrollX, scrollY } = scroll;
-
     const hasV = totalHeight > height;
     const hasH = totalWidth > width;
 
@@ -210,58 +228,57 @@ export class VirtualScrollbar {
     ctx.save();
     ctx.globalAlpha = this.opacity;
 
-    // Use a slighly darker track for better visibility on white sheets
-    const trackColor = 'rgba(0, 0, 0, 0.03)';
-    const thumbColor = 'rgba(0, 0, 0, 0.3)';
-    const thumbHoverColor = 'rgba(0, 0, 0, 0.5)';
-
-    const trackHeight = height - (hasH ? this.SCROLLBAR_SIZE : 0);
-    const trackWidth = width - (hasV ? this.SCROLLBAR_SIZE : 0);
-
-    // Vertical Scrollbar
-    if (hasV) {
-      const thumbHeight = Math.max(this.SCROLLBAR_MIN_THUMB, (height / totalHeight) * trackHeight);
-      // scrollRatio is based on safely movable area
-      // maxScrollY = totalHeight - height
-      const maxScrollY = totalHeight - height;
-      const scrollRatio = maxScrollY > 0 ? scrollY / maxScrollY : 0;
-
-      const thumbY = scrollRatio * (trackHeight - thumbHeight);
+    // Draw Vertical Scrollbar
+    if (content.totalHeight > viewport.height) {
+      const barHeight = viewport.height - this.SCROLLBAR_SIZE;
+      const thumbHeight = Math.max(this.SCROLLBAR_MIN_THUMB, (viewport.height / content.totalHeight) * barHeight);
+      const scrollRatio = scroll.scrollY / (content.totalHeight - viewport.height);
+      const thumbY = scrollRatio * (barHeight - thumbHeight);
 
       // Track
-      ctx.fillStyle = trackColor;
-      ctx.fillRect(width - this.SCROLLBAR_SIZE, 0, this.SCROLLBAR_SIZE, trackHeight);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+      ctx.fillRect(viewport.width - this.SCROLLBAR_SIZE, 0, this.SCROLLBAR_SIZE, barHeight);
 
       // Thumb
-      ctx.fillStyle = this.isDraggingV ? thumbHoverColor : thumbColor;
-      ctx.fillRect(
-        width - this.SCROLLBAR_SIZE + this.SCROLLBAR_PADDING,
+      ctx.fillStyle = this.isDraggingV || this.hoverState === 'vertical' ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.3)';
+
+      // Radius rect
+      this.roundRect(
+        ctx,
+        viewport.width - this.SCROLLBAR_SIZE + this.SCROLLBAR_PADDING,
         thumbY + this.SCROLLBAR_PADDING,
         this.SCROLLBAR_SIZE - this.SCROLLBAR_PADDING * 2,
-        thumbHeight - this.SCROLLBAR_PADDING * 2
+        thumbHeight - this.SCROLLBAR_PADDING * 2,
+        4
       );
+      ctx.fill();
     }
 
-    // Horizontal Scrollbar
-    if (hasH) {
-      const thumbWidth = Math.max(this.SCROLLBAR_MIN_THUMB, (width / totalWidth) * trackWidth);
-      const maxScrollX = totalWidth - width;
-      const scrollRatio = maxScrollX > 0 ? scrollX / maxScrollX : 0;
-
-      const thumbX = scrollRatio * (trackWidth - thumbWidth);
+    // Draw Horizontal Scrollbar
+    if (content.totalWidth > viewport.width) {
+      const barWidth = viewport.width - this.SCROLLBAR_SIZE;
+      const thumbWidth = Math.max(this.SCROLLBAR_MIN_THUMB, (viewport.width / content.totalWidth) * barWidth);
+      const scrollRatio = scroll.scrollX / (content.totalWidth - viewport.width);
+      const thumbX = scrollRatio * (barWidth - thumbWidth);
 
       // Track
-      ctx.fillStyle = trackColor;
-      ctx.fillRect(0, height - this.SCROLLBAR_SIZE, trackWidth, this.SCROLLBAR_SIZE);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+      ctx.fillRect(0, viewport.height - this.SCROLLBAR_SIZE, barWidth, this.SCROLLBAR_SIZE);
 
       // Thumb
-      ctx.fillStyle = this.isDraggingH ? thumbHoverColor : thumbColor;
-      ctx.fillRect(
+      ctx.fillStyle =
+        this.isDraggingH || this.hoverState === 'horizontal' ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.3)';
+
+      // Radius rect
+      this.roundRect(
+        ctx,
         thumbX + this.SCROLLBAR_PADDING,
-        height - this.SCROLLBAR_SIZE + this.SCROLLBAR_PADDING,
+        viewport.height - this.SCROLLBAR_SIZE + this.SCROLLBAR_PADDING,
         thumbWidth - this.SCROLLBAR_PADDING * 2,
-        this.SCROLLBAR_SIZE - this.SCROLLBAR_PADDING * 2
+        this.SCROLLBAR_SIZE - this.SCROLLBAR_PADDING * 2,
+        4
       );
+      ctx.fill();
     }
 
     // Corner
@@ -271,5 +288,24 @@ export class VirtualScrollbar {
     }
 
     ctx.restore();
+  }
+
+  private roundRect(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number
+  ) {
+    if (width < 2 * radius) radius = width / 2;
+    if (height < 2 * radius) radius = height / 2;
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + width, y, x + width, y + height, radius);
+    ctx.arcTo(x + width, y + height, x, y + height, radius);
+    ctx.arcTo(x, y + height, x, y, radius);
+    ctx.arcTo(x, y, x + width, y, radius);
+    ctx.closePath();
   }
 }

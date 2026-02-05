@@ -11,7 +11,8 @@ export class CellRenderer {
     w: number,
     h: number,
     styles: Styles | undefined,
-    defaultFont: string
+    defaultFont: string,
+    scale: number = 1
   ) {
     const cell = row.cells.get(c);
     let cellStyleStr = defaultFont;
@@ -37,7 +38,7 @@ export class CellRenderer {
         if (styles.fonts[xf.fontId]) {
           const font = styles.fonts[xf.fontId];
           const sizePt = font.size || 11;
-          fontSize = UnitConversion.ptToPixel(sizePt);
+          fontSize = UnitConversion.ptToPixel(sizePt) * scale;
 
           const rawName = font.name || 'Arial';
           fontFamily = FontMapping[rawName]?.safe_css_family || `"${rawName}", Arial, sans-serif`;
@@ -81,7 +82,7 @@ export class CellRenderer {
       ctx.rect(x, y, w, h);
       ctx.clip();
 
-      const padding = 2;
+      const padding = 2 * scale;
       const effectiveW = w - padding * 2;
 
       if (cell.richText && cell.richText.length > 0) {
@@ -91,7 +92,7 @@ export class CellRenderer {
           let fStr = cellStyleStr;
           if (f) {
             const sizePt = f.size || 11;
-            const sizePx = UnitConversion.ptToPixel(sizePt);
+            const sizePx = UnitConversion.ptToPixel(sizePt) * scale;
 
             const rawName = f.name || 'Arial';
             const safeFamily = FontMapping[rawName]?.safe_css_family || `"${rawName}", Arial, sans-serif`;
@@ -121,7 +122,7 @@ export class CellRenderer {
           let fColor = fgColor;
           if (f) {
             const sizePt = f.size || 11;
-            const sizePx = UnitConversion.ptToPixel(sizePt);
+            const sizePx = UnitConversion.ptToPixel(sizePt) * scale;
 
             const rawName = f.name || 'Arial';
             const safeFamily = FontMapping[rawName]?.safe_css_family || `"${rawName}", Arial, sans-serif`;

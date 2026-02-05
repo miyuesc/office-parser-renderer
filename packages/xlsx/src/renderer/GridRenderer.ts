@@ -42,6 +42,14 @@ export class GridRenderer {
   // Components
   private scrollbar: VirtualScrollbar;
   private scrollbarHideTimer: number | null = null;
+  private zoomContainer!: HTMLElement;
+  private zoomMinus!: HTMLElement;
+  private zoomPlus!: HTMLElement;
+  private zoomSlider!: HTMLInputElement;
+  private zoomValue!: HTMLElement;
+
+  // State
+  private scale = 1.0;
 
   // Image Cache
   private imageCache: Map<string, ImageBitmap> = new Map();
@@ -54,6 +62,11 @@ export class GridRenderer {
   private _handleMouseUp: (e: MouseEvent) => void;
   private _handleMouseEnter: (e: MouseEvent) => void;
   private _handleMouseLeave: (e: MouseEvent) => void;
+
+  // Interaction State
+  private isMapDragging = false;
+  private lastMouseX = 0;
+  private lastMouseY = 0;
 
   constructor(container: HTMLElement, options: Partial<GridRendererOptions> = {}) {
     this.container = container;
@@ -83,6 +96,10 @@ export class GridRenderer {
     this.tabBar = document.createElement('div');
     this.tabBar.className = 'xlsx-tab-bar';
     this.container.appendChild(this.tabBar);
+
+    // Zoom Controls
+    this.createZoomControls();
+    this.tabBar.appendChild(this.zoomContainer);
 
     this.options = {
       width: options.width || this.canvasWrapper.clientWidth || 800,
@@ -159,6 +176,45 @@ export class GridRenderer {
         border-top: 2px solid #217346;
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
       }
+      .xlsx-zoom-container {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        border-left: 1px solid #e0e0e0;
+        background: #f9f9f9;
+        padding: 0 10px;
+        height: 100%;
+      }
+      .xlsx-zoom-btn {
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        color: #666;
+        font-weight: bold;
+        font-size: 16px;
+        user-select: none;
+        border-radius: 2px;
+        transition: background 0.2s;
+      }
+      .xlsx-zoom-btn:hover {
+        background: #e0e0e0;
+      }
+      .xlsx-zoom-slider {
+        width: 80px;
+        margin: 0 8px;
+        cursor: pointer;
+      }
+      .xlsx-zoom-value {
+        font-family: 'Segoe UI', sans-serif;
+        font-size: 12px;
+        color: #666;
+        min-width: 35px;
+        text-align: right;
+        margin-left: 5px;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -182,12 +238,52 @@ export class GridRenderer {
   private handleWheel(event: WheelEvent) {
     event.preventDefault();
 
+    // Zoom Check
+    if (event.ctrlKey || event.metaKey) {
+      const delta = -event.deltaY;
+
+      // Optimize zoom step: smaller step usually, even smaller when < 100%
+      let step = 0.05; // 5%
+      if (this.scale < 1.0) {
+        step = 0.02; // 2%
+      }
+
+      let newScale = this.scale + (delta > 0 ? step : -step);
+
+      // Clamp 20% - 400%
+      newScale = Math.max(0.2, Math.min(4.0, newScale));
+
+      // Fix float precision
+      newScale = Math.round(newScale * 100) / 100;
+
+      if (Math.abs(newScale - this.scale) > 0.001) {
+        // Zoom towards mouse pointer
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = event.clientX - rect.left;
+        const mouseY = event.clientY - rect.top;
+        this.setScale(newScale, { x: mouseX, y: mouseY });
+      }
+      return;
+    }
+
     const { contentWidth, contentHeight } = this.calculateContentSize();
     const maxScrollX = Math.max(0, contentWidth - this.options.width);
     const maxScrollY = Math.max(0, contentHeight - this.options.height);
 
-    this.scrollX += event.deltaX;
-    this.scrollY += event.deltaY;
+    let dx = event.deltaX;
+    let dy = event.deltaY;
+
+    // Shift + Wheel -> Horizontal Scroll
+    if (event.shiftKey && !event.ctrlKey && !event.metaKey) {
+      // If we have vertical wheel delta but no horizontal, swap
+      if (dy !== 0 && dx === 0) {
+        dx = dy;
+        dy = 0;
+      }
+    }
+
+    this.scrollX += dx;
+    this.scrollY += dy;
 
     // Clamp
     this.scrollX = Math.max(0, Math.min(this.scrollX, maxScrollX));
@@ -208,35 +304,87 @@ export class GridRenderer {
       e,
       rect,
       { width, height },
-      { totalWidth: this.totalWidth, totalHeight: this.totalHeight },
+      {
+        totalWidth: this.totalWidth,
+        totalHeight: this.totalHeight
+      },
       { scrollX: this.scrollX, scrollY: this.scrollY }
     );
 
     if (handled) return;
+
+    // Start Canvas Drag
+    this.isMapDragging = true;
+    this.lastMouseX = e.clientX;
+    this.lastMouseY = e.clientY;
+    this.canvas.style.cursor = 'grabbing';
   }
 
   private handleMouseMove(e: MouseEvent) {
     const rect = this.canvas.getBoundingClientRect();
-    const { width, height } = this.options;
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
 
-    // Delegate
-    const newScroll = this.scrollbar.handleMouseMove(
+    // Delegate to Scrollbar first
+    const { scrollX, scrollY, handled } = this.scrollbar.handleMouseMove(
       e,
       rect,
-      { width, height },
-      { totalWidth: this.totalWidth, totalHeight: this.totalHeight }
+      { width: this.options.width, height: this.options.height },
+      { totalWidth: this.totalWidth, totalHeight: this.totalHeight },
+      { scrollX: this.scrollX, scrollY: this.scrollY }
     );
 
-    if (newScroll) {
-      if (newScroll.scrollX !== undefined) this.scrollX = newScroll.scrollX;
-      if (newScroll.scrollY !== undefined) this.scrollY = newScroll.scrollY;
+    if (handled) {
+      if (scrollX !== this.scrollX || scrollY !== this.scrollY) {
+        this.scrollX = scrollX;
+        this.scrollY = scrollY;
+        this.render();
+      }
+      return;
+    }
+
+    // Pass Hover state to scrollbar
+    this.scrollbar.handleHover(mouseX, mouseY, { width: this.options.width, height: this.options.height });
+
+    if (this.isMapDragging) {
+      const dx = e.clientX - this.lastMouseX;
+      const dy = e.clientY - this.lastMouseY;
+
+      this.lastMouseX = e.clientX;
+      this.lastMouseY = e.clientY;
+
+      // Inverse drag: mouse move left -> scroll right (view moves right) -> scrollX increases?
+      // No, standard grab drag: mouse moves left -> content moves left -> we see right side?
+      // Wait. Imagine grabbing a paper. You move hand left. Paper moves left.
+      // Content X decreases.
+      // this.scrollX is the left-edge of the viewport relative to content.
+      // If content moves left, viewport moves right relative to content.
+      // So scrollX INCREASES.
+      // So: scrollX -= dx.
+      // Let's verify: dx = -10 (left). scrollX -= -10 => scrollX += 10. Viewport moves right. Content moves left. Correct.
+
+      this.scrollX -= dx;
+      this.scrollY -= dy;
+
+      // Clamp
+      const { contentWidth, contentHeight } = this.calculateContentSize();
+      const maxScrollX = Math.max(0, contentWidth - this.options.width);
+      const maxScrollY = Math.max(0, contentHeight - this.options.height);
+
+      this.scrollX = Math.max(0, Math.min(this.scrollX, maxScrollX));
+      this.scrollY = Math.max(0, Math.min(this.scrollY, maxScrollY));
+
       this.render();
       return;
     }
   }
 
-  private handleMouseUp() {
-    this.scrollbar.handleMouseUp();
+  private handleMouseUp(e: MouseEvent) {
+    this.scrollbar.handleMouseUp(e);
+    if (this.isMapDragging) {
+      this.isMapDragging = false;
+      this.canvas.style.cursor = 'default';
+    }
   }
 
   private calculateContentSize() {
@@ -286,8 +434,6 @@ export class GridRenderer {
           y = 0,
           w = 0,
           h = 0;
-
-        // Logic duplicated from renderDrawings (could refactor, but kept inline for now)
         if (drawing.position.type === 'twoCellAnchor' && drawing.position.from && drawing.position.to) {
           const fromPos = this.getPixelPos(
             drawing.position.from.col,
@@ -334,6 +480,62 @@ export class GridRenderer {
     return { contentWidth, contentHeight };
   }
 
+  private createZoomControls() {
+    this.zoomContainer = document.createElement('div');
+    this.zoomContainer.className = 'xlsx-zoom-container';
+
+    // Minus
+    this.zoomMinus = document.createElement('div');
+    this.zoomMinus.className = 'xlsx-zoom-btn';
+    this.zoomMinus.textContent = '-';
+    this.zoomContainer.appendChild(this.zoomMinus);
+
+    // Slider
+    this.zoomSlider = document.createElement('input');
+    this.zoomSlider.type = 'range';
+    this.zoomSlider.className = 'xlsx-zoom-slider';
+    this.zoomSlider.min = '20';
+    this.zoomSlider.max = '400';
+    this.zoomSlider.value = '100';
+    this.zoomSlider.step = '10';
+    this.zoomContainer.appendChild(this.zoomSlider);
+
+    // Plus
+    this.zoomPlus = document.createElement('div');
+    this.zoomPlus.className = 'xlsx-zoom-btn';
+    this.zoomPlus.textContent = '+';
+    this.zoomContainer.appendChild(this.zoomPlus);
+
+    // Value
+    this.zoomValue = document.createElement('div');
+    this.zoomValue.className = 'xlsx-zoom-value';
+    this.zoomValue.textContent = '100%';
+    this.zoomContainer.appendChild(this.zoomValue);
+
+    // Events
+    this.zoomMinus.onclick = () => {
+      let newScale = Math.round((this.scale - 0.1) * 10) / 10;
+      newScale = Math.max(0.2, newScale);
+      // Center zoom
+      this.setScale(newScale, { x: this.options.width / 2, y: this.options.height / 2 });
+    };
+
+    this.zoomPlus.onclick = () => {
+      let newScale = Math.round((this.scale + 0.1) * 10) / 10;
+      newScale = Math.min(4.0, newScale);
+      // Center zoom
+      this.setScale(newScale, { x: this.options.width / 2, y: this.options.height / 2 });
+    };
+
+    const handleSlider = () => {
+      const val = parseInt(this.zoomSlider.value, 10);
+      // Center zoom
+      this.setScale(val / 100, { x: this.options.width / 2, y: this.options.height / 2 });
+    };
+
+    this.zoomSlider.addEventListener('input', handleSlider);
+  }
+
   resize(width?: number, height?: number) {
     // If not provided, take from wrapper
     const newW = width || this.canvasWrapper.clientWidth;
@@ -375,8 +577,17 @@ export class GridRenderer {
   }
 
   private renderTabs() {
+    // Clear tabs but keep zoom container
+    while (this.tabBar.firstChild && this.tabBar.firstChild !== this.zoomContainer) {
+      this.tabBar.removeChild(this.tabBar.firstChild);
+    }
+
     this.tabBar.innerHTML = '';
-    if (!this.worksheetDocument) return;
+
+    if (!this.worksheetDocument) {
+      this.tabBar.appendChild(this.zoomContainer);
+      return;
+    }
 
     this.worksheetDocument.worksheets.forEach((sheet, id) => {
       const tab = document.createElement('div');
@@ -395,10 +606,13 @@ export class GridRenderer {
 
       this.tabBar.appendChild(tab);
     });
+
+    this.tabBar.appendChild(this.zoomContainer);
   }
 
   private updateTabsActiveState() {
-    const tabs = Array.from(this.tabBar.children);
+    // Filter out zoom container
+    const tabs = Array.from(this.tabBar.children).filter(c => c !== this.zoomContainer);
     let idx = 0;
     if (!this.worksheetDocument) return;
 
@@ -419,7 +633,7 @@ export class GridRenderer {
     if (!this.worksheet) return;
 
     const styles = this.worksheetDocument?.styles;
-    const defaultFont = '12px Arial';
+    const defaultFont = `${Math.round(12 * this.scale)}px Arial`;
     this.ctx.font = defaultFont;
 
     for (const row of this.worksheet.rows.values()) {
@@ -432,7 +646,7 @@ export class GridRenderer {
         if (mergeInfo && !mergeInfo.isMaster) continue;
 
         let wrapText = false;
-        let fontSize = 11;
+        let fontSize = Math.round(11 * this.scale);
         let fontFamily = 'Arial';
         let isBold = false;
         let isItalic = false;
@@ -444,7 +658,7 @@ export class GridRenderer {
           if (xf.applyFont && styles.fonts[xf.fontId]) {
             const font = styles.fonts[xf.fontId];
             const sizePt = font.size || 11;
-            fontSize = UnitConversion.ptToPixel(sizePt);
+            fontSize = Math.round(UnitConversion.ptToPixel(sizePt) * this.scale);
             const rawName = font.name || 'Arial';
             fontFamily = FontMapping[rawName]?.safe_css_family || `"${rawName}", Arial, sans-serif`;
             if (font.bold) isBold = true;
@@ -457,14 +671,14 @@ export class GridRenderer {
           this.ctx.font = fontStr;
 
           const colW = mergeInfo ? mergeInfo.width : this.getColWidth(colIndex);
-          const padding = 2;
+          const padding = 2 * this.scale;
           const effectiveW = colW - padding;
 
           const text = CellRenderer.getCellText(cell, styles);
           const lines = CellRenderer.breakTextIntoLines(this.ctx, text, effectiveW);
 
           const lineHeight = fontSize * 1.25;
-          const neededHeight = lines.length * lineHeight + 2;
+          const neededHeight = lines.length * lineHeight + 2 * this.scale;
 
           if (mergeInfo) {
             let currentTotalH = 0;
@@ -487,21 +701,62 @@ export class GridRenderer {
   }
 
   private getColWidth(colIndex: number): number {
+    let w = this.options.colWidth;
     if (this.worksheet?.cols.has(colIndex)) {
-      return this.worksheet.cols.get(colIndex)!.width * 6.6 + 2;
+      w = this.worksheet.cols.get(colIndex)!.width * 6.6 + 2;
     }
-    return this.options.colWidth;
+    return w * this.scale;
   }
 
   private getRowHeight(rowIndex: number, ignoreAuto = false): number {
     if (!ignoreAuto && this.autoRowHeights.has(rowIndex)) {
       return this.autoRowHeights.get(rowIndex)!;
     }
+    let h = this.options.rowHeight;
     if (this.worksheet?.rows.has(rowIndex)) {
-      const h = this.worksheet.rows.get(rowIndex)!.height;
-      if (h !== undefined) return UnitConversion.ptToPixel(h);
+      const rh = this.worksheet.rows.get(rowIndex)!.height;
+      if (rh !== undefined) h = UnitConversion.ptToPixel(rh);
     }
-    return this.options.rowHeight;
+    return h * this.scale;
+  }
+
+  public setScale(scale: number, origin?: { x: number; y: number }) {
+    const oldScale = this.scale;
+    this.scale = scale;
+
+    // Update UI
+    const percent = Math.round(scale * 100);
+    this.zoomValue.textContent = `${percent}%`;
+    this.zoomSlider.value = `${percent}`;
+
+    this.prepareMerges();
+    this.calculateAutoRowHeights();
+    const { contentWidth, contentHeight } = this.calculateContentSize();
+
+    // Adjust Scroll to keep origin fixed
+    if (origin) {
+      // Logic:
+      // P_content_pixels_new = P_content_pixels_old * (newScale / oldScale)
+      // newScrollX = P_content_pixels_new - origin.x
+
+      const contentPixelX = this.scrollX + origin.x;
+      const contentPixelY = this.scrollY + origin.y;
+
+      const newContentPixelX = contentPixelX * (scale / oldScale);
+      const newContentPixelY = contentPixelY * (scale / oldScale);
+
+      this.scrollX = newContentPixelX - origin.x;
+      this.scrollY = newContentPixelY - origin.y;
+    }
+
+    // Clamp Scroll
+    const maxScrollX = Math.max(0, contentWidth - this.options.width);
+    const maxScrollY = Math.max(0, contentHeight - this.options.height);
+
+    this.scrollX = Math.max(0, Math.min(this.scrollX, maxScrollX));
+    this.scrollY = Math.max(0, Math.min(this.scrollY, maxScrollY));
+
+    this.render();
   }
 
   private prepareMerges() {
@@ -592,7 +847,7 @@ export class GridRenderer {
     ctx.fillRect(0, 0, width, height);
 
     // Font
-    const defaultFont = '12px Arial';
+    const defaultFont = `${Math.round(12 * this.scale)}px Arial`;
     ctx.font = defaultFont;
     ctx.textBaseline = 'middle';
     ctx.lineWidth = 1;
@@ -614,7 +869,21 @@ export class GridRenderer {
       const r = row.index;
       const rowH = this.getRowHeight(r);
       const rowsGap = r - previousRowIndex - 1;
-      if (rowsGap > 0) currentY += rowsGap * this.options.rowHeight;
+      if (rowsGap > 0) {
+        this.renderRowGap(
+          ctx,
+          previousRowIndex + 1,
+          rowsGap,
+          currentY,
+          width,
+          height,
+          frozenCols,
+          frozenRows,
+          fixedWidth,
+          fixedHeight
+        );
+        currentY += rowsGap * this.options.rowHeight * this.scale;
+      }
       const rawY = currentY;
       currentY += rowH;
       previousRowIndex = r;
@@ -701,7 +970,8 @@ export class GridRenderer {
                 renderW,
                 renderH,
                 styles,
-                defaultFont
+                defaultFont,
+                this.scale
               );
             }
 
@@ -746,7 +1016,7 @@ export class GridRenderer {
     ctx.stroke();
 
     this.renderDrawings(ctx, width, height);
-    this.drawScrollBars(ctx, width, height);
+    this.drawScrollBars(ctx);
   }
 
   private renderDrawings(ctx: CanvasRenderingContext2D, viewWidth: number, viewHeight: number) {
@@ -827,17 +1097,79 @@ export class GridRenderer {
     }
   }
 
+  private renderRowGap(
+    ctx: CanvasRenderingContext2D,
+    startRowIndex: number,
+    count: number,
+    startY: number,
+    viewWidth: number,
+    viewHeight: number,
+    frozenCols: number,
+    frozenRows: number,
+    fixedWidth: number,
+    fixedHeight: number
+  ) {
+    const defaultRowH = this.options.rowHeight * this.scale;
+    let currentRawY = startY;
+
+    for (let i = 0; i < count; i++) {
+      const r = startRowIndex + i;
+      const rowH = defaultRowH;
+
+      let screenY = currentRawY;
+      let isVisibleY = true;
+
+      if (r > frozenRows) {
+        screenY = currentRawY - this.scrollY;
+        if (screenY < fixedHeight) {
+          if (screenY + rowH <= fixedHeight) isVisibleY = false;
+        }
+      }
+
+      if (isVisibleY && screenY < viewHeight) {
+        let rawX = 0;
+        for (let c = 1; c <= 26; c++) {
+          const colW = this.getColWidth(c);
+          let screenX = rawX;
+          let isVisibleX = true;
+
+          if (c > frozenCols) {
+            screenX = rawX - this.scrollX;
+            if (screenX < fixedWidth) {
+              if (screenX + colW <= fixedWidth) isVisibleX = false;
+            }
+          }
+
+          if (isVisibleX && screenX < viewWidth) {
+            ctx.save();
+            ctx.strokeStyle = '#e6e6e6';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(Math.floor(screenX + colW) + 0.5, Math.floor(screenY));
+            ctx.lineTo(Math.floor(screenX + colW) + 0.5, Math.floor(screenY + rowH));
+            ctx.moveTo(Math.floor(screenX), Math.floor(screenY + rowH) + 0.5);
+            ctx.lineTo(Math.floor(screenX + colW), Math.floor(screenY + rowH) + 0.5);
+            ctx.stroke();
+            ctx.restore();
+          }
+          rawX += colW;
+        }
+      }
+      currentRawY += rowH;
+    }
+  }
+
   private getPixelPos(colIdx: number, rowIdx: number, colOff: number, rowOff: number): { x: number; y: number } {
     let x = 0;
     for (let c = 0; c < colIdx; c++) x += this.getColWidth(c + 1);
-    x += colOff;
+    x += colOff * this.scale;
     let y = 0;
     for (let r = 0; r < rowIdx; r++) y += this.getRowHeight(r + 1);
-    y += rowOff;
+    y += rowOff * this.scale;
     return { x, y };
   }
 
-  private drawScrollBars(ctx: CanvasRenderingContext2D, width: number, height: number) {
+  private drawScrollBars(ctx: CanvasRenderingContext2D) {
     this.scrollbar.draw(
       ctx,
       { width: this.options.width, height: this.options.height },
