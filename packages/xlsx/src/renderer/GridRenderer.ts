@@ -633,7 +633,7 @@ export class GridRenderer {
     if (!this.worksheet) return;
 
     const styles = this.worksheetDocument?.styles;
-    const defaultFont = `${Math.round(12 * this.scale)}px Arial`;
+    const defaultFont = `${Math.round(UnitConversion.ptToPixel(11) * this.scale)}px Arial`;
     this.ctx.font = defaultFont;
 
     for (const row of this.worksheet.rows.values()) {
@@ -646,7 +646,7 @@ export class GridRenderer {
         if (mergeInfo && !mergeInfo.isMaster) continue;
 
         let wrapText = false;
-        let fontSize = Math.round(11 * this.scale);
+        let fontSize = Math.round(UnitConversion.ptToPixel(11) * this.scale);
         let fontFamily = 'Arial';
         let isBold = false;
         let isItalic = false;
@@ -847,7 +847,7 @@ export class GridRenderer {
     ctx.fillRect(0, 0, width, height);
 
     // Font
-    const defaultFont = `${Math.round(12 * this.scale)}px Arial`;
+    const defaultFont = `${Math.round(UnitConversion.ptToPixel(11) * this.scale)}px Arial`;
     ctx.font = defaultFont;
     ctx.textBaseline = 'middle';
     ctx.lineWidth = 1;

@@ -19,7 +19,7 @@ export class CellRenderer {
     let fgColor = '#000000';
     let bgColor = 'transparent';
 
-    let fontSize = 11;
+    let fontSize = UnitConversion.ptToPixel(11) * scale;
     let fontFamily = 'Arial';
     let isBold = false;
     let isItalic = false;
