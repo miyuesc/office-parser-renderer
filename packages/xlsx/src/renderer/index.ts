@@ -1,1 +1,1 @@
-export * from './GridRenderer';
+export * from './XlsxRenderer';

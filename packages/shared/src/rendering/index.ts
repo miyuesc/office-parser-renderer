@@ -4,3 +4,6 @@ export * from './ImageRenderer';
 export * from './WebWorkerManager';
 export * from './ChartEngine';
 export * from './ShapeRenderer';
+export * from './VirtualScrollbar';
+export * from './ZoomController';
+export * from './DragController';

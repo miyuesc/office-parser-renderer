@@ -1,4 +1,4 @@
-import { FileHandler, Logger, OfficeImage, OfficeShape, UnitConversion } from '@opr/shared';
+import { FileHandler, Logger, OfficeImage, OfficeShape, OfficeChart, UnitConversion, ChartParser } from '@opr/shared';
 
 const logger = new Logger('DrawingParser');
 
@@ -15,8 +15,8 @@ export class DrawingParser {
     rels: Map<string, string>,
     files: Map<string, Uint8Array>,
     basePath: string
-  ): (OfficeImage | OfficeShape)[] {
-    const drawings: (OfficeImage | OfficeShape)[] = [];
+  ): (OfficeImage | OfficeShape | OfficeChart)[] {
+    const drawings: (OfficeImage | OfficeShape | OfficeChart)[] = [];
     const doc = FileHandler.parseXML(xmlString);
 
     // Support twoCellAnchor and oneCellAnchor
@@ -82,11 +82,105 @@ export class DrawingParser {
         drawings.push(shape);
         continue;
       }
+
+      // 3. GraphicFrame (Charts)
+      const graphicFrame = anchor.querySelector('graphicFrame');
+      if (graphicFrame) {
+        const chart = this.parseGraphicFrame(graphicFrame, rels, files, basePath);
+        if (chart) {
+          chart.position.type = type as any;
+          chart.position.from = fromPos;
+          chart.position.to = toPos;
+          drawings.push(chart);
+        }
+        continue;
+      }
     }
 
     return drawings;
   }
 
+  private static parseGraphicFrame(
+    frame: Element,
+    rels: Map<string, string>,
+    files: Map<string, Uint8Array>,
+    basePath: string
+  ): OfficeChart | null {
+    // 1. Check for chart relationship
+    const graphic = frame.querySelector('graphic');
+    const graphicData = graphic?.querySelector('graphicData');
+    if (!graphicData || graphicData.getAttribute('uri') !== 'http://schemas.openxmlformats.org/drawingml/2006/chart') {
+      return null;
+    }
+
+    const chartRef = graphicData.querySelector('chart'); // c:chart
+    if (!chartRef) return null;
+
+    const rId = chartRef.getAttribute('r:id'); // xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    if (!rId) return null;
+
+    // 2. Resolve chart file path
+    let target = rels.get(rId);
+    if (!target) return null;
+
+    if (target.startsWith('../')) {
+      const baseParts = basePath.split('/').filter(p => p);
+      const targetParts = target.split('/');
+
+      while (targetParts[0] === '..') {
+        baseParts.pop();
+        targetParts.shift();
+      }
+      target = [...baseParts, ...targetParts].join('/');
+    } else {
+      target = basePath + target;
+    }
+
+    // 3. Read chart xml
+    const file = files.get(target);
+    if (!file) {
+      logger.warn(`Chart file not found: ${target}`);
+      return null;
+    }
+
+    const xmlStr = FileHandler.readText(file);
+    if (!xmlStr || xmlStr.length < 10) {
+      logger.warn('Chart XML is empty or too short');
+      return null;
+    }
+
+    // 4. Parse chart data using ChartParser
+    const chartParser = new ChartParser();
+    const chartData = chartParser.parse(xmlStr);
+
+    if (!chartData) {
+      logger.warn('Failed to parse chart data');
+      return null;
+    }
+
+    // 5. Parse transform/position info from nvGraphicFramePr -> xfrm
+    const xfrm = frame.querySelector('xfrm');
+    const transform = this.parseTransform(xfrm);
+
+    // 6. Name and ID
+    const nvGraphicFramePr = frame.querySelector('nvGraphicFramePr');
+    const cNvPr = nvGraphicFramePr?.querySelector('cNvPr');
+    const id = cNvPr?.getAttribute('id') || '0';
+    const name = cNvPr?.getAttribute('name') || 'Chart';
+
+    return {
+      id,
+      name,
+      type: 'chart',
+      chartData,
+      position: {
+        type: 'absolute', // Placeholder
+        ...transform
+      }
+    };
+  }
+
+  // ... (parsePicture, parseShape, parseTransform, etc. remain the same)
   private static parsePicture(
     pic: Element,
     rels: Map<string, string>,
@@ -121,7 +215,7 @@ export class DrawingParser {
 
     const ext = target.split('.').pop() || 'png';
     const mimeType = this.getMimeType(ext);
-    const blob = new Blob([fileData], { type: mimeType });
+    const blob = new Blob([fileData as any], { type: mimeType });
 
     const spPr = pic.querySelector('spPr');
     const xfrm = spPr?.querySelector('xfrm');
@@ -137,6 +231,8 @@ export class DrawingParser {
       }
     };
   }
+
+  // ... (Keep remaining methods: parseShape, parseTransform, parseFill, etc.)
 
   private static parseShape(node: Element, type: 'shape' | 'connector'): OfficeShape {
     const nvSpPr = node.querySelector('nvSpPr');

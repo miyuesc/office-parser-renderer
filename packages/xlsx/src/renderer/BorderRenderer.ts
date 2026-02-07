@@ -5,14 +5,14 @@ export interface DrawCmd {
   x: number;
   y: number;
   len: number;
-  isVertical: boolean; // true = vertical (Left/Right), false = horizontal (Top/Bottom)
+  isVertical: boolean; // true = 垂直 (左右边框), false = 水平 (上下边框)
   border: IBorder;
 }
 
 export class BorderRenderer {
   /**
-   * Calculate border drawing commands for a single cell.
-   * Resolves conflicts with neighbors and aggregates commands into a Map.
+   * 计算单个单元格的边框绘制指令
+   * 处理邻近冲突，并将结果聚合到 cmds Map 中
    */
   static calculateBordersForCell(
     worksheet: Worksheet,
@@ -126,8 +126,8 @@ export class BorderRenderer {
   }
 
   /**
-   * Render a single border command to the canvas.
-   * Handles clipping logic for frozen panes.
+   * 渲染单个边框指令到 Canvas
+   * 处理冻结窗格的裁剪逻辑
    */
   static renderCmd(
     ctx: CanvasRenderingContext2D,

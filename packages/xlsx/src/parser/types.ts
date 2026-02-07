@@ -9,7 +9,7 @@ export interface XlsxDocument {
   styles?: Styles;
 }
 
-import { OfficeImage, OfficeShape } from '@opr/shared';
+import { OfficeImage, OfficeShape, OfficeChart } from '@opr/shared';
 
 export interface Worksheet {
   name: string;
@@ -31,7 +31,7 @@ export interface Worksheet {
     topLeftCell?: string;
     state?: string; // 'frozen' | 'split'
   };
-  drawings?: (OfficeImage | OfficeShape)[];
+  drawings?: (OfficeImage | OfficeShape | OfficeChart)[];
   drawingRId?: string;
 }
 

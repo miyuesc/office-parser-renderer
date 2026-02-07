@@ -10,10 +10,13 @@
     "@opr/shared": "workspace:*",
     "@opr/docx": "workspace:*",
     "@opr/pptx": "workspace:*",
-    "@opr/xlsx": "workspace:*"
+    "@opr/xlsx": "workspace:*",
+    "vue": "^3.5.0"
   },
   "devDependencies": {
     "vite": "^5.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "@vitejs/plugin-vue": "^5.0.0",
+    "vue-tsc": "^2.0.0"
   }
 }
