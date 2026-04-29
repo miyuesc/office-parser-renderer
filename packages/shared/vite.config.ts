@@ -14,7 +14,11 @@ export default defineConfig({
       external: ['jszip', '@opr/definitions']
     }
   },
-  plugins: [dts()],
+  plugins: [
+    dts({
+      tsconfigPath: resolve(__dirname, 'tsconfig.build.json')
+    })
+  ],
   test: {
     environment: 'happy-dom'
   }

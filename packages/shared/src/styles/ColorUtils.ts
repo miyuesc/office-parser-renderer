@@ -1,7 +1,24 @@
+import { ColorRef, ThemeColorKey, ThemeModel } from './types';
+
 /**
  * 颜色处理工具
  */
 export class ColorUtils {
+  private static readonly SCHEME_TO_THEME_KEY: Record<string, ThemeColorKey> = {
+    bg1: 'lt1',
+    tx1: 'dk1',
+    bg2: 'lt2',
+    tx2: 'dk2',
+    accent1: 'accent1',
+    accent2: 'accent2',
+    accent3: 'accent3',
+    accent4: 'accent4',
+    accent5: 'accent5',
+    accent6: 'accent6',
+    hlink: 'hlink',
+    folHlink: 'folHlink'
+  };
+
   /**
    * 将 Excel 颜色字符串标准化为 CSS 颜色
    * Supports:
@@ -118,20 +135,108 @@ export class ColorUtils {
 
   // Default Office Theme Colors (Theme1)
   // Mapping: 0=Lt1, 1=Dk1, 2=Lt2, 3=Dk2, 4=Accent1 ... 9=Accent6, 10=Hlink, 11=FolHlink
-  private static readonly THEME_COLORS = [
-    '#FFFFFF', // 0: Lt1
-    '#000000', // 1: Dk1
-    '#EEECE1', // 2: Lt2
-    '#1F497D', // 3: Dk2 (Actually usually slightly different, but this is a common default)
-    '#4F81BD', // 4: Accent1
-    '#C0504D', // 5: Accent2
-    '#9BBB59', // 6: Accent3
-    '#8064A2', // 7: Accent4
-    '#4BACC6', // 8: Accent5
-    '#F79646', // 9: Accent6
-    '#0000FF', // 10: Hlink
-    '#800080' // 11: FolHlink
+  private static readonly THEME_COLOR_KEYS: ThemeColorKey[] = [
+    'lt1',
+    'dk1',
+    'lt2',
+    'dk2',
+    'accent1',
+    'accent2',
+    'accent3',
+    'accent4',
+    'accent5',
+    'accent6',
+    'hlink',
+    'folHlink'
   ];
+
+  private static readonly DEFAULT_THEME_COLORS: Record<ThemeColorKey, string> = {
+    lt1: '#FFFFFF',
+    dk1: '#000000',
+    lt2: '#EEECE1',
+    dk2: '#1F497D',
+    accent1: '#4F81BD',
+    accent2: '#C0504D',
+    accent3: '#9BBB59',
+    accent4: '#8064A2',
+    accent5: '#4BACC6',
+    accent6: '#F79646',
+    hlink: '#0000FF',
+    folHlink: '#800080'
+  };
+
+  static createColorRef(
+    rgb?: string | null,
+    theme?: string | number | null,
+    indexed?: string | number | null,
+    tint?: string | number | null
+  ): ColorRef | undefined {
+    const hasRgb = !!rgb;
+    const hasTheme = theme !== undefined && theme !== null && theme !== '';
+    const hasIndexed = indexed !== undefined && indexed !== null && indexed !== '';
+    const hasTint = tint !== undefined && tint !== null && tint !== '';
+
+    if (!hasRgb && !hasTheme && !hasIndexed && !hasTint) {
+      return undefined;
+    }
+
+    const colorRef: ColorRef = {};
+
+    if (rgb) {
+      colorRef.rgb = rgb;
+    }
+    if (hasTheme) {
+      colorRef.theme = typeof theme === 'string' ? parseInt(theme, 10) : theme;
+    }
+    if (hasIndexed) {
+      colorRef.indexed = typeof indexed === 'string' ? parseInt(indexed, 10) : indexed;
+    }
+    if (hasTint) {
+      colorRef.tint = typeof tint === 'string' ? parseFloat(tint) : tint;
+    }
+
+    return colorRef;
+  }
+
+  static resolveThemeColor(themeIndex: number, themeModel?: ThemeModel): string | undefined {
+    const key = this.THEME_COLOR_KEYS[themeIndex];
+    if (!key) {
+      return undefined;
+    }
+
+    return themeModel?.colors[key] || this.DEFAULT_THEME_COLORS[key];
+  }
+
+  static resolveSchemeColor(scheme: string, themeModel?: ThemeModel): string | undefined {
+    const key = this.SCHEME_TO_THEME_KEY[scheme];
+    if (!key) {
+      return undefined;
+    }
+
+    return themeModel?.colors[key] || this.DEFAULT_THEME_COLORS[key];
+  }
+
+  static resolveColorRef(colorRef?: ColorRef, themeModel?: ThemeModel): string | undefined {
+    if (!colorRef) return undefined;
+
+    let baseColor: string | undefined;
+
+    if (colorRef.rgb) {
+      baseColor = this.formatColor(colorRef.rgb);
+    } else if (colorRef.theme !== undefined) {
+      baseColor = this.resolveThemeColor(colorRef.theme, themeModel);
+    } else if (colorRef.indexed !== undefined) {
+      baseColor = this.INDEXED_COLORS[colorRef.indexed];
+    }
+
+    if (!baseColor) return undefined;
+
+    if (colorRef.tint !== undefined && !isNaN(colorRef.tint) && colorRef.tint !== 0) {
+      return this.applyTint(baseColor, colorRef.tint);
+    }
+
+    return baseColor;
+  }
 
   /**
    * Resolve color from Excel attributes
@@ -144,35 +249,10 @@ export class ColorUtils {
     rgb?: string | null,
     theme?: string | number | null,
     indexed?: string | number | null,
-    tint?: string | number | null
+    tint?: string | number | null,
+    themeModel?: ThemeModel
   ): string | undefined {
-    let baseColor: string | undefined;
-
-    if (rgb) {
-      baseColor = this.formatColor(rgb);
-    } else if (theme !== undefined && theme !== null) {
-      const themeIdx = typeof theme === 'string' ? parseInt(theme, 10) : theme;
-      if (this.THEME_COLORS[themeIdx]) {
-        baseColor = this.THEME_COLORS[themeIdx];
-      }
-    } else if (indexed !== undefined && indexed !== null) {
-      const idx = typeof indexed === 'string' ? parseInt(indexed, 10) : indexed;
-      if (this.INDEXED_COLORS[idx]) {
-        baseColor = this.INDEXED_COLORS[idx];
-      }
-    }
-
-    if (!baseColor) return undefined;
-
-    // Apply Tint if present
-    if (tint !== undefined && tint !== null) {
-      const tintVal = typeof tint === 'string' ? parseFloat(tint) : tint;
-      if (!isNaN(tintVal) && tintVal !== 0) {
-        return this.applyTint(baseColor, tintVal);
-      }
-    }
-
-    return baseColor;
+    return this.resolveColorRef(this.createColorRef(rgb, theme, indexed, tint), themeModel);
   }
 
   private static applyTint(hex: string, tint: number): string {

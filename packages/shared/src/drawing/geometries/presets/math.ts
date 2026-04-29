@@ -1,5 +1,3 @@
-import { getRect } from '../primitives';
-
 const getPlus = (w: number, h: number, adj?: any) => {
   const a1 = (adj?.adj1 ?? 23520) / 100000;
   const ss = Math.min(w, h);

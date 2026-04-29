@@ -4,7 +4,7 @@
  */
 export class Logger {
   private scope: string;
-  private static isDebug = import.meta.env?.DEV ?? false;
+  private static isDebug = (import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV ?? false;
 
   constructor(scope: string) {
     this.scope = scope;

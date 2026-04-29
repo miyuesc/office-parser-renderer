@@ -68,6 +68,11 @@ export class CellRenderer {
       }
     }
 
+    if (cell?.hyperlink) {
+      fgColor = '#0563c1';
+      isUnderline = true;
+    }
+
     cellStyleStr = `${isItalic ? 'italic ' : ''}${isBold ? 'bold ' : ''}${fontSize}px ${fontFamily}`;
 
     // Fill Background

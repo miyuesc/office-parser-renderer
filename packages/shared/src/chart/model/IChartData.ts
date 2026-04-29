@@ -23,9 +23,29 @@ export interface IChartTitle {
   // TODO: add style properties
 }
 
+export interface IChartStyleRef {
+  styleId: number;
+}
+
+export interface IChartExternalData {
+  relationshipId: string;
+  autoUpdate?: boolean;
+  target?: string;
+  targetMode?: 'Internal' | 'External' | string;
+  resolvedTarget?: string;
+  contentType?: string;
+}
+
 export interface IChartLegend {
   position: AxisPosition | 'tr' | 'tl' | 'br' | 'bl'; // Top-Right, etc.
   visible: boolean;
+}
+
+export interface IChartView3D {
+  rotationX?: number;
+  rotationY?: number;
+  perspective?: number;
+  depthPercent?: number;
 }
 
 export interface IChartAxis {
@@ -41,7 +61,6 @@ export interface IChartAxis {
 
 export interface IChartSeries {
   index: number;
-  index: number;
   order: number;
   name: string;
   fillColor?: string; // Hex color code or CSS string
@@ -54,10 +73,13 @@ export interface IChartSeries {
 export interface IChartData {
   type: ChartType;
   title?: IChartTitle;
+  style?: IChartStyleRef;
+  externalData?: IChartExternalData;
   grouping?: 'percentStacked' | 'stacked' | 'standard'; // standard, stacked, percentStacked
   legend?: IChartLegend;
   axes: IChartAxis[];
   categories: string[]; // Shared x-axis categories
   series: IChartSeries[];
   is3D: boolean;
+  view3D?: IChartView3D;
 }

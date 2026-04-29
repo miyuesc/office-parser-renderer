@@ -212,7 +212,6 @@ const getActionButtonInformation = (w: number, h: number) => {
 
   const g38 = (g13 * 3) / 32; // radius
 
-  const cY1 = g9 + dx2; // center for 'i' circle? No, wait pptx logic is weird here.
   // Circle for 'i' dot: (hc, g25) .. radius g38
   // No, pptx has two parts: The circle background for 'i'? Or is it 'i' shape?
   // "M hc g9 ... shapeArc(hc, cY1, dx2, dx2 ...)" -> This looks like the background circle (Outline)
@@ -362,7 +361,6 @@ const getActionButtonSound = (w: number, h: number) => {
   const g9 = vc - dx2;
   const g10 = vc + dx2;
   const g11 = hc - dx2;
-  const g12 = hc + dx2;
   const g13 = (ss * 3) / 4;
 
   // Approximate Speaker Logic
@@ -379,7 +377,6 @@ const getActionButtonSound = (w: number, h: number) => {
 
   // Sound Waves ) )
   // Just simplifiying waves
-  const wave1 = `M ${g17 + g13 * 0.1} ${vc - g13 * 0.1} A ${g13 * 0.2} ${g13 * 0.2} 0 0 1 ${g17 + g13 * 0.1} ${vc + g13 * 0.1}`; // small arc
   // ...
   // Using a simpler placeholder logic if strict pptx mapping is too verbose without context
   return `M 0 0 L ${w} 0 L ${w} ${h} L 0 ${h} Z ` + speaker;

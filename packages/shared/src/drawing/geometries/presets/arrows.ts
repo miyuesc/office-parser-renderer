@@ -6,7 +6,6 @@ const getRightArrow = (w: number, h: number, adj?: any) => {
 
   const neckH = h * a1;
   const neckY = (h - neckH) / 2;
-  const headLen = Math.min(w, h) * a2; // NOTE: pptx uses min(w,h) scaling for head usually or w? pptx code uses sAdj2_val * w for head width. Wait, L5407: sAdj2_val * w.
   // But wait, if w is very large, head is huge?
   // pptx code says: sAdj2_val = (sAdj2.substr(4)) / 100000. It doesn't scale by min(w,h).
   // But standard shapes often scale head by min dime if adj is large.
@@ -82,16 +81,12 @@ const getQuadArrow = (w: number, h: number, adj?: any) => {
   const dx3 = minWH * a1;
   const x3 = w / 2 - dx3;
   const x4 = w / 2 + dx3;
-  const x6 = w - x1; // Not fully using x6?
-
   const vc = h / 2,
     hc = w / 2;
   const y2 = vc - dx2;
   const y5 = vc + dx2;
   const y3 = vc - dx3;
   const y4 = vc + dx3;
-  const y6 = h - x1;
-
   // Right Arrow
   // M 0 vc ...? No, logic is cross shape.
 
@@ -126,10 +121,6 @@ const getLeftRightUpArrow = (w: number, h: number, adj?: any) => {
   const x5 = hc + dx2;
   const x3 = hc - dx3;
   const x4 = hc + dx3;
-  const x6 = w - x1; // right head start
-
-  const dy2 = minWH * a2; // up head height/width? pptx uses same scale.
-  const y2 = h - dy2; // wait, this is for sideways?
   // Let's interpret coordinates.
   // Top head: L hc 0. Base: L ... x1.
   // This shape is effectively T-shaped but with arrows.
@@ -139,7 +130,6 @@ const getLeftRightUpArrow = (w: number, h: number, adj?: any) => {
   // Right arrow tip: w, y4?
   // Up arrow tip: hc, 0
 
-  const y4 = h / 2; // Roughly center vert? No, pptx has y4 = h - dx2 ?
   // L5809: y4 = h - dx2 ??
   // Actually, let's assume standard layout.
   // Vertical center for left/right arrows is usually lower if T-shape.
@@ -153,10 +143,6 @@ const getLeftRightUpArrow = (w: number, h: number, adj?: any) => {
   // Up head: Tip(hc,0), Base(x2, x1) and (x5, x1). Neck(x3, x1) and (x4, x1).
   // ...
   // Let's implement simpler version:
-
-  const neckW = 2 * dx3;
-  const headW = 2 * dx2;
-  const headH = x1; // or similar
 
   // Actually pptx code lines:
   // y4 = h - dx2 -> this suggests bottom heavy.
@@ -184,13 +170,6 @@ const getLeftUpArrow = (w: number, h: number, adj?: any) => {
   const dx3 = minWH * a1; // neck width
   const x1 = minWH * a3; // head length
 
-  const x2 = w - dx4;
-  const y2 = h - dx4; // Inner corner reference
-
-  const x3 = x2 - dx3; // Inner neck
-  const y3 = y2 - dx3;
-
-  const x4 = w - dx4; // Outer corner reference - head width?
   // Actually pptx logic:
   // M 0 y4 ...
 

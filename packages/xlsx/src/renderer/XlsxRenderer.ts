@@ -1,9 +1,11 @@
-import { Worksheet, XlsxDocument, Styles } from '../parser/types';
+import { Worksheet, XlsxDocument, Styles, WorksheetHyperlink } from '../parser/types';
+import { getCell as getWorksheetCell, getCellByRef as getWorksheetCellByRef, parseCellRef } from '../model';
 import {
   UnitConversion,
   FontMapping,
   ImageRenderer,
   ChartRenderer,
+  ShapeRenderer,
   VirtualScrollbar,
   ZoomController,
   DragController
@@ -49,6 +51,8 @@ interface MergeInfo {
  * 负责解析后的 Worksheet 渲染、交互处理及视图管理
  */
 export class XlsxRenderer {
+  private static readonly CULLING_EPSILON = 1;
+
   /* 容器元素 */
   private container: HTMLElement;
   /* 画布包装容器 */
@@ -97,6 +101,7 @@ export class XlsxRenderer {
   private _handleMouseUp: (e: MouseEvent) => void;
   private _handleMouseEnter: (e: MouseEvent) => void;
   private _handleMouseLeave: (e: MouseEvent) => void;
+  private mouseDownPoint: { x: number; y: number } | null = null;
 
   /** 拖拽控制器 */
   private dragController: DragController;
@@ -128,6 +133,7 @@ export class XlsxRenderer {
 
     // Canvas
     this.canvas = document.createElement('canvas');
+    this.canvas.dataset.testid = 'xlsx-canvas';
     this.canvas.style.display = 'block';
     this.canvasWrapper.appendChild(this.canvas);
     this.ctx = this.canvas.getContext('2d')!;
@@ -325,6 +331,7 @@ export class XlsxRenderer {
   private handleMouseDown(e: MouseEvent) {
     const rect = this.canvas.getBoundingClientRect();
     const { width, height } = this.options;
+    this.mouseDownPoint = { x: e.clientX, y: e.clientY };
 
     // Delegate to Scrollbar
     const handled = this.scrollbar.handleMouseDown(
@@ -369,13 +376,32 @@ export class XlsxRenderer {
 
     // Pass Hover state to scrollbar
     this.scrollbar.handleHover(mouseX, mouseY, { width: this.options.width, height: this.options.height });
+    const hyperlink = this.getHyperlinkAt(mouseX, mouseY);
+    if (!this.dragController.getIsDragging() && hyperlink) {
+      this.canvas.style.cursor = 'pointer';
+    } else if (!this.dragController.getIsDragging()) {
+      this.canvas.style.cursor = 'default';
+    }
 
     this.dragController.handleMouseMove(e);
   }
 
   private handleMouseUp(e: MouseEvent) {
+    const rect = this.canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const downPoint = this.mouseDownPoint;
+    this.mouseDownPoint = null;
+
     this.scrollbar.handleMouseUp(e);
     this.dragController.handleMouseUp(e);
+
+    if (downPoint && Math.abs(e.clientX - downPoint.x) <= 3 && Math.abs(e.clientY - downPoint.y) <= 3) {
+      const hyperlink = this.getHyperlinkAt(mouseX, mouseY);
+      if (hyperlink) {
+        this.openHyperlink(hyperlink);
+      }
+    }
   }
 
   /**
@@ -398,17 +424,7 @@ export class XlsxRenderer {
 
     let contentWidth = 0;
 
-    let maxCol = 0;
-    if (this.worksheet.dimension) {
-      maxCol = this.worksheet.dimension.endCol;
-    } else {
-      for (const r of this.worksheet.rows.values()) {
-        for (const c of r.cells.keys()) {
-          if (c > maxCol) maxCol = c;
-        }
-      }
-    }
-    maxCol += 2; // Buffer
+    const maxCol = this.getMaxRenderableCol();
 
     for (let c = 1; c <= maxCol; c++) {
       contentWidth += this.getColWidth(c);
@@ -436,44 +452,7 @@ export class XlsxRenderer {
     // Check Drawings/Images for bounds extension
     if (this.worksheet.drawings) {
       for (const drawing of this.worksheet.drawings) {
-        let x = 0,
-          y = 0,
-          w = 0,
-          h = 0;
-        if (drawing.position.type === 'twoCellAnchor' && drawing.position.from && drawing.position.to) {
-          const fromPos = this.getPixelPos(
-            drawing.position.from.col,
-            drawing.position.from.row,
-            drawing.position.from.colOff,
-            drawing.position.from.rowOff
-          );
-          const toPos = this.getPixelPos(
-            drawing.position.to.col,
-            drawing.position.to.row,
-            drawing.position.to.colOff,
-            drawing.position.to.rowOff
-          );
-          x = fromPos.x;
-          y = fromPos.y;
-          w = toPos.x - fromPos.x;
-          h = toPos.y - fromPos.y;
-        } else if (drawing.position.type === 'oneCellAnchor' && drawing.position.from) {
-          const fromPos = this.getPixelPos(
-            drawing.position.from.col,
-            drawing.position.from.row,
-            drawing.position.from.colOff,
-            drawing.position.from.rowOff
-          );
-          x = fromPos.x;
-          y = fromPos.y;
-          w = drawing.position.width;
-          h = drawing.position.height;
-        } else {
-          x = drawing.position.x || 0;
-          y = drawing.position.y || 0;
-          w = drawing.position.width;
-          h = drawing.position.height;
-        }
+        const { x, y, width: w, height: h } = this.getDrawingContentBounds(drawing);
 
         if (x + w > contentWidth) contentWidth = x + w + 50; // Add some margin
         if (y + h > contentHeight) contentHeight = y + h + 50;
@@ -500,7 +479,7 @@ export class XlsxRenderer {
         target = sheets[idOrName];
       }
     } else {
-      target = sheets.find(s => s.name === idOrName);
+      target = sheets.find(s => s.id === idOrName || s.sheetId === idOrName || s.name === idOrName);
     }
 
     if (target && target !== this.worksheet) {
@@ -879,10 +858,15 @@ export class XlsxRenderer {
       BorderRenderer.renderCmd(ctx, cmd, frozenRows, frozenCols, fixedWidth, fixedHeight);
     }
 
-    // ========== 第二层：渲染 Drawings（图表、形状等） ==========
-    this.renderDrawings(ctx, width, height);
+    this.renderDrawingsInRegion(ctx, width, height, {
+      rowHeaderWidth,
+      colHeaderHeight,
+      fixedWidth,
+      fixedHeight,
+      regionType: 'scrollable'
+    });
 
-    // ========== 第三层：重绘冻结区域（确保置顶） ==========
+    // ========== 第二层：重绘冻结区域（确保置顶） ==========
     const frozenBorderCmds = new Map<string, DrawCmd>();
 
     // 冻结行区域（顶部，仅水平滚动）
@@ -975,6 +959,28 @@ export class XlsxRenderer {
     for (const cmd of frozenBorderCmds.values()) {
       BorderRenderer.renderCmd(ctx, cmd, frozenRows, frozenCols, fixedWidth, fixedHeight);
     }
+
+    this.renderDrawingsInRegion(ctx, width, height, {
+      rowHeaderWidth,
+      colHeaderHeight,
+      fixedWidth,
+      fixedHeight,
+      regionType: 'frozenRows'
+    });
+    this.renderDrawingsInRegion(ctx, width, height, {
+      rowHeaderWidth,
+      colHeaderHeight,
+      fixedWidth,
+      fixedHeight,
+      regionType: 'frozenCols'
+    });
+    this.renderDrawingsInRegion(ctx, width, height, {
+      rowHeaderWidth,
+      colHeaderHeight,
+      fixedWidth,
+      fixedHeight,
+      regionType: 'frozenCorner'
+    });
 
     // ========== 第四层：冻结提示线（使用柔和的样式） ==========
     if (frozenCols > 0 || frozenRows > 0) {
@@ -1199,13 +1205,14 @@ export class XlsxRenderer {
       let screenY = rawY;
       if (r > frozenRows) {
         screenY = rawY - this.scrollY;
-        if (screenY + rowH <= fixedHeight) continue;
+        if (this.isBeforeViewportEdge(screenY, rowH, fixedHeight)) continue;
       }
 
-      if (screenY > height) continue;
+      if (this.isAfterViewportEdge(screenY, height)) continue;
 
       let rawX = rowHeaderWidth;
-      for (let c = 1; c <= 26; c++) {
+      const maxCol = this.getMaxRenderableCol();
+      for (let c = 1; c <= maxCol; c++) {
         const colW = this.getColWidth(c);
 
         // 根据区域类型判断是否渲染该列
@@ -1231,13 +1238,13 @@ export class XlsxRenderer {
         let screenX = rawX;
         if (c > frozenCols) {
           screenX = rawX - this.scrollX;
-          if (screenX + colW <= fixedWidth) {
+          if (this.isBeforeViewportEdge(screenX, colW, fixedWidth)) {
             rawX += colW;
             continue;
           }
         }
 
-        if (screenX > width) {
+        if (this.isAfterViewportEdge(screenX, width)) {
           rawX += colW;
           continue;
         }
@@ -1425,148 +1432,172 @@ export class XlsxRenderer {
     CellRenderer.render(ctx, row as any, colIndex, x, y, w, h, styles, defaultFont, this.scale);
   }
 
-  private renderDrawings(ctx: CanvasRenderingContext2D, viewWidth: number, viewHeight: number) {
+  private getDrawingContentBounds(drawing: NonNullable<Worksheet['drawings']>[number]) {
+    if (drawing.position.type === 'twoCellAnchor' && drawing.position.from && drawing.position.to) {
+      const fromPos = this.getPixelPos(
+        drawing.position.from.col,
+        drawing.position.from.row,
+        drawing.position.from.colOff,
+        drawing.position.from.rowOff
+      );
+      const toPos = this.getPixelPos(
+        drawing.position.to.col,
+        drawing.position.to.row,
+        drawing.position.to.colOff,
+        drawing.position.to.rowOff
+      );
+
+      return {
+        x: fromPos.x,
+        y: fromPos.y,
+        width: toPos.x - fromPos.x,
+        height: toPos.y - fromPos.y
+      };
+    }
+
+    if (drawing.position.type === 'oneCellAnchor' && drawing.position.from) {
+      const fromPos = this.getPixelPos(
+        drawing.position.from.col,
+        drawing.position.from.row,
+        drawing.position.from.colOff,
+        drawing.position.from.rowOff
+      );
+
+      return {
+        x: fromPos.x,
+        y: fromPos.y,
+        width: drawing.position.width * this.scale,
+        height: drawing.position.height * this.scale
+      };
+    }
+
+    return {
+      x: (drawing.position.x || 0) * this.scale,
+      y: (drawing.position.y || 0) * this.scale,
+      width: drawing.position.width * this.scale,
+      height: drawing.position.height * this.scale
+    };
+  }
+
+  private getDrawingScreenBounds(
+    drawing: NonNullable<Worksheet['drawings']>[number],
+    options: {
+      rowHeaderWidth: number;
+      colHeaderHeight: number;
+      fixedWidth: number;
+      fixedHeight: number;
+      regionType: 'scrollable' | 'frozenRows' | 'frozenCols' | 'frozenCorner';
+    }
+  ) {
+    const { rowHeaderWidth, colHeaderHeight, fixedWidth, fixedHeight, regionType } = options;
+    const { width, height } = this.options;
+    const bounds = this.getDrawingContentBounds(drawing);
+    const scrollableX = regionType === 'scrollable' || regionType === 'frozenRows';
+    const scrollableY = regionType === 'scrollable' || regionType === 'frozenCols';
+    const screenX = rowHeaderWidth + bounds.x - (scrollableX ? this.scrollX : 0);
+    const screenY = colHeaderHeight + bounds.y - (scrollableY ? this.scrollY : 0);
+
+    const paneRect =
+      regionType === 'scrollable'
+        ? { x: fixedWidth, y: fixedHeight, width: width - fixedWidth, height: height - fixedHeight }
+        : regionType === 'frozenRows'
+          ? { x: fixedWidth, y: colHeaderHeight, width: width - fixedWidth, height: fixedHeight - colHeaderHeight }
+          : regionType === 'frozenCols'
+            ? { x: rowHeaderWidth, y: fixedHeight, width: fixedWidth - rowHeaderWidth, height: height - fixedHeight }
+            : {
+                x: rowHeaderWidth,
+                y: colHeaderHeight,
+                width: fixedWidth - rowHeaderWidth,
+                height: fixedHeight - colHeaderHeight
+              };
+
+    return {
+      x: screenX,
+      y: screenY,
+      width: bounds.width,
+      height: bounds.height,
+      paneRect
+    };
+  }
+
+  private renderDrawingsInRegion(
+    ctx: CanvasRenderingContext2D,
+    viewWidth: number,
+    viewHeight: number,
+    options: {
+      rowHeaderWidth: number;
+      colHeaderHeight: number;
+      fixedWidth: number;
+      fixedHeight: number;
+      regionType: 'scrollable' | 'frozenRows' | 'frozenCols' | 'frozenCorner';
+    }
+  ) {
     if (!this.worksheet || !this.worksheet.drawings) return;
-    for (const drawing of this.worksheet.drawings) {
-      let x = 0,
-        y = 0,
-        w = 0,
-        h = 0;
-
-      // Calculate Position (Shared Logic)
-      if (drawing.position.type === 'twoCellAnchor' && drawing.position.from && drawing.position.to) {
-        const fromPos = this.getPixelPos(
-          drawing.position.from.col,
-          drawing.position.from.row,
-          drawing.position.from.colOff,
-          drawing.position.from.rowOff
-        );
-        const toPos = this.getPixelPos(
-          drawing.position.to.col,
-          drawing.position.to.row,
-          drawing.position.to.colOff,
-          drawing.position.to.rowOff
-        );
-        x = fromPos.x;
-        y = fromPos.y;
-        w = toPos.x - fromPos.x;
-        h = toPos.y - fromPos.y;
-      } else {
-        if (drawing.position.type === 'oneCellAnchor' && drawing.position.from) {
-          const fromPos = this.getPixelPos(
-            drawing.position.from.col,
-            drawing.position.from.row,
-            drawing.position.from.colOff,
-            drawing.position.from.rowOff
-          );
-          x = fromPos.x;
-          y = fromPos.y;
-        } else {
-          x = drawing.position.x || 0;
-          y = drawing.position.y || 0;
-        }
-        w = drawing.position.width;
-        h = drawing.position.height;
+    const shapeRuntime = {
+      resolveImageBitmap: (image: any) => this.getOrQueueImageBitmap(image),
+      scheduleRender: () => this.render(),
+      renderChart: (chartCtx: CanvasRenderingContext2D, chart: any, rect: { x: number; y: number; width: number; height: number }) => {
+        const chartRenderer = new ChartRenderer(chart.chartData);
+        chartRenderer.render(chartCtx, rect);
       }
+    };
 
-      const screenX = x - this.scrollX;
-      const screenY = y - this.scrollY;
+    for (const drawing of this.worksheet.drawings) {
+      const { x: screenX, y: screenY, width: w, height: h, paneRect } = this.getDrawingScreenBounds(drawing, options);
 
       // Check if visible (simple culling)
-      if (screenX + w < 0 || screenX > viewWidth || screenY + h < 0 || screenY > viewHeight) {
+      if (
+        paneRect.width <= 0 ||
+        paneRect.height <= 0 ||
+        this.isBeforeViewportEdge(screenX, w, paneRect.x) ||
+        this.isAfterViewportEdge(screenX, paneRect.x + paneRect.width) ||
+        this.isBeforeViewportEdge(screenY, h, paneRect.y) ||
+        this.isAfterViewportEdge(screenY, paneRect.y + paneRect.height)
+      ) {
         continue;
       }
 
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(paneRect.x, paneRect.y, paneRect.width, paneRect.height);
+      ctx.clip();
+
       if ('blob' in drawing) {
-        // Image
-        if (!this.imageCache.has(drawing.id)) {
-          if (!this.imageLoading.has(drawing.id)) {
-            this.imageLoading.add(drawing.id);
-            createImageBitmap(drawing.blob)
-              .then(bitmap => {
-                this.imageCache.set(drawing.id, bitmap);
-                this.imageLoading.delete(drawing.id);
-                this.render();
-              })
-              .catch(e => {
-                this.imageLoading.delete(drawing.id);
-              });
-          }
+        const bitmap = this.getOrQueueImageBitmap(drawing);
+        if (!bitmap) {
+          ctx.restore();
           continue;
         }
-        const bitmap = this.imageCache.get(drawing.id)!;
         ImageRenderer.render(ctx, drawing, bitmap, screenX, screenY, w, h);
       } else if (drawing.type === 'chart') {
-        // Chart
-        const chartRenderer = new ChartRenderer(drawing.chartData);
-        chartRenderer.render(ctx, { x: screenX, y: screenY, width: w, height: h });
+        shapeRuntime.renderChart(ctx, drawing, { x: screenX, y: screenY, width: w, height: h });
       } else {
-        // Shape
-        // ShapeRenderer.render(ctx, drawing, screenX, screenY, w, h);
+        ShapeRenderer.render(ctx, drawing, screenX, screenY, w, h, shapeRuntime);
       }
+
+      ctx.restore();
     }
   }
 
-  private renderRowGap(
-    ctx: CanvasRenderingContext2D,
-    startRowIndex: number,
-    count: number,
-    startY: number,
-    viewWidth: number,
-    viewHeight: number,
-    frozenCols: number,
-    frozenRows: number,
-    fixedWidth: number,
-    fixedHeight: number
-  ) {
-    const defaultRowH = this.options.rowHeight * this.scale;
-    let currentRawY = startY;
-
-    for (let i = 0; i < count; i++) {
-      const r = startRowIndex + i;
-      const rowH = defaultRowH;
-
-      let screenY = currentRawY;
-      let isVisibleY = true;
-
-      if (r > frozenRows) {
-        screenY = currentRawY - this.scrollY;
-        if (screenY < fixedHeight) {
-          if (screenY + rowH <= fixedHeight) isVisibleY = false;
-        }
-      }
-
-      if (isVisibleY && screenY < viewHeight) {
-        let rawX = 0;
-        for (let c = 1; c <= 26; c++) {
-          const colW = this.getColWidth(c);
-          let screenX = rawX;
-          let isVisibleX = true;
-
-          if (c > frozenCols) {
-            screenX = rawX - this.scrollX;
-            if (screenX < fixedWidth) {
-              if (screenX + colW <= fixedWidth) isVisibleX = false;
-            }
-          }
-
-          if (isVisibleX && screenX < viewWidth) {
-            ctx.save();
-            ctx.strokeStyle = '#e6e6e6';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(Math.floor(screenX + colW) + 0.5, Math.floor(screenY));
-            ctx.lineTo(Math.floor(screenX + colW) + 0.5, Math.floor(screenY + rowH));
-            ctx.moveTo(Math.floor(screenX), Math.floor(screenY + rowH) + 0.5);
-            ctx.lineTo(Math.floor(screenX + colW), Math.floor(screenY + rowH) + 0.5);
-            ctx.stroke();
-            ctx.restore();
-          }
-          rawX += colW;
-        }
-      }
-      currentRawY += rowH;
+  private getOrQueueImageBitmap(image: { id: string; blob: Blob }): ImageBitmap | undefined {
+    if (this.imageCache.has(image.id)) {
+      return this.imageCache.get(image.id);
     }
+
+    if (!this.imageLoading.has(image.id)) {
+      this.imageLoading.add(image.id);
+      createImageBitmap(image.blob)
+        .then(bitmap => {
+          this.imageCache.set(image.id, bitmap);
+          this.imageLoading.delete(image.id);
+          this.render();
+        })
+        .catch(() => {
+          this.imageLoading.delete(image.id);
+        });
+    }
+
+    return undefined;
   }
 
   private getPixelPos(colIdx: number, rowIdx: number, colOff: number, rowOff: number): { x: number; y: number } {
@@ -1577,6 +1608,48 @@ export class XlsxRenderer {
     for (let r = 0; r < rowIdx; r++) y += this.getRowHeight(r + 1);
     y += rowOff * this.scale;
     return { x, y };
+  }
+
+  private getMaxRenderableCol(): number {
+    if (!this.worksheet) {
+      return 26;
+    }
+
+    let maxCol = this.worksheet.dimension?.endCol || 0;
+
+    for (const row of this.worksheet.rows.values()) {
+      for (const col of row.cells.keys()) {
+        maxCol = Math.max(maxCol, col);
+      }
+    }
+
+    for (const hyperlink of this.worksheet.hyperlinks || []) {
+      const range = WorksheetParserRange.parse(hyperlink.ref);
+      maxCol = Math.max(maxCol, range.endCol);
+    }
+
+    return Math.max(26, maxCol + 2);
+  }
+
+  private getColumnLabel(colIndex: number): string {
+    let value = colIndex;
+    let label = '';
+
+    while (value > 0) {
+      const remainder = (value - 1) % 26;
+      label = String.fromCharCode(65 + remainder) + label;
+      value = Math.floor((value - 1) / 26);
+    }
+
+    return label || 'A';
+  }
+
+  private isBeforeViewportEdge(position: number, size: number, edge: number) {
+    return position + size < edge - XlsxRenderer.CULLING_EPSILON;
+  }
+
+  private isAfterViewportEdge(position: number, edge: number) {
+    return position > edge + XlsxRenderer.CULLING_EPSILON;
   }
 
   private drawScrollBars(ctx: CanvasRenderingContext2D) {
@@ -1645,20 +1718,21 @@ export class XlsxRenderer {
       ctx.font = `${Math.round(11 * this.scale)}px Arial`;
 
       let rawX = rowHeaderWidth;
-      for (let c = 1; c <= 26; c++) {
+      const maxCol = this.getMaxRenderableCol();
+      for (let c = 1; c <= maxCol; c++) {
         const colW = this.getColWidth(c);
         let screenX = rawX;
 
         if (c > frozenCols) {
           screenX = rawX - this.scrollX;
-          if (screenX + colW <= rowHeaderWidth) {
+          if (this.isBeforeViewportEdge(screenX, colW, rowHeaderWidth)) {
             rawX += colW;
             continue;
           }
         }
 
-        if (screenX < width) {
-          const label = String.fromCharCode(64 + c);
+        if (!this.isAfterViewportEdge(screenX, width)) {
+          const label = this.getColumnLabel(c);
           ctx.fillText(label, screenX + colW / 2, colHeaderHeight / 2);
 
           // 列分隔线
@@ -1715,10 +1789,10 @@ export class XlsxRenderer {
         let screenY = rawY;
         if (r > frozenRows) {
           screenY = rawY - this.scrollY;
-          if (screenY + rowH <= colHeaderHeight) continue;
+          if (this.isBeforeViewportEdge(screenY, rowH, colHeaderHeight)) continue;
         }
 
-        if (screenY > height) break;
+        if (this.isAfterViewportEdge(screenY, height)) break;
 
         ctx.fillText(String(r), rowHeaderWidth / 2, screenY + rowH / 2);
 
@@ -1789,6 +1863,32 @@ export class XlsxRenderer {
     this.startHighlightAnimation(params.row, params.col);
   }
 
+  public scrollToRow(row: number) {
+    this.scrollTo({ row });
+  }
+
+  public scrollToCol(col: number) {
+    this.scrollTo({ col });
+  }
+
+  public scrollToCell(rowOrRef: number | string, col?: number) {
+    if (typeof rowOrRef === 'string') {
+      const address = parseCellRef(rowOrRef);
+      if (address) {
+        this.scrollTo({ row: address.row, col: address.col });
+      }
+      return;
+    }
+
+    if (col !== undefined) {
+      this.scrollTo({ row: rowOrRef, col });
+    }
+  }
+
+  public scrollToCellRef(ref: string) {
+    this.scrollToCell(ref);
+  }
+
   /**
    * 启动高亮动画
    */
@@ -1827,6 +1927,14 @@ export class XlsxRenderer {
     const newScale = Math.max(0.2, Math.min(4.0, scale));
     // Zoom center: viewport center
     this.setScale(newScale, { x: this.options.width / 2, y: this.options.height / 2 });
+  }
+
+  public getCell(row: number, col: number) {
+    return this.worksheet ? getWorksheetCell(this.worksheet, row, col) : undefined;
+  }
+
+  public getCellByRef(ref: string) {
+    return this.worksheet ? getWorksheetCellByRef(this.worksheet, ref) : undefined;
   }
 
   /**
@@ -1917,5 +2025,83 @@ export class XlsxRenderer {
       bounds: { x, y, width, height },
       screenBounds: { x: screenX, y: screenY, width, height }
     };
+  }
+
+  private getHyperlinkAt(x: number, y: number): WorksheetHyperlink | undefined {
+    if (!this.worksheet?.hyperlinks) {
+      return undefined;
+    }
+
+    for (const hyperlink of this.worksheet.hyperlinks) {
+      const range = WorksheetParserRange.parse(hyperlink.ref);
+      for (let row = range.startRow; row <= range.endRow; row++) {
+        for (let col = range.startCol; col <= range.endCol; col++) {
+          const info = this.getCellInfo(row, col);
+          const bounds = info?.screenBounds;
+          if (bounds && x >= bounds.x && x <= bounds.x + bounds.width && y >= bounds.y && y <= bounds.y + bounds.height) {
+            return hyperlink;
+          }
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  private openHyperlink(hyperlink: WorksheetHyperlink) {
+    const target = hyperlink.target || hyperlink.location;
+    if (!target) {
+      return;
+    }
+
+    const internalRef = this.extractInternalCellRef(target);
+    if (internalRef) {
+      this.scrollToCell(internalRef);
+      return;
+    }
+
+    window.open(target, '_blank', 'noopener,noreferrer');
+  }
+
+  private extractInternalCellRef(target: string): string | undefined {
+    const cleaned = target.replace(/^#/, '');
+    const lastBang = cleaned.lastIndexOf('!');
+    const ref = lastBang >= 0 ? cleaned.slice(lastBang + 1) : cleaned;
+    return /^[A-Z]+[0-9]+$/i.test(ref) ? ref.toUpperCase() : undefined;
+  }
+}
+
+class WorksheetParserRange {
+  static parse(ref: string) {
+    const parts = ref.split(':');
+    const start = this.parseCellRef(parts[0]);
+    const end = this.parseCellRef(parts[1] || parts[0]);
+
+    return {
+      startRow: Math.min(start.row, end.row),
+      endRow: Math.max(start.row, end.row),
+      startCol: Math.min(start.col, end.col),
+      endCol: Math.max(start.col, end.col)
+    };
+  }
+
+  private static parseCellRef(ref: string) {
+    const match = ref.match(/^([A-Z]+)([0-9]+)$/i);
+    if (!match) {
+      return { row: 1, col: 1 };
+    }
+
+    return {
+      row: parseInt(match[2], 10),
+      col: this.columnToIndex(match[1].toUpperCase())
+    };
+  }
+
+  private static columnToIndex(col: string) {
+    let index = 0;
+    for (let i = 0; i < col.length; i++) {
+      index = index * 26 + (col.charCodeAt(i) - 64);
+    }
+    return index;
   }
 }

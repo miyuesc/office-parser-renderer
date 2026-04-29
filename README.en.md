@@ -1,341 +1,89 @@
 # Office Parser Renderer
 
-> High-performance Office document parser and renderer library, supporting DOCX and XLSX formats
-
-[![TypeScript](https://img.shields.io/badge/TypeScript-Strict_Mode-blue)](https://www.typescriptlang.org/)
-[![License](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
+> A monorepo for Office OOXML parsing and preview-oriented rendering.
 
 English | [简体中文](./README.md)
 
-## ✨ Features
+## Current Status
 
-- 🚀 **High Performance** - Efficient DOM-based rendering engine
-- 📄 **Multiple Formats** - Full support for DOCX and XLSX formats
-- 🎨 **High Fidelity** - Accurate reproduction of Office document styles and layouts
-- 📦 **Modular Design** - Clear module separation, easy to extend
-- 🌐 **Zero Dependencies** - Core parsing modules have no external dependencies
-- 💪 **TypeScript** - Complete type definitions and type safety
+| Package | Status | Notes |
+| --- | --- | --- |
+| `@opr/shared` | in progress | core utilities, drawing/chart/rendering helpers, and the first `shared/ooxml` extraction exist |
+| `@opr/xlsx` | usable, still under stabilization | the only format path with real parser and renderer behavior today |
+| `@opr/docx` | not implemented | package shell only, no `DocxParser` or `DocxRenderer` yet |
+| `@opr/pptx` | not implemented | no real package path has landed yet |
 
-## 📦 Installation
+This README describes the repository as it exists today.
+Roadmap targets for `docx` and `pptx` should not be read as already shipped features.
 
-```bash
-# Using npm
-npm install @opr/office-parser-renderer
+## What Exists Today
 
-# Using pnpm
-pnpm add @opr/office-parser-renderer
+### Shared
 
-# Using yarn
-yarn add @opr/office-parser-renderer
-```
+- ZIP loading and XML parsing
+- unit conversion, color parsing, and shared drawing/chart/rendering helpers
+- shared OOXML loading layer:
+  - `PackageReader`
+  - `RelationshipsResolver`
+  - `ContentTypesRegistry`
 
-Or install sub-packages individually:
+### XLSX
 
-```bash
-# Install DOCX support only
-pnpm add @opr/docx
+- workbook / worksheet / shared strings / styles parsing
+- merge metadata, frozen panes, and multi-sheet metadata parsing
+- sheet tabs, zoom, drag, and scrollbar interactions
+- row and column header rendering
+- current image, shape, and chart rendering flow
 
-# Install XLSX support only
-pnpm add @opr/xlsx
-```
+## What Is Still Missing
 
-## 🚀 Quick Start
+- real `docx` and `pptx` parser/renderer pipelines
+- shared Theme / Font / Color models
+- stable `xlsx` public navigation APIs such as `scrollToRow`, `scrollToCol`, `scrollToCell`, `getCell`, and `getCellByRef`
+- sample corpus, visual regression, and performance baselines
+- package build and project-boundary cleanup
 
-### DOCX Document Rendering
+## Roadmap Documents
 
-```typescript
-import { DocxParser, DocxRenderer } from '@opr/docx';
+- roadmap: [docs/docx_task.md](./docs/docx_task.md)
+- M0 refactor design: [docs/ooxml-refactor-design.md](./docs/ooxml-refactor-design.md)
+- `xlsx` gap list: [docs/xlsx-gap-list.md](./docs/xlsx-gap-list.md)
+- sample corpus spec: [samples/README.md](./samples/README.md)
 
-// Create container element
-const container = document.getElementById('docx-container');
+## Quick Start
 
-// Create parser and renderer
-const parser = new DocxParser();
-const renderer = new DocxRenderer(container);
-
-// Load and render document
-fetch('/path/to/document.docx')
-  .then(res => res.arrayBuffer())
-  .then(buffer => parser.parse(buffer))
-  .then(doc => renderer.render(doc))
-  .then(result => {
-    console.log('Rendering complete:', result.totalPages, 'pages');
-  });
-```
-
-### XLSX Spreadsheet Rendering
+Only the `xlsx` path should be treated as runnable today.
 
 ```typescript
 import { XlsxParser, XlsxRenderer } from '@opr/xlsx';
 
-// Create container element
 const container = document.getElementById('xlsx-container');
-
-// Create parser and renderer
 const parser = new XlsxParser();
 const renderer = new XlsxRenderer(container);
 
-// Load and render workbook
 fetch('/path/to/workbook.xlsx')
   .then(res => res.arrayBuffer())
   .then(buffer => parser.parse(buffer))
   .then(workbook => renderer.render(workbook));
 ```
 
-## 📖 Core API
+## Repository Layout
 
-### DocxParser
-
-```typescript
-class DocxParser {
-  /**
-   * Parse DOCX file
-   * @param buffer - ArrayBuffer of DOCX file
-   * @returns Parsed document object
-   */
-  async parse(buffer: ArrayBuffer): Promise<DocxDocument>;
-}
+```text
+definitions/   generated OOXML typings
+packages/
+  shared/      shared infrastructure and reusable modules
+  xlsx/        current implementation path
+  docx/        reserved shell
+  pptx/        reserved shell
+playground/    local demo and manual verification
+docs/          roadmap, design, and phase artifacts
+samples/       sample corpus specification and future acceptance fixtures
 ```
 
-### DocxRenderer
+## Development Order
 
-```typescript
-class DocxRenderer {
-  constructor(container: HTMLElement, options?: Partial<DocxRenderOptions>);
-  
-  /**
-   * Render document
-   * @param doc - Parsed document object
-   * @returns Rendering result
-   */
-  async render(doc: DocxDocument): Promise<DocxRenderResult>;
-  
-  // Configuration methods
-  setPageSize(pageSize: 'A4' | 'A5' | 'A3' | 'Letter' | 'Legal'): void;
-  setMargins(margins: { top?: number; right?: number; bottom?: number; left?: number }): void;
-  setScale(scale: number): void;
-  setShowHeaderFooter(show: boolean): void;
-}
-```
-
-### XlsxParser
-
-```typescript
-class XlsxParser {
-  /**
-   * Parse XLSX file
-   * @param buffer - ArrayBuffer of XLSX file
-   * @returns Parsed workbook object
-   */
-  async parse(buffer: ArrayBuffer): Promise<XlsxWorkbook>;
-}
-```
-
-### XlsxRenderer
-
-```typescript
-class XlsxRenderer {
-  constructor(container: HTMLElement);
-  
-  /**
-   * Render workbook
-   * @param workbook - Parsed workbook object
-   */
-  async render(workbook: XlsxWorkbook): Promise<void>;
-  
-  /**
-   * Scroll to specified cell
-   * @param row - Row index (0-based)
-   * @param col - Column index (0-based)
-   */
-  scrollTo(row: number, col: number): void;
-}
-```
-
-## 🎨 Rendering Options
-
-### DOCX Rendering Options
-
-```typescript
-interface DocxRenderOptions {
-  // Paper size
-  pageSize: 'A4' | 'A5' | 'A3' | 'Letter' | 'Legal' | { width: number; height: number };
-  
-  // Page margins (in points)
-  margins?: { top?: number; right?: number; bottom?: number; left?: number };
-  
-  // Use document's built-in settings
-  useDocumentSettings: boolean;
-  
-  // Scale ratio (0.5 - 2.0)
-  scale: number;
-  
-  // Show header and footer
-  showHeaderFooter: boolean;
-  
-  // Show page numbers
-  showPageNumber: boolean;
-  
-  // Enable pagination
-  enablePagination: boolean;
-  
-  // Debug mode
-  debug: boolean;
-  
-  // Use document background
-  useDocumentBackground: boolean;
-  
-  // Use document watermark
-  useDocumentWatermark: boolean;
-  
-  // Custom background color
-  backgroundColor?: string;
-  
-  // Custom watermark configuration
-  watermark?: WatermarkConfig;
-  
-  // Page render callback
-  onPageRender?: (pageIndex: number, pageElement: HTMLElement) => void;
-}
-```
-
-### Usage Example
-
-```typescript
-const renderer = new DocxRenderer(container, {
-  pageSize: 'A4',
-  scale: 0.8,
-  showHeaderFooter: true,
-  enablePagination: true,
-  watermark: {
-    type: 'text',
-    text: 'Confidential',
-    color: '#cccccc',
-    opacity: 0.3,
-    rotation: -45
-  }
-});
-```
-
-## 🏗️ Project Structure
-
-```
-officeParserRenderer/
-├── packages/
-│   ├── shared/          # Shared modules
-│   │   ├── src/
-│   │   │   ├── drawing/     # Drawing related (shapes, images, charts)
-│   │   │   ├── styles/      # Style utilities (colors, unit conversion)
-│   │   │   ├── utils/       # Common utilities
-│   │   │   ├── math/        # Math formula rendering
-│   │   │   └── fonts/       # Font management
-│   │   └── dist/
-│   ├── docx/            # DOCX module
-│   │   ├── src/
-│   │   │   ├── parser/      # DOCX parser
-│   │   │   ├── renderer/    # DOCX renderer
-│   │   │   ├── types.ts     # Type definitions
-│   │   │   └── utils/       # Utility functions
-│   │   └── dist/
-│   └── xlsx/            # XLSX module
-│       ├── src/
-│       │   ├── parser/      # XLSX parser
-│       │   ├── renderer/    # XLSX renderer
-│       │   ├── types.ts     # Type definitions
-│       │   └── utils/       # Utility functions
-│       └── dist/
-└── docs/                # Documentation
-```
-
-## 📚 Documentation
-
-- [📐 Architecture](./docs/ARCHITECTURE.en.md) - Detailed architecture design documentation
-- [🛠️ Development Guide](./docs/DEVELOPMENT.en.md) - Guide for project development
-- [📋 Progressive Development Plan](./docs/progressive_development_plan.md) - Feature development roadmap
-
-## 🎯 Supported Features
-
-### DOCX
-
-- ✅ Text paragraphs, character runs
-- ✅ Font styles (font family, size, color, bold, italic, underline, etc.)
-- ✅ Paragraph styles (alignment, indentation, spacing, line height, etc.)
-- ✅ Tables (borders, merged cells, background colors, shading)
-- ✅ Lists (ordered lists, unordered lists, multi-level lists)
-- ✅ Headers and footers
-- ✅ Sections and page breaks
-- ✅ Images, shapes, drawings
-- ✅ Charts (bar, line, pie, mixed charts, etc.)
-- ✅ Math equations (Office Math)
-- ✅ Hyperlinks
-- ✅ Field codes (page numbers, dates, etc.)
-- ✅ Track changes (insertions, deletions)
-- ✅ Watermarks, background colors
-- ✅ VML graphics
-
-### XLSX
-
-- ✅ Cell data (text, numbers, booleans, dates)
-- ✅ Cell styles (font, fill, borders, alignment)
-- ✅ Number formatting
-- ✅ Merged cells
-- ✅ Column widths, row heights
-- ✅ Worksheet tabs
-- ✅ Images, shapes, connectors
-- ✅ Charts (bar, line, pie, etc.)
-- ✅ Theme colors
-
-## 🔧 Development
-
-### Requirements
-
-- Node.js >= 18
-- pnpm >= 8
-
-### Install Dependencies
-
-```bash
-pnpm install
-```
-
-### Development Server
-
-```bash
-pnpm run dev
-```
-
-### Build
-
-```bash
-pnpm run build
-```
-
-### Type Checking
-
-```bash
-pnpm run type-check
-```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please see the [Development Guide](./docs/DEVELOPMENT.en.md) for details on how to participate in project development.
-
-Contribution workflow:
-
-1. Fork the project
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Create a Pull Request
-
-## 📄 License
-
-[MIT](./LICENSE)
-
-## 🙏 Acknowledgements
-
-This project references the following excellent projects:
-
-- [docx-preview](https://github.com/VolodymyrBaydalka/docxjs) - DOCX rendering reference implementation
-- [exceljs](https://github.com/exceljs/exceljs) - XLSX parsing reference
-- [Office Open XML Specification](https://www.ecma-international.org/publications-and-standards/standards/ecma-376/) - OOXML standard documentation
+- build shared infrastructure first
+- stabilize `xlsx` and extract reusable behavior from it
+- start `docx` only after package loading, styles, and layout contracts are explicit
+- treat README claims as a delivery artifact, not as a substitute for implementation

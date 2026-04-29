@@ -207,8 +207,8 @@ const getCloud = (w: number, h: number) => {
   const sA11 = -14809710 / 60000,
     wA11 = 9151131 / 60000;
 
-  let cX, cY, arc;
-  let lastX, lastY;
+  let lastX = x0;
+  let lastY = y0;
   let d = `M ${x0} ${y0} `;
 
   // Helper to append arc and update last point
@@ -222,9 +222,7 @@ const getCloud = (w: number, h: number) => {
     const cy = startY - rY * Math.sin((sA * Math.PI) / 180);
 
     // Draw Arc
-    const arcPath = arcToPath(
-      shapeArc(cx, cy, rX, rY, (sA * 180) / Math.PI + 180, ((sA + wA) * 180) / Math.PI + 180, false)
-    ); // shapeArc takes degrees. pptxjs sA is in radians?
+    shapeArc(cx, cy, rX, rY, (sA * 180) / Math.PI + 180, ((sA + wA) * 180) / Math.PI + 180, false); // shapeArc takes degrees. pptxjs sA is in radians?
     // Wait, pptxjs code: shapeArc(cX0, cY0, rX1, rY1, sA1, sA1 + wA1, false)
     // sA1 is -190.48... (deg? or rad?).
     // L4102: cX0 = x0 - rX1 * Math.cos(sA1 * Math.PI / 180).
@@ -488,7 +486,6 @@ const getUpArrowCallout = (w: number, h: number, adj?: any) => {
   const adj4 = adj?.adj4 ?? 64977;
 
   const ss = Math.min(w, h);
-  const maxAdj2 = (cnstVal1 * h) / ss; // Uses h? Logic assumes Vertical arrow?
   // Inspecting pptxjs L6342:
   // L6372: maxAdj2 = cnstVal1 * w / ss; (Rotation?)
   // L6376: maxAdj3 = cnstVal2 * h / ss;

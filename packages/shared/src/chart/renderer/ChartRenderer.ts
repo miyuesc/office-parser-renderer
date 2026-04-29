@@ -1,5 +1,5 @@
 import { IChartData, ChartType } from '../model/IChartData';
-import { IChartRenderer, IRect, BaseChartRenderer } from './IChartRenderer';
+import { IRect, BaseChartRenderer } from './IChartRenderer';
 
 export class ChartRenderer extends BaseChartRenderer {
   constructor(data: IChartData) {
@@ -81,10 +81,16 @@ export class ChartRenderer extends BaseChartRenderer {
     if (!title || !title.text) return;
     ctx.save();
     ctx.fillStyle = '#333';
-    ctx.font = 'bold 16px sans-serif';
+    const maxWidth = Math.max(20, rect.width - 20);
+    let fontSize = 16;
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    while (fontSize > 9 && ctx.measureText(title.text).width > maxWidth) {
+      fontSize -= 1;
+      ctx.font = `bold ${fontSize}px sans-serif`;
+    }
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(title.text, rect.x + rect.width / 2, rect.y + 10);
+    ctx.fillText(title.text, rect.x + rect.width / 2, rect.y + 10, maxWidth);
     ctx.restore();
   }
 
@@ -275,10 +281,54 @@ export class ChartRenderer extends BaseChartRenderer {
         const barHeight = (val / maxVal) * chartRect.height;
         const y = chartRect.y + chartRect.height - barHeight;
 
-        ctx.fillRect(x, y, barWidth, barHeight);
-        if (strokeColor) ctx.strokeRect(x, y, barWidth, barHeight);
+        if (this.data.is3D) {
+          this.render3DBar(ctx, x, y, barWidth, barHeight, fillColor, strokeColor);
+        } else {
+          ctx.fillRect(x, y, barWidth, barHeight);
+          if (strokeColor) ctx.strokeRect(x, y, barWidth, barHeight);
+        }
       });
     });
+  }
+
+  private render3DBar(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    fillColor: string,
+    strokeColor?: string
+  ) {
+    const depth = Math.max(3, Math.min(width * 0.25, height * 0.18, 10));
+    const dx = depth;
+    const dy = -depth * 0.65;
+
+    ctx.fillStyle = fillColor;
+    ctx.fillRect(x, y, width, height);
+
+    ctx.fillStyle = this.shadeColor(fillColor, -18);
+    ctx.beginPath();
+    ctx.moveTo(x + width, y);
+    ctx.lineTo(x + width + dx, y + dy);
+    ctx.lineTo(x + width + dx, y + height + dy);
+    ctx.lineTo(x + width, y + height);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = this.shadeColor(fillColor, 16);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + dx, y + dy);
+    ctx.lineTo(x + width + dx, y + dy);
+    ctx.lineTo(x + width, y);
+    ctx.closePath();
+    ctx.fill();
+
+    if (strokeColor) {
+      ctx.strokeStyle = strokeColor;
+      ctx.strokeRect(x, y, width, height);
+    }
   }
 
   private renderLineChart(ctx: CanvasRenderingContext2D, rect: IRect) {
@@ -333,7 +383,7 @@ export class ChartRenderer extends BaseChartRenderer {
 
   private renderPieChart(ctx: CanvasRenderingContext2D, rect: IRect) {
     // Pie chart typically uses the first series
-    const { series, categories } = this.data;
+    const { series } = this.data;
     if (series.length === 0) {
       this.renderPlaceholder(ctx, rect, 'No Data');
       return;
@@ -348,6 +398,10 @@ export class ChartRenderer extends BaseChartRenderer {
     const radius = (Math.min(rect.width, rect.height) / 2) * 0.8;
 
     let startAngle = -Math.PI / 2; // Start from top
+
+    if (this.data.is3D) {
+      this.renderPieDepth(ctx, rect, s.data, total);
+    }
 
     s.data.forEach((val, idx) => {
       const sliceAngle = (val / total) * Math.PI * 2;
@@ -383,6 +437,29 @@ export class ChartRenderer extends BaseChartRenderer {
     });
   }
 
+  private renderPieDepth(ctx: CanvasRenderingContext2D, rect: IRect, data: number[], total: number) {
+    const centerX = rect.x + rect.width / 2;
+    const centerY = rect.y + rect.height / 2;
+    const radius = (Math.min(rect.width, rect.height) / 2) * 0.8;
+    const depth = Math.max(4, Math.min(radius * 0.12, 14));
+    let startAngle = -Math.PI / 2;
+
+    for (let layer = depth; layer >= 1; layer -= 2) {
+      data.forEach((val, idx) => {
+        const sliceAngle = (val / total) * Math.PI * 2;
+        const endAngle = startAngle + sliceAngle;
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY + layer);
+        ctx.arc(centerX, centerY + layer, radius, startAngle, endAngle);
+        ctx.closePath();
+        ctx.fillStyle = this.shadeColor(this.getDefaultColor(idx), -22);
+        ctx.fill();
+        startAngle = endAngle;
+      });
+      startAngle = -Math.PI / 2;
+    }
+  }
+
   private getDefaultColor(index: number): string {
     const colors = [
       '#4472C4',
@@ -411,5 +488,26 @@ export class ChartRenderer extends BaseChartRenderer {
     ctx.textBaseline = 'middle';
     ctx.fillText(text, rect.x + rect.width / 2, rect.y + rect.height / 2);
     ctx.restore();
+  }
+
+  private shadeColor(color: string, percent: number): string {
+    if (!color.startsWith('#') || (color.length !== 7 && color.length !== 4)) {
+      return color;
+    }
+
+    const normalized =
+      color.length === 4
+        ? `#${color[1]}${color[1]}${color[2]}${color[2]}${color[3]}${color[3]}`
+        : color;
+    const amount = Math.round(2.55 * percent);
+    const r = Math.max(0, Math.min(255, parseInt(normalized.slice(1, 3), 16) + amount));
+    const g = Math.max(0, Math.min(255, parseInt(normalized.slice(3, 5), 16) + amount));
+    const b = Math.max(0, Math.min(255, parseInt(normalized.slice(5, 7), 16) + amount));
+
+    return `#${this.toHex(r)}${this.toHex(g)}${this.toHex(b)}`;
+  }
+
+  private toHex(value: number): string {
+    return value.toString(16).padStart(2, '0');
   }
 }

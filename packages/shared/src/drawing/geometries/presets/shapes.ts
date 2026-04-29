@@ -1,4 +1,4 @@
-import { shapeArc, arcToPath, getRect } from '../primitives';
+import { shapeArc, arcToPath } from '../primitives';
 
 const getBlockArc = (w: number, h: number, adj?: any) => {
   const startAng = (adj?.adj2 ?? 0) / 60000;
@@ -110,8 +110,7 @@ const getPie = (w: number, h: number, adj?: any) => {
 
 const getMoon = (w: number, h: number, adj?: any) => {
   const a = (adj?.adj1 ?? 50000) / 100000;
-  const cx = w / 2,
-    cy = h / 2;
+  const cx = w / 2;
   const rX = w / 2,
     rY = h / 2;
   const innerRX = Math.abs(rX - w * a);
@@ -128,8 +127,6 @@ const getWave = (w: number, h: number, adj?: any) => {
 
   const xL = -dx,
     xR = w - dx;
-  const xM1 = (xL + xR) / 3 + xL,
-    xM2 = (xL + xR) * (2 / 3) + xL; // Simple cubic split
   const midX = (xL + xR) / 2;
 
   return `M ${xL} ${y1} C ${midX / 2} ${y1 - dy} ${midX / 2} ${y1 + dy} ${midX} ${y1} C ${xR - midX / 2} ${y1 - dy} ${xR - midX / 2} ${y1 + dy} ${xR} ${y1} L ${w + dx} ${y2} C ${w} ${y2 + dy} ${w / 2} ${y2 - dy} 0 ${y2} Z`;

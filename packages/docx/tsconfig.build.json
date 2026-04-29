@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["src"],
+  "exclude": ["src/**/__tests__/**", "src/**/*.test.ts"],
+  "compilerOptions": {
+    "paths": {
+      "@opr/shared": ["packages/shared/dist/src/index.d.ts"]
+    }
+  }
+}

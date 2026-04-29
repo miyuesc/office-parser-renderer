@@ -70,7 +70,7 @@ export class ZoomController {
     this.slider.step = (this.step * 100).toString();
     this.slider.addEventListener('input', () => {
       const val = parseInt(this.slider.value, 10);
-      this.setScale(val / 100, false);
+      this.setScale(val / 100);
     });
     this.container.appendChild(this.slider);
 

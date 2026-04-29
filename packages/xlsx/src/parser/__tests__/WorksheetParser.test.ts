@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { RelationshipsResolver } from '@opr/shared';
 import { WorksheetParser } from '../WorksheetParser';
 
 describe('WorksheetParser', () => {
@@ -120,5 +121,53 @@ describe('WorksheetParser', () => {
     expect(cell.value).toBe('RedBlack'); // Fallback text
     expect(cell.richText).toBeDefined();
     expect(cell.richText).toEqual(richContent);
+  });
+
+  it('should parse worksheet hyperlinks and attach them to referenced cells', () => {
+    const xml = `
+      <worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+        <sheetData>
+          <row r="1">
+            <c r="A1" t="inlineStr"><is><t>OpenAI</t></is></c>
+            <c r="B1" t="inlineStr"><is><t>Docs</t></is></c>
+          </row>
+        </sheetData>
+        <hyperlinks>
+          <hyperlink ref="A1" r:id="rIdLink" tooltip="External link"/>
+          <hyperlink ref="B1" location="Sheet2!C3" display="Jump"/>
+        </hyperlinks>
+      </worksheet>
+    `;
+    const rels = RelationshipsResolver.fromXML(
+      `
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://openai.com" TargetMode="External"/>
+        </Relationships>
+      `,
+      'xl/worksheets/sheet1.xml'
+    );
+
+    const sheet = WorksheetParser.parse(xml, [], rels);
+
+    expect(sheet.hyperlinks).toEqual([
+      {
+        ref: 'A1',
+        relationshipId: 'rIdLink',
+        target: 'https://openai.com',
+        location: undefined,
+        tooltip: 'External link',
+        display: undefined
+      },
+      {
+        ref: 'B1',
+        relationshipId: undefined,
+        target: undefined,
+        location: 'Sheet2!C3',
+        tooltip: undefined,
+        display: 'Jump'
+      }
+    ]);
+    expect(sheet.rows.get(1)?.cells.get(1)?.hyperlink?.target).toBe('https://openai.com');
+    expect(sheet.rows.get(1)?.cells.get(2)?.hyperlink?.location).toBe('Sheet2!C3');
   });
 });

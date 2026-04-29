@@ -1,9 +1,21 @@
-import { IChartData, ChartType, AxisPosition, IChartSeries, IChartAxis } from '../model/IChartData';
+import {
+  IChartData,
+  ChartType,
+  AxisPosition,
+  IChartSeries,
+  IChartAxis,
+  IChartExternalData,
+  IChartStyleRef
+} from '../model/IChartData';
 import { XmlUtils } from '../utils/XmlUtils';
 
 import { FileHandler } from '../../core/FileHandler';
+import { ColorUtils } from '../../styles/ColorUtils';
+import { ThemeModel } from '../../styles/types';
 
 export class ChartParser {
+  constructor(private readonly options: { theme?: ThemeModel } = {}) {}
+
   /**
    * 解析 chart.xml 内容
    * @param xmlContent chart.xml 的字符串内容
@@ -25,6 +37,9 @@ export class ChartParser {
   private parseDocument(doc: Document): IChartData | null {
     const chartSpace = XmlUtils.getChild(doc, 'chartSpace');
     if (!chartSpace) return null;
+
+    const style = this.parseChartStyle(chartSpace);
+    const externalData = this.parseExternalData(chartSpace);
 
     const chart = XmlUtils.getChild(chartSpace, 'chart');
     if (!chart) return null;
@@ -82,10 +97,60 @@ export class ChartParser {
     if (chartData) {
       chartData.title = title;
       chartData.legend = legend;
+      chartData.style = style;
+      chartData.externalData = externalData;
+      chartData.view3D = this.parseView3D(chart);
       return chartData;
     }
 
     return null;
+  }
+
+  private parseChartStyle(chartSpace: Element): IChartStyleRef | undefined {
+    const styleNode = XmlUtils.getChild(chartSpace, 'style');
+    const raw = styleNode?.getAttribute('val');
+    if (!raw) {
+      return undefined;
+    }
+
+    const styleId = parseInt(raw, 10);
+    return Number.isFinite(styleId) ? { styleId } : undefined;
+  }
+
+  private parseExternalData(chartSpace: Element): IChartExternalData | undefined {
+    const externalDataNode = XmlUtils.getChild(chartSpace, 'externalData');
+    if (!externalDataNode) {
+      return undefined;
+    }
+
+    const relationshipId = this.getRelationshipId(externalDataNode);
+    if (!relationshipId) {
+      return undefined;
+    }
+
+    const autoUpdateNode = XmlUtils.getChild(externalDataNode, 'autoUpdate');
+    const autoUpdateRaw = autoUpdateNode?.getAttribute('val');
+
+    return {
+      relationshipId,
+      autoUpdate: autoUpdateRaw === undefined ? undefined : autoUpdateRaw === '1' || autoUpdateRaw === 'true'
+    };
+  }
+
+  private getRelationshipId(node: Element): string | undefined {
+    const direct = node.getAttribute('r:id');
+    if (direct) {
+      return direct;
+    }
+
+    for (let i = 0; i < node.attributes.length; i++) {
+      const attr = node.attributes.item(i);
+      if (attr && attr.name.endsWith(':id') && attr.value.startsWith('rId')) {
+        return attr.value;
+      }
+    }
+
+    return undefined;
   }
 
   private parseTitle(titleNode: Element): { text: string } | undefined {
@@ -145,6 +210,29 @@ export class ChartParser {
     return {
       position: legendPos as any,
       visible: true
+    };
+  }
+
+  private parseView3D(chartNode: Element) {
+    const view3D = XmlUtils.getChild(chartNode, 'view3D');
+    if (!view3D) {
+      return undefined;
+    }
+
+    const readNum = (tag: string) => {
+      const raw = XmlUtils.getChild(view3D, tag)?.getAttribute('val');
+      if (raw === undefined || raw === null) {
+        return undefined;
+      }
+      const value = parseInt(raw, 10);
+      return Number.isFinite(value) ? value : undefined;
+    };
+
+    return {
+      rotationX: readNum('rotX'),
+      rotationY: readNum('rotY'),
+      perspective: readNum('perspective'),
+      depthPercent: readNum('depthPercent')
     };
   }
 
@@ -271,10 +359,8 @@ export class ChartParser {
         let val = srgbClr.getAttribute('val');
         if (val) fillColor = `#${val}`;
       } else if (schemeClr) {
-        // TODO: Handle theme colors
-        // const val = schemeClr.getAttribute('val');
-        // fillColor = ThemeColorMap[val] || ...
-        fillColor = '#888888'; // Fallback
+        const val = schemeClr.getAttribute('val');
+        fillColor = val ? ColorUtils.resolveSchemeColor(val, this.options.theme) || '#888888' : '#888888';
       }
     } else if (XmlUtils.getChild(spPrNode, 'noFill')) {
       fillColor = 'transparent';
@@ -294,9 +380,13 @@ export class ChartParser {
       const lnSolidFill = XmlUtils.getChild(ln, 'solidFill');
       if (lnSolidFill) {
         const lnSrgbClr = XmlUtils.getChild(lnSolidFill, 'srgbClr');
+        const lnSchemeClr = XmlUtils.getChild(lnSolidFill, 'schemeClr');
         if (lnSrgbClr) {
           const val = lnSrgbClr.getAttribute('val');
           if (val) borderColor = `#${val}`;
+        } else if (lnSchemeClr) {
+          const val = lnSchemeClr.getAttribute('val');
+          if (val) borderColor = ColorUtils.resolveSchemeColor(val, this.options.theme) || borderColor;
         }
       }
     }

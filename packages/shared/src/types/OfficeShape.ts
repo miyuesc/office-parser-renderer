@@ -1,24 +1,13 @@
+import type { DrawingPosition } from './DrawingCommon';
+import type { DrawingElement } from './DrawingElement';
+
 export interface OfficeShape {
   id: string;
   name?: string;
   type: 'shape' | 'connector' | 'group';
 
   // Position and Transform (similar to Image)
-  position: {
-    type: 'absolute' | 'oneCellAnchor' | 'twoCellAnchor';
-    x?: number; // pixel (absolute)
-    y?: number; // pixel
-    width: number; // pixel
-    height: number; // pixel
-
-    // Anchors (Excel specific, but good to keep in structure)
-    from?: { col: number; colOff: number; row: number; rowOff: number };
-    to?: { col: number; colOff: number; row: number; rowOff: number };
-
-    rotation?: number; // degrees
-    flipH?: boolean;
-    flipV?: boolean;
-  };
+  position: DrawingPosition;
 
   // Geometry
   geometry: {
@@ -70,14 +59,18 @@ export interface OfficeShape {
 
   // Text Content
   text?: {
+    kind?: 'text' | 'wordart';
     content: string;
     runs?: Array<{
       text: string;
       bold?: boolean;
       italic?: boolean;
+      underline?: boolean;
+      strike?: boolean;
       size?: number;
       font?: string;
       color?: string; // or fill?
+      highlight?: string;
       fill?: {
         type: 'solid' | 'gradient' | 'pattern' | 'none';
         color?: string;
@@ -119,4 +112,13 @@ export interface OfficeShape {
     };
     wrap?: boolean;
   };
+  groupTransform?: {
+    childOffsetX: number;
+    childOffsetY: number;
+    childWidth: number;
+    childHeight: number;
+    scaleX: number;
+    scaleY: number;
+  };
+  children?: DrawingElement[];
 }

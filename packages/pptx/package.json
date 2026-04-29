@@ -13,5 +13,10 @@
   },
   "dependencies": {
     "@opr/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "happy-dom": "^20.3.9",
+    "jszip": "^3.10.1",
+    "vitest": "^4.0.18"
   }
 }

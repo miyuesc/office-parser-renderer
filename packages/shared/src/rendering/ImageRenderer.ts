@@ -48,9 +48,65 @@ export class ImageRenderer {
       ctx.scale(scaleX, scaleY);
     }
 
+    this.applyEffects(ctx, image);
+
     // Draw centered at (0,0) because we translated to center
     ctx.drawImage(bitmap, -width / 2, -height / 2, width, height);
+    this.resetEffects(ctx);
+
+    if (image.style?.stroke && image.style.stroke.type !== 'none') {
+      ctx.lineWidth = image.style.stroke.width || 1;
+      ctx.strokeStyle = this.toCssColor(image.style.stroke.color, '#000000');
+      this.applyStrokeDash(ctx, image.style.stroke);
+      ctx.strokeRect(-width / 2, -height / 2, width, height);
+      ctx.setLineDash([]);
+    }
 
     ctx.restore();
+  }
+
+  private static applyEffects(ctx: CanvasRenderingContext2D, image: OfficeImage) {
+    const effects = image.style?.effects;
+    if (!effects) {
+      return;
+    }
+
+    if (effects.shadow) {
+      ctx.shadowColor = this.toCssColor(effects.shadow.color);
+      ctx.shadowBlur = effects.shadow.blur;
+      ctx.shadowOffsetX = effects.shadow.offsetX;
+      ctx.shadowOffsetY = effects.shadow.offsetY;
+    } else if (effects.glow) {
+      ctx.shadowColor = this.toCssColor(effects.glow.color);
+      ctx.shadowBlur = effects.glow.radius;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+    }
+  }
+
+  private static resetEffects(ctx: CanvasRenderingContext2D) {
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+  }
+
+  private static applyStrokeDash(ctx: CanvasRenderingContext2D, stroke: NonNullable<OfficeImage['style']>['stroke']) {
+    const width = stroke?.width || 1;
+    if (stroke?.type === 'dash') {
+      ctx.setLineDash([width * 4, width * 2]);
+    } else if (stroke?.type === 'dot') {
+      ctx.setLineDash([width, width * 2]);
+    } else {
+      ctx.setLineDash([]);
+    }
+  }
+
+  private static toCssColor(color: string | undefined, fallback = '#000000') {
+    if (!color) {
+      return fallback;
+    }
+
+    return color.startsWith('#') || color.startsWith('rgb') || color === 'transparent' ? color : `#${color}`;
   }
 }

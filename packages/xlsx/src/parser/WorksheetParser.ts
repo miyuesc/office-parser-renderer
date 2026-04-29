@@ -1,5 +1,5 @@
-import { FileHandler, Logger } from '@opr/shared';
-import { Worksheet, Row, Cell, RichTextRun } from './types';
+import { FileHandler, getElementsByLocalName, getOptionalAttr, Logger, RelationshipsResolver } from '@opr/shared';
+import { Worksheet, Row, Cell, RichTextRun, WorksheetHyperlink } from './types';
 
 const logger = new Logger('WorksheetParser');
 
@@ -10,7 +10,11 @@ export class WorksheetParser {
    * @param sharedStrings 共享字符串表
    * @returns Worksheet 对象
    */
-  static parse(xmlString: string, sharedStrings: (string | RichTextRun[])[]): Worksheet {
+  static parse(
+    xmlString: string,
+    sharedStrings: (string | RichTextRun[])[],
+    rels: RelationshipsResolver = RelationshipsResolver.empty()
+  ): Worksheet {
     const worksheet: Worksheet = {
       name: '', // 在 workbook.xml 中定义，这里暂时为空
       rows: new Map(),
@@ -102,6 +106,23 @@ export class WorksheetParser {
       const drawingNode = doc.querySelector('drawing');
       if (drawingNode) {
         worksheet.drawingRId = drawingNode.getAttribute('r:id') || drawingNode.getAttribute('id') || undefined;
+      }
+
+      // 6. Parse hyperlinks and attach them to cells in the referenced range.
+      worksheet.hyperlinks = this.parseHyperlinks(doc, rels);
+      for (const hyperlink of worksheet.hyperlinks) {
+        const range = this.parseRange(hyperlink.ref);
+        for (let rowIndex = range.startRow; rowIndex <= range.endRow; rowIndex++) {
+          const row = worksheet.rows.get(rowIndex);
+          if (!row) continue;
+
+          for (let colIndex = range.startCol; colIndex <= range.endCol; colIndex++) {
+            const cell = row.cells.get(colIndex);
+            if (cell) {
+              cell.hyperlink = hyperlink;
+            }
+          }
+        }
       }
     } catch (e) {
       logger.error('Failed to parse worksheet', e);
@@ -299,5 +320,29 @@ export class WorksheetParser {
       startCol: this.getColumnIndex(start),
       endCol: this.getColumnIndex(end)
     };
+  }
+
+  private static parseHyperlinks(doc: Document, rels: RelationshipsResolver): WorksheetHyperlink[] {
+    const nodes = getElementsByLocalName(doc, 'hyperlink');
+    const hyperlinks: WorksheetHyperlink[] = [];
+
+    for (const node of nodes) {
+      const ref = getOptionalAttr(node, 'ref');
+      if (!ref) continue;
+
+      const relationshipId = getOptionalAttr(node, 'r:id') || getOptionalAttr(node, 'id');
+      const relationship = relationshipId ? rels.get(relationshipId) : undefined;
+
+      hyperlinks.push({
+        ref,
+        relationshipId,
+        target: relationship?.target,
+        location: getOptionalAttr(node, 'location') || relationship?.resolvedTarget,
+        tooltip: getOptionalAttr(node, 'tooltip'),
+        display: getOptionalAttr(node, 'display')
+      });
+    }
+
+    return hyperlinks;
   }
 }

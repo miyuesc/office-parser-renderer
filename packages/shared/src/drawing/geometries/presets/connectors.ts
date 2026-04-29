@@ -19,7 +19,6 @@ const getBentConnector2 = (w: number, h: number, adj?: any) => {
   // Default to "Elbow connector".
   // M 0 0 L w 0 L w h ? OR M 0 0 L 0 h L w h ?
   // Check adjustment.
-  const a = (adj?.adj1 ?? 50000) / 100000;
   // Assume horizontal first for standard flowchart connector behavior
   // but without knowledge of source/target, we make assumptions.
   // Let's assume M 0 0 -> ... -> w h

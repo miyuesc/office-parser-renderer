@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { ChartParser } from '../parser/ChartParser';
 import { ChartType } from '../model/IChartData';
 
@@ -71,5 +72,75 @@ describe('ChartParser', () => {
     expect(series.name).toBe('Series 1');
     expect(series.data).toEqual([10, 20]);
     expect(series.fillColor).toBe('#FF0000');
+  });
+
+  it('should parse chart style and embedded workbook relationship metadata', () => {
+    const parser = new ChartParser();
+    const result = parser.parse(`
+      <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+        <c:style val="10"/>
+        <c:externalData r:id="rIdWorkbook">
+          <c:autoUpdate val="0"/>
+        </c:externalData>
+        <c:chart>
+          <c:plotArea>
+            <c:lineChart>
+              <c:ser>
+                <c:idx val="0"/>
+                <c:order val="0"/>
+                <c:tx><c:v>Series 1</c:v></c:tx>
+                <c:cat><c:strRef><c:strCache><c:pt idx="0"><c:v>A</c:v></c:pt></c:strCache></c:strRef></c:cat>
+                <c:val><c:numRef><c:numCache><c:pt idx="0"><c:v>1</c:v></c:pt></c:numCache></c:numRef></c:val>
+              </c:ser>
+            </c:lineChart>
+          </c:plotArea>
+        </c:chart>
+      </c:chartSpace>
+    `);
+
+    expect(result?.style).toEqual({ styleId: 10 });
+    expect(result?.externalData).toEqual({
+      relationshipId: 'rIdWorkbook',
+      autoUpdate: false
+    });
+  });
+
+  it('should resolve schemeClr against the provided theme', () => {
+    const parser = new ChartParser({
+      theme: {
+        colors: {
+          accent1: '#112233'
+        },
+        fontScheme: {
+          major: {},
+          minor: {}
+        }
+      }
+    });
+
+    const result = parser.parse(`
+      <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <c:chart>
+          <c:plotArea>
+            <c:barChart>
+              <c:ser>
+                <c:idx val="0"/>
+                <c:order val="0"/>
+                <c:tx><c:v>Series 1</c:v></c:tx>
+                <c:spPr>
+                  <a:solidFill>
+                    <a:schemeClr val="accent1"/>
+                  </a:solidFill>
+                </c:spPr>
+                <c:cat><c:strRef><c:strCache><c:pt idx="0"><c:v>A</c:v></c:pt></c:strCache></c:strRef></c:cat>
+                <c:val><c:numRef><c:numCache><c:pt idx="0"><c:v>1</c:v></c:pt></c:numCache></c:numRef></c:val>
+              </c:ser>
+            </c:barChart>
+          </c:plotArea>
+        </c:chart>
+      </c:chartSpace>
+    `);
+
+    expect(result?.series[0].fillColor).toBe('#112233');
   });
 });

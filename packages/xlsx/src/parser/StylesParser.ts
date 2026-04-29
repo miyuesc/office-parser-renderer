@@ -1,16 +1,17 @@
-import { FileHandler, Logger, ColorParser, ColorUtils } from '@opr/shared';
+import { FileHandler, Logger, ColorUtils, ThemeModel } from '@opr/shared';
 import { Styles, Font, Fill, CellXf, Alignment, Border, BorderPr } from './types';
 
 const logger = new Logger('StylesParser');
 
 export class StylesParser {
-  static parse(xmlString: string): Styles {
+  static parse(xmlString: string, options: { theme?: ThemeModel } = {}): Styles {
     const styles: Styles = {
       fonts: [],
       fills: [],
       borders: [],
       cellXfs: [],
-      numFmts: new Map()
+      numFmts: new Map(),
+      theme: options.theme
     };
 
     try {
@@ -34,7 +35,7 @@ export class StylesParser {
       if (fontsNode) {
         const fontNodes = fontsNode.querySelectorAll('font');
         for (let i = 0; i < fontNodes.length; i++) {
-          styles.fonts.push(this.parseFont(fontNodes[i]));
+          styles.fonts.push(this.parseFont(fontNodes[i], options.theme));
         }
       }
 
@@ -43,7 +44,7 @@ export class StylesParser {
       if (fillsNode) {
         const fillNodes = fillsNode.querySelectorAll('fill');
         for (let i = 0; i < fillNodes.length; i++) {
-          styles.fills.push(this.parseFill(fillNodes[i]));
+          styles.fills.push(this.parseFill(fillNodes[i], options.theme));
         }
       }
 
@@ -52,7 +53,7 @@ export class StylesParser {
       if (bordersNode) {
         const borderNodes = bordersNode.querySelectorAll('border');
         for (let i = 0; i < borderNodes.length; i++) {
-          styles.borders.push(this.parseBorder(borderNodes[i]));
+          styles.borders.push(this.parseBorder(borderNodes[i], options.theme));
         }
       }
 
@@ -71,7 +72,7 @@ export class StylesParser {
     return styles;
   }
 
-  private static parseFont(node: Element): Font {
+  private static parseFont(node: Element, theme?: ThemeModel): Font {
     const font: Font = {};
 
     // Name
@@ -85,14 +86,19 @@ export class StylesParser {
     // Color
     const colorNode = node.querySelector('color');
     if (colorNode) {
-      const rgb = colorNode.getAttribute('rgb');
-      const theme = colorNode.getAttribute('theme');
-      const indexed = colorNode.getAttribute('indexed');
-      const tint = colorNode.getAttribute('tint');
-
-      const resolved = ColorUtils.resolveColor(rgb, theme, indexed, tint);
+      const colorRef = ColorUtils.createColorRef(
+        colorNode.getAttribute('rgb'),
+        colorNode.getAttribute('theme'),
+        colorNode.getAttribute('indexed'),
+        colorNode.getAttribute('tint')
+      );
+      const resolved = ColorUtils.resolveColorRef(colorRef, theme);
+      if (colorRef) font.colorRef = colorRef;
       if (resolved) font.color = resolved;
     }
+
+    const scheme = node.querySelector('scheme')?.getAttribute('val') || undefined;
+    if (scheme) font.scheme = scheme;
 
     // Bold / Italic / Underline / Strike
     if (node.querySelector('b')) font.bold = true;
@@ -100,10 +106,23 @@ export class StylesParser {
     if (node.querySelector('u')) font.underline = true;
     if (node.querySelector('strike')) font.strike = true;
 
+    font.descriptor = {
+      family: font.name || this.resolveThemeFontFamily(scheme, theme),
+      scheme,
+      size: font.size,
+      bold: font.bold,
+      italic: font.italic,
+      underline: font.underline,
+      strike: font.strike,
+      color: font.color,
+      colorRef: font.colorRef
+    };
+    font.fontFamily = font.descriptor.family;
+
     return font;
   }
 
-  private static parseFill(node: Element): Fill {
+  private static parseFill(node: Element, theme?: ThemeModel): Fill {
     const patternFill = node.querySelector('patternFill');
     if (patternFill) {
       const patternType = patternFill.getAttribute('patternType') || 'none';
@@ -113,20 +132,34 @@ export class StylesParser {
       const bgColor = patternFill.querySelector('bgColor');
 
       if (fgColor) {
-        const rgb = fgColor.getAttribute('rgb');
-        const theme = fgColor.getAttribute('theme');
-        const indexed = fgColor.getAttribute('indexed');
-        const tint = fgColor.getAttribute('tint');
-        const resolved = ColorUtils.resolveColor(rgb, theme, indexed, tint);
-        if (resolved) fill.fgColor = resolved;
+        const colorRef = ColorUtils.createColorRef(
+          fgColor.getAttribute('rgb'),
+          fgColor.getAttribute('theme'),
+          fgColor.getAttribute('indexed'),
+          fgColor.getAttribute('tint')
+        );
+        const resolved = ColorUtils.resolveColorRef(colorRef, theme);
+        if (colorRef) fill.fgColorRef = colorRef;
+        if (resolved) {
+          fill.fgColor = resolved;
+          fill.color = resolved;
+        }
+        fill.colorRef = colorRef;
       }
       if (bgColor) {
-        const rgb = bgColor.getAttribute('rgb');
-        const theme = bgColor.getAttribute('theme');
-        const indexed = bgColor.getAttribute('indexed');
-        const tint = bgColor.getAttribute('tint');
-        const resolved = ColorUtils.resolveColor(rgb, theme, indexed, tint);
-        if (resolved) fill.bgColor = resolved;
+        const colorRef = ColorUtils.createColorRef(
+          bgColor.getAttribute('rgb'),
+          bgColor.getAttribute('theme'),
+          bgColor.getAttribute('indexed'),
+          bgColor.getAttribute('tint')
+        );
+        const resolved = ColorUtils.resolveColorRef(colorRef, theme);
+        if (colorRef) fill.bgColorRef = colorRef;
+        if (resolved) {
+          fill.bgColor = resolved;
+          fill.backgroundColor = resolved;
+        }
+        fill.backgroundColorRef = colorRef;
       }
 
       return fill;
@@ -136,7 +169,7 @@ export class StylesParser {
     return { type: 'pattern', patternType: 'none' };
   }
 
-  private static parseBorder(node: Element): Border {
+  private static parseBorder(node: Element, theme?: ThemeModel): Border {
     const border: Border = {};
 
     const parseSide = (sideNode: Element | null): BorderPr | undefined => {
@@ -147,11 +180,14 @@ export class StylesParser {
       const pr: BorderPr = { style };
       const colorNode = sideNode.querySelector('color');
       if (colorNode) {
-        const rgb = colorNode.getAttribute('rgb');
-        const theme = colorNode.getAttribute('theme');
-        const indexed = colorNode.getAttribute('indexed');
-        const tint = colorNode.getAttribute('tint');
-        const resolved = ColorUtils.resolveColor(rgb, theme, indexed, tint);
+        const colorRef = ColorUtils.createColorRef(
+          colorNode.getAttribute('rgb'),
+          colorNode.getAttribute('theme'),
+          colorNode.getAttribute('indexed'),
+          colorNode.getAttribute('tint')
+        );
+        const resolved = ColorUtils.resolveColorRef(colorRef, theme);
+        if (colorRef) pr.colorRef = colorRef;
         if (resolved) pr.color = resolved;
       }
       return pr;
@@ -164,6 +200,22 @@ export class StylesParser {
     border.diagonal = parseSide(node.querySelector('diagonal'));
 
     return border;
+  }
+
+  private static resolveThemeFontFamily(scheme?: string, theme?: ThemeModel): string | undefined {
+    if (!scheme || !theme) {
+      return undefined;
+    }
+
+    if (scheme === 'major') {
+      return theme.fontScheme.major.latin || theme.fontScheme.major.eastAsia || theme.fontScheme.major.complexScript;
+    }
+
+    if (scheme === 'minor') {
+      return theme.fontScheme.minor.latin || theme.fontScheme.minor.eastAsia || theme.fontScheme.minor.complexScript;
+    }
+
+    return undefined;
   }
 
   // ...

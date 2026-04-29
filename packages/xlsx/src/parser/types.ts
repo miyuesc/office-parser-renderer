@@ -4,15 +4,29 @@
  */
 
 export interface XlsxDocument {
-  worksheets: Map<string, Worksheet>; // sheetId -> Worksheet
+  worksheets: Map<string, Worksheet>; // stable sheet id when available, otherwise fallback sheet number
   sharedStrings: (string | RichTextRun[])[];
   styles?: Styles;
 }
 
-import { OfficeImage, OfficeShape, OfficeChart } from '@opr/shared';
+import {
+  OfficeImage,
+  OfficeShape,
+  OfficeChart,
+  ColorRef,
+  FontDescriptor,
+  ThemeModel,
+  TextStyle,
+  FillStyle,
+  StrokeStyle
+} from '@opr/shared';
 
 export interface Worksheet {
+  id?: string;
+  sheetId?: string;
   name: string;
+  path?: string;
+  relationshipId?: string;
   rows: Map<number, Row>; // rowIndex (1-based) -> Row
   cols: Map<number, Column>; // colIndex -> Column info
   merges?: string[]; // Array of ref strings, e.g., "A1:C3"
@@ -33,6 +47,16 @@ export interface Worksheet {
   };
   drawings?: (OfficeImage | OfficeShape | OfficeChart)[];
   drawingRId?: string;
+  hyperlinks?: WorksheetHyperlink[];
+}
+
+export interface WorksheetHyperlink {
+  ref: string;
+  target?: string;
+  location?: string;
+  tooltip?: string;
+  display?: string;
+  relationshipId?: string;
 }
 
 export interface Column {
@@ -64,6 +88,7 @@ export interface Cell {
   type: CellType;
   formula?: string;
   styleId?: number;
+  hyperlink?: WorksheetHyperlink;
 }
 
 export interface Styles {
@@ -72,6 +97,7 @@ export interface Styles {
   borders: Border[]; // Index -> Border
   cellXfs: CellXf[]; // Index -> Style
   numFmts: Map<number, string>; // numFmtId -> formatCode
+  theme?: ThemeModel;
 }
 
 export interface Border {
@@ -82,26 +108,32 @@ export interface Border {
   diagonal?: BorderPr;
 }
 
-export interface BorderPr {
+export interface BorderPr extends StrokeStyle {
   style?: string; // 'thin', 'medium', 'thick', 'double', etc.
   color?: string; // CSS color string
+  colorRef?: ColorRef;
 }
 
-export interface Font {
+export interface Font extends TextStyle {
   name?: string;
   size?: number;
   color?: string; // CSS color string
+  colorRef?: ColorRef;
+  descriptor?: FontDescriptor;
+  scheme?: string;
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
   strike?: boolean;
 }
 
-export interface Fill {
+export interface Fill extends FillStyle {
   type: 'pattern' | 'gradient';
   patternType?: string;
   fgColor?: string;
   bgColor?: string;
+  fgColorRef?: ColorRef;
+  bgColorRef?: ColorRef;
 }
 
 export interface CellXf {

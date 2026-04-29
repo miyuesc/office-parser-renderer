@@ -4,6 +4,7 @@
     <header class="header">
       <h1 class="title">Office Parser Renderer</h1>
       <div class="file-controls">
+        <span class="format-badge">{{ formatLabel }}</span>
         <input
           type="file"
           ref="fileInputRef"
@@ -16,7 +17,7 @@
     </header>
 
     <!-- 工具栏 -->
-    <div class="toolbar">
+    <div class="toolbar" v-if="currentFormat === 'xlsx'">
       <!-- 冻结控制 -->
       <div class="toolbar-group">
         <span class="toolbar-label">冻结窗格:</span>
@@ -65,6 +66,16 @@
           min="1"
         />
         <button class="btn btn-secondary" @click="handleScrollTo">定位</button>
+        <input
+          type="text"
+          v-model.trim="scrollCellRef"
+          placeholder="A1"
+          class="input-cell-ref"
+          data-testid="scroll-cell-ref"
+        />
+        <button class="btn btn-secondary" data-testid="scroll-cell-button" @click="handleScrollToCellRef">
+          定位单元格
+        </button>
       </div>
 
       <div class="toolbar-divider"></div>
@@ -99,30 +110,60 @@
           min="1"
         />
         <button class="btn btn-secondary" @click="handleGetCellInfo">获取信息</button>
+        <input
+          type="text"
+          v-model.trim="cellRef"
+          placeholder="A1"
+          class="input-cell-ref"
+          data-testid="query-cell-ref"
+        />
+        <button class="btn btn-secondary" data-testid="query-cell-button" @click="handleGetCellByRef">
+          查询引用
+        </button>
       </div>
     </div>
 
     <!-- 单元格信息展示 -->
-    <div v-if="cellInfo" class="cell-info-panel">
-      <strong>单元格 ({{ cellInfo.row }}, {{ cellInfo.col }}):</strong>
-      <p v-if="cellInfo.cell">
-        <p>值: {{ cellInfo.cell.value ?? '(空)' }}</p>
-        <p>位置: ({{ cellInfo.screenBounds.x.toFixed(0) }}, {{ cellInfo.screenBounds.y.toFixed(0) }})</p>
-        <p>尺寸: {{ cellInfo.screenBounds.width.toFixed(0) }} * {{ cellInfo.screenBounds.height.toFixed(0) }}</p>
-      </p>
-      <p v-else>单元格不存在</p>
+    <div v-if="statusMessage" class="status-panel" data-testid="status-panel">
+      {{ statusMessage }}
+    </div>
+
+    <div v-if="currentFormat === 'xlsx' && (cellInfo || accessInfo)" class="cell-info-panel" data-testid="cell-info-panel">
+      <div v-if="accessInfo" class="cell-info-grid">
+        <span>请求</span>
+        <strong>({{ accessInfo.requestedRow }}, {{ accessInfo.requestedCol }})</strong>
+        <span>实际</span>
+        <strong>({{ accessInfo.row }}, {{ accessInfo.col }})</strong>
+        <span>合并</span>
+        <strong>{{ accessInfo.isMerged ? accessInfo.mergeInfo?.ref || '是' : '否' }}</strong>
+        <span>值</span>
+        <strong data-testid="cell-access-value">{{ accessInfo.cell?.value ?? '(空)' }}</strong>
+      </div>
+
+      <div v-else-if="cellInfo" class="cell-info-grid">
+        <span>单元格</span>
+        <strong>({{ cellInfo.row }}, {{ cellInfo.col }})</strong>
+        <span>值</span>
+        <strong>{{ cellInfo.cell?.value ?? '(空)' }}</strong>
+        <span>位置</span>
+        <strong>({{ cellInfo.screenBounds.x.toFixed(0) }}, {{ cellInfo.screenBounds.y.toFixed(0) }})</strong>
+        <span>尺寸</span>
+        <strong>{{ cellInfo.screenBounds.width.toFixed(0) }} * {{ cellInfo.screenBounds.height.toFixed(0) }}</strong>
+      </div>
     </div>
 
     <!-- 渲染容器 -->
     <div class="render-area">
-      <div ref="containerRef" class="render-container"></div>
+      <div ref="containerRef" class="render-container" data-testid="render-container"></div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
-import { XlsxParser, XlsxRenderer } from '@opr/xlsx';
+import { XlsxParser, XlsxRenderer, type WorksheetCellAccess } from '@opr/xlsx';
+import { DocxParser, DocxRenderer, type DocxDocument } from '@opr/docx';
+import { PptxParser, PptxRenderer, type PptxDocument } from '@opr/pptx';
 import { Logger } from '@opr/shared';
 
 const logger = new Logger('Playground');
@@ -131,8 +172,16 @@ const logger = new Logger('Playground');
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const containerRef = ref<HTMLElement | null>(null);
 
+type OfficeFormat = 'xlsx' | 'docx' | 'pptx' | 'unknown';
+type ParsedOfficeDocument =
+  | { format: 'xlsx'; fileName: string; doc: Awaited<ReturnType<typeof XlsxParser.parse>> }
+  | { format: 'docx'; fileName: string; doc: DocxDocument }
+  | { format: 'pptx'; fileName: string; doc: PptxDocument };
+
 // Renderer 实例
-let renderer: XlsxRenderer | null = null;
+let xlsxRenderer: XlsxRenderer | null = null;
+let docxRenderer: DocxRenderer | null = null;
+let pptxRenderer: PptxRenderer | null = null;
 
 // 冻结控制
 const renderFrozenRows = ref(true);
@@ -145,14 +194,20 @@ const showColHeaders = ref(true);
 // 滚动定位
 const scrollRow = ref<number | undefined>(undefined);
 const scrollCol = ref<number | undefined>(undefined);
+const scrollCellRef = ref('');
 
 // 单元格查询
 const cellRow = ref<number | undefined>(undefined);
 const cellCol = ref<number | undefined>(undefined);
+const cellRef = ref('');
 const cellInfo = ref<ReturnType<XlsxRenderer['getCellInfo']>>(null);
+const accessInfo = ref<WorksheetCellAccess | undefined>(undefined);
+const currentFormat = ref<OfficeFormat>('unknown');
+const statusMessage = ref('');
+const formatLabel = ref('未加载');
 
 // 当前文档（用于重新创建渲染器）
-let currentDoc: Awaited<ReturnType<typeof XlsxParser.parse>> | null = null;
+let currentDoc: ParsedOfficeDocument | null = null;
 
 /**
  * 处理文件选择
@@ -165,12 +220,11 @@ async function handleFileChange(e: Event) {
   logger.info('Loading file:', file.name);
 
   try {
-    const buffer = await file.arrayBuffer();
-    const doc = await XlsxParser.parse(buffer);
-    logger.info('Parsed document:', doc);
+    const parsed = await parseOfficeFile(file);
+    logger.info('Parsed document:', parsed);
 
-    currentDoc = doc;
-    renderDocument(doc);
+    currentDoc = parsed;
+    renderDocument(parsed);
   } catch (err) {
     logger.error('Failed to process file:', err);
     alert('文件处理失败，请查看控制台。');
@@ -186,8 +240,8 @@ async function loadTestXlsx() {
     const buffer = await response.arrayBuffer();
     const doc = await XlsxParser.parse(buffer);
 
-    currentDoc = doc;
-    renderDocument(doc);
+    currentDoc = { format: 'xlsx', fileName: '测试xlsx.xlsx', doc };
+    renderDocument(currentDoc);
   } catch (err) {
     logger.error('Failed to load test xlsx:', err);
     alert('测试文件加载失败。');
@@ -197,21 +251,58 @@ async function loadTestXlsx() {
 /**
  * 渲染文档
  */
-function renderDocument(doc: Awaited<ReturnType<typeof XlsxParser.parse>>) {
+async function parseOfficeFile(file: File): Promise<ParsedOfficeDocument> {
+  const buffer = await file.arrayBuffer();
+  const format = detectFormat(file.name);
+
+  if (format === 'xlsx') {
+    return { format, fileName: file.name, doc: await XlsxParser.parse(buffer) };
+  }
+  if (format === 'docx') {
+    return { format, fileName: file.name, doc: await DocxParser.parse(buffer) };
+  }
+  if (format === 'pptx') {
+    return { format, fileName: file.name, doc: await PptxParser.parse(buffer) };
+  }
+
+  throw new Error(`Unsupported file type: ${file.name}`);
+}
+
+function detectFormat(fileName: string): OfficeFormat {
+  const ext = fileName.split('.').pop()?.toLowerCase();
+  if (ext === 'xlsx' || ext === 'docx' || ext === 'pptx') {
+    return ext;
+  }
+
+  return 'unknown';
+}
+
+function renderDocument(parsed: ParsedOfficeDocument) {
   if (!containerRef.value) return;
+  resetRenderState();
+  currentFormat.value = parsed.format;
+  formatLabel.value = parsed.format.toUpperCase();
+  containerRef.value.dataset.format = parsed.format;
+
+  if (parsed.format === 'xlsx') {
+    renderXlsxDocument(parsed);
+  } else if (parsed.format === 'docx') {
+    renderDocxDocument(parsed);
+  } else {
+    renderPptxDocument(parsed);
+  }
+}
+
+function renderXlsxDocument(parsed: Extract<ParsedOfficeDocument, { format: 'xlsx' }>) {
+  if (!containerRef.value) return;
+  const doc = parsed.doc;
 
   if (doc.worksheets.size > 0) {
     const worksheet = doc.worksheets.values().next().value;
     if (worksheet) {
       logger.info('Rendering worksheet:', worksheet);
 
-      // 销毁旧渲染器
-      if (renderer) {
-        renderer.destroy();
-      }
-
-      // 创建新渲染器
-      renderer = new XlsxRenderer(containerRef.value, {
+      xlsxRenderer = new XlsxRenderer(containerRef.value, {
         width: containerRef.value.clientWidth,
         height: containerRef.value.clientHeight,
         renderFrozenRows: renderFrozenRows.value,
@@ -220,10 +311,49 @@ function renderDocument(doc: Awaited<ReturnType<typeof XlsxParser.parse>>) {
         showColHeaders: showColHeaders.value
       });
 
-      renderer.setWorksheet(worksheet, doc);
+      xlsxRenderer.setWorksheet(worksheet, doc);
+      statusMessage.value = `${parsed.fileName} · ${doc.worksheets.size} 个工作表`;
+      (window as any).__oprPlayground = { renderer: xlsxRenderer, currentDoc: doc, format: 'xlsx' };
     }
   } else {
     logger.warn('No worksheets found');
+    statusMessage.value = `${parsed.fileName} · 未解析到工作表`;
+  }
+}
+
+function renderDocxDocument(parsed: Extract<ParsedOfficeDocument, { format: 'docx' }>) {
+  if (!containerRef.value) return;
+
+  docxRenderer = new DocxRenderer(containerRef.value, {
+    width: Math.min(containerRef.value.clientWidth - 40, 816)
+  });
+  docxRenderer.render(parsed.doc);
+  statusMessage.value = `${parsed.fileName} · ${parsed.doc.body.length} 个内容块 · ${parsed.doc.sections.length || 1} 个节`;
+  (window as any).__oprPlayground = { renderer: docxRenderer, currentDoc: parsed.doc, format: 'docx' };
+}
+
+function renderPptxDocument(parsed: Extract<ParsedOfficeDocument, { format: 'pptx' }>) {
+  if (!containerRef.value) return;
+
+  pptxRenderer = new PptxRenderer(containerRef.value);
+  pptxRenderer.render(parsed.doc);
+  statusMessage.value = `${parsed.fileName} · ${parsed.doc.slides.length} 张幻灯片`;
+  (window as any).__oprPlayground = { renderer: pptxRenderer, currentDoc: parsed.doc, format: 'pptx' };
+}
+
+function resetRenderState() {
+  if (xlsxRenderer) {
+    xlsxRenderer.destroy();
+    xlsxRenderer = null;
+  }
+  docxRenderer = null;
+  pptxRenderer = null;
+  cellInfo.value = null;
+  accessInfo.value = undefined;
+  statusMessage.value = '';
+  if (containerRef.value) {
+    containerRef.value.innerHTML = '';
+    delete containerRef.value.dataset.format;
   }
 }
 
@@ -240,34 +370,51 @@ function updateRenderOptions() {
  * 滚动到指定行/列
  */
 function handleScrollTo() {
-  if (!renderer) {
+  if (!xlsxRenderer) {
     alert('请先加载文件');
     return;
   }
 
-  renderer.scrollTo({
-    row: scrollRow.value,
-    col: scrollCol.value
-  });
+  if (scrollRow.value && scrollCol.value) {
+    xlsxRenderer.scrollToCell(scrollRow.value, scrollCol.value);
+  } else if (scrollRow.value) {
+    xlsxRenderer.scrollToRow(scrollRow.value);
+  } else if (scrollCol.value) {
+    xlsxRenderer.scrollToCol(scrollCol.value);
+  }
+}
+
+function handleScrollToCellRef() {
+  if (!xlsxRenderer) {
+    alert('请先加载文件');
+    return;
+  }
+
+  if (!scrollCellRef.value) {
+    alert('请输入单元格引用，例如 A1');
+    return;
+  }
+
+  xlsxRenderer.scrollToCell(scrollCellRef.value);
 }
 
 /**
  * 缩放
  */
 function handleZoom(scale: number) {
-  if (!renderer) {
+  if (!xlsxRenderer) {
     alert('请先加载文件');
     return;
   }
 
-  renderer.zoomTo(scale);
+  xlsxRenderer.zoomTo(scale);
 }
 
 /**
  * 获取单元格信息
  */
 function handleGetCellInfo() {
-  if (!renderer) {
+  if (!xlsxRenderer) {
     alert('请先加载文件');
     return;
   }
@@ -277,8 +424,25 @@ function handleGetCellInfo() {
     return;
   }
 
-  cellInfo.value = renderer.getCellInfo(cellRow.value, cellCol.value);
+  cellInfo.value = xlsxRenderer.getCellInfo(cellRow.value, cellCol.value);
+  accessInfo.value = xlsxRenderer.getCell(cellRow.value, cellCol.value);
   logger.info('Cell info:', cellInfo.value);
+}
+
+function handleGetCellByRef() {
+  if (!xlsxRenderer) {
+    alert('请先加载文件');
+    return;
+  }
+
+  if (!cellRef.value) {
+    alert('请输入单元格引用，例如 A1');
+    return;
+  }
+
+  cellInfo.value = null;
+  accessInfo.value = xlsxRenderer.getCellByRef(cellRef.value);
+  logger.info('Cell access:', accessInfo.value);
 }
 
 onMounted(() => {
@@ -286,10 +450,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  if (renderer) {
-    renderer.destroy();
-    renderer = null;
-  }
+  resetRenderState();
+  delete (window as any).__oprPlayground;
 });
 </script>
 
@@ -325,6 +487,17 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.format-badge {
+  min-width: 58px;
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
 }
 
 .file-input {
@@ -386,6 +559,20 @@ onUnmounted(() => {
   font-size: 13px;
 }
 
+.input-cell-ref {
+  width: 72px;
+  padding: 4px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.input-cell-ref:focus {
+  outline: none;
+  border-color: #217346;
+}
+
 .input-number:focus {
   outline: none;
   border-color: #217346;
@@ -439,6 +626,25 @@ onUnmounted(() => {
   color: #2e7d32;
 }
 
+.status-panel {
+  padding: 8px 20px;
+  background: #f6f8fb;
+  border-bottom: 1px solid #d8dce3;
+  color: #344054;
+  font-size: 13px;
+}
+
+.cell-info-grid {
+  display: grid;
+  grid-template-columns: repeat(4, max-content minmax(48px, auto));
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.cell-info-grid span {
+  color: #476b4a;
+}
+
 /* 渲染区域 */
 .render-area {
   flex: 1;
@@ -454,5 +660,12 @@ onUnmounted(() => {
   border-radius: 4px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   overflow: hidden;
+}
+
+.render-container[data-format='docx'],
+.render-container[data-format='pptx'] {
+  padding: 24px;
+  overflow: auto;
+  background: #eef1f5;
 }
 </style>

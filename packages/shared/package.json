@@ -11,9 +11,6 @@
     "build": "vite build",
     "test": "vitest"
   },
-  "dependencies": {
-    "@opr/definitions": "workspace:*"
-  },
   "peerDependencies": {
     "jszip": "^3.10.1"
   },

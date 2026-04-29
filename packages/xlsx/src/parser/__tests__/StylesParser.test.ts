@@ -41,6 +41,36 @@ describe('StylesParser', () => {
     expect(styles.fonts[1].color).toContain('255, 0, 0');
   });
 
+  it('should resolve theme colors and theme font descriptors when a theme is provided', () => {
+    const xml = `
+      <styleSheet>
+        <fonts count="1">
+          <font>
+            <sz val="11"/>
+            <color theme="4"/>
+            <scheme val="major"/>
+          </font>
+        </fonts>
+      </styleSheet>
+    `;
+    const styles = StylesParser.parse(xml, {
+      theme: {
+        colors: {
+          accent1: '#112233'
+        },
+        fontScheme: {
+          major: { latin: 'Aptos Display' },
+          minor: { latin: 'Aptos' }
+        }
+      }
+    });
+
+    expect(styles.fonts[0].color).toBe('#112233');
+    expect(styles.fonts[0].colorRef?.theme).toBe(4);
+    expect(styles.fonts[0].descriptor?.family).toBe('Aptos Display');
+    expect(styles.fonts[0].descriptor?.scheme).toBe('major');
+  });
+
   it('should parse fills', () => {
     const xml = `
       <styleSheet>

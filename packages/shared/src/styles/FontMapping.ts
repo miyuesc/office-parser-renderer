@@ -185,5 +185,40 @@ export const FontMapping: Record<string, FontFamily> = {
     type: 'Display',
     category: 'Calligraphy',
     description: '庄重、有力的魏碑风格。缺失回退到 serif。'
+  },
+  Wingdings: {
+    css_family: 'Wingdings',
+    safe_css_family: '"Wingdings", "Segoe UI Symbol", "Apple Symbols", sans-serif',
+    type: 'Symbol',
+    category: 'Legacy Symbol',
+    description: 'Windows 经典符号字体。优先回退到系统符号字体。'
+  },
+  'Wingdings 2': {
+    css_family: 'Wingdings 2',
+    safe_css_family: '"Wingdings 2", "Segoe UI Symbol", "Apple Symbols", sans-serif',
+    type: 'Symbol',
+    category: 'Legacy Symbol',
+    description: 'Wingdings 扩展符号字体。优先回退到系统符号字体。'
+  },
+  'Wingdings 3': {
+    css_family: 'Wingdings 3',
+    safe_css_family: '"Wingdings 3", "Segoe UI Symbol", "Apple Symbols", sans-serif',
+    type: 'Symbol',
+    category: 'Legacy Symbol',
+    description: 'Wingdings 扩展箭头字体。优先回退到系统符号字体。'
+  },
+  Webdings: {
+    css_family: 'Webdings',
+    safe_css_family: '"Webdings", "Segoe UI Symbol", "Apple Symbols", sans-serif',
+    type: 'Symbol',
+    category: 'Legacy Symbol',
+    description: 'Windows Webdings 符号字体。优先回退到系统符号字体。'
+  },
+  Symbol: {
+    css_family: 'Symbol',
+    safe_css_family: '"Symbol", "Times New Roman", serif',
+    type: 'Symbol',
+    category: 'Legacy Symbol',
+    description: '经典 Symbol 字体。缺失时回退到衬线字体。'
   }
 };

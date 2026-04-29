@@ -4,7 +4,7 @@
  */
 
 // Example placeholder:
-// import { CT_Shape, CT_Picture } from './ooxml-types';
+// import { CT_Shape, CT_Picture } from '@opr/definitions';
 
 // export function isShape(element: any): element is CT_Shape {
 //   return element && typeof element === 'object' && 'spPr' in element;
