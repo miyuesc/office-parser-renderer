@@ -32,6 +32,10 @@ export class ColorUtils {
     const c = color.trim();
 
     if (c.startsWith('#')) {
+      const hex = c.substring(1);
+      if (/^[0-9A-Fa-f]{8}$/.test(hex)) {
+        return this.formatArgbHex(hex);
+      }
       return c;
     }
 
@@ -41,23 +45,27 @@ export class ColorUtils {
         return `#${c}`;
       }
       if (c.length === 8) {
-        // Excel ARGB: AARRGGBB
-        const a = parseInt(c.substring(0, 2), 16);
-        const r = parseInt(c.substring(2, 4), 16);
-        const g = parseInt(c.substring(4, 6), 16);
-        const b = parseInt(c.substring(6, 8), 16);
-
-        // Optimize for fully opaque
-        if (a === 255) {
-          return `rgb(${r}, ${g}, ${b})`;
-        }
-
-        return `rgba(${r}, ${g}, ${b}, ${Number((a / 255).toFixed(2))})`;
+        return this.formatArgbHex(c);
       }
     }
 
     // Return original if it might be a valid css name like "red"
     return c;
+  }
+
+  private static formatArgbHex(hex: string): string {
+    const a = parseInt(hex.substring(0, 2), 16);
+    const r = parseInt(hex.substring(2, 4), 16);
+    const g = parseInt(hex.substring(4, 6), 16);
+    const b = parseInt(hex.substring(6, 8), 16);
+
+    // SpreadsheetML producers commonly write 00RRGGBB even though Excel renders
+    // the color as opaque. Treat zero alpha as visible to avoid disappearing text.
+    if (a === 0 || a === 255) {
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    return `rgba(${r}, ${g}, ${b}, ${Number((a / 255).toFixed(2))})`;
   }
 
   // --- Theme & Tint Support ---
@@ -255,21 +263,72 @@ export class ColorUtils {
     return this.resolveColorRef(this.createColorRef(rgb, theme, indexed, tint), themeModel);
   }
 
-  private static applyTint(hex: string, tint: number): string {
-    // Parse Hex to RGB
-    const c = hex.replace('#', '');
-    let r = parseInt(c.substring(0, 2), 16);
-    let g = parseInt(c.substring(2, 4), 16);
-    let b = parseInt(c.substring(4, 6), 16);
-
-    // Handle ARGB (skip Alpha for tint calc, or apply to RGB part)
-    if (c.length === 8) {
-      // AARRGGBB
-      // For simplicity, let's keep alpha as is and tint the RGB
-      r = parseInt(c.substring(2, 4), 16);
-      g = parseInt(c.substring(4, 6), 16);
-      b = parseInt(c.substring(6, 8), 16);
+  static interpolateColor(startColor?: string, endColor?: string, ratio: number = 0): string | undefined {
+    const start = this.parseRgbColor(startColor);
+    const end = this.parseRgbColor(endColor);
+    if (!start || !end) {
+      return this.formatColor(endColor || startColor);
     }
+
+    const clamped = Math.min(1, Math.max(0, ratio));
+    const r = Math.round(start.r + (end.r - start.r) * clamped);
+    const g = Math.round(start.g + (end.g - start.g) * clamped);
+    const b = Math.round(start.b + (end.b - start.b) * clamped);
+    const a = start.a + (end.a - start.a) * clamped;
+
+    if (Math.abs(a - 1) < 0.001) {
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    return `rgba(${r}, ${g}, ${b}, ${Number(a.toFixed(2))})`;
+  }
+
+  private static parseRgbColor(color?: string) {
+    const normalized = this.formatColor(color);
+    if (!normalized) {
+      return undefined;
+    }
+
+    const hex = normalized.trim();
+    if (/^#[0-9A-Fa-f]{6}$/.test(hex)) {
+      return {
+        r: parseInt(hex.substring(1, 3), 16),
+        g: parseInt(hex.substring(3, 5), 16),
+        b: parseInt(hex.substring(5, 7), 16),
+        a: 1
+      };
+    }
+
+    if (/^#[0-9A-Fa-f]{8}$/.test(hex)) {
+      return {
+        a: parseInt(hex.substring(1, 3), 16) / 255,
+        r: parseInt(hex.substring(3, 5), 16),
+        g: parseInt(hex.substring(5, 7), 16),
+        b: parseInt(hex.substring(7, 9), 16)
+      };
+    }
+
+    const rgbMatch = hex.match(/^rgba?\(([^)]+)\)$/i);
+    if (!rgbMatch) {
+      return undefined;
+    }
+
+    const [r = '0', g = '0', b = '0', a = '1'] = rgbMatch[1].split(',').map(part => part.trim());
+    return {
+      r: Number(r),
+      g: Number(g),
+      b: Number(b),
+      a: Number(a)
+    };
+  }
+
+  private static applyTint(color: string, tint: number): string {
+    const parsed = this.parseRgbColor(color);
+    if (!parsed) {
+      return color;
+    }
+
+    let { r, g, b } = parsed;
 
     if (tint < 0) {
       // Shade: R * (1 + tint)
@@ -290,8 +349,8 @@ export class ColorUtils {
 
     const newRgb = `${toHex(r)}${toHex(g)}${toHex(b)}`;
 
-    if (c.length === 8) {
-      return `#${c.substring(0, 2)}${newRgb}`;
+    if (Math.abs(parsed.a - 1) >= 0.001) {
+      return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${Number(parsed.a.toFixed(2))})`;
     }
     return `#${newRgb}`;
   }

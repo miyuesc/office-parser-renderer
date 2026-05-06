@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import JSZip from 'jszip';
 import { loadSampleCase } from '../../../../../samples/utils/SampleCaseLoader';
 import { PageLayoutEngine } from '../../layout';
@@ -110,6 +110,50 @@ describe('DocxParser', () => {
     expect(renderer.jumpToPage(0)).toBe(true);
     expect(container.textContent).toContain('Heading One');
     expect(container.textContent).toContain('Table cell');
+  });
+
+  it('should expose DOCX render options and toggle navigation and revision text', () => {
+    const doc: any = {
+      sourcePartPath: 'word/document.xml',
+      body: [
+        { type: 'paragraph', styleId: 'Heading1', runs: [{ text: 'Title' }] },
+        { type: 'paragraph', runs: [{ text: 'Inserted', revision: { type: 'insert' } }] },
+        { type: 'paragraph', runs: [{ text: 'Deleted', revision: { type: 'delete' } }] }
+      ],
+      headers: new Map(),
+      footers: new Map(),
+      styles: {
+        defaults: { paragraph: {}, run: {} },
+        byId: new Map([['Heading1', { id: 'Heading1', type: 'paragraph', name: 'heading 1', text: { bold: true, size: 16 } }]])
+      },
+      numbering: { abstractNums: new Map(), nums: new Map() },
+      settings: { compatibilityFlags: [], unsupported: [] },
+      sections: [],
+      warnings: []
+    };
+    const container = document.createElement('div');
+    const renderer = new DocxRenderer(container, {
+      showNavigationPane: true,
+      showDeletedRevisionText: true
+    });
+
+    renderer.render(doc);
+
+    expect(container.querySelector('[data-testid="docx-navigation-pane"]')).not.toBeNull();
+    expect(container.textContent).toContain('Inserted');
+    expect(container.textContent).toContain('Deleted');
+
+    renderer.setShowNavigationPane(false);
+    expect(container.querySelector('[data-testid="docx-navigation-pane"]')).toBeNull();
+
+    renderer.setShowInsertedRevisionText(false);
+    renderer.setShowDeletedRevisionText(false);
+    expect(renderer.getRenderOptions()).toMatchObject({
+      showInsertedRevisionText: false,
+      showDeletedRevisionText: false
+    });
+    expect(container.textContent).not.toContain('Inserted');
+    expect(container.textContent).not.toContain('Deleted');
   });
 
   it('should build a nested heading tree from heading styles', () => {
@@ -342,6 +386,349 @@ describe('DocxParser', () => {
     });
     expect(image.blob).toBeInstanceOf(Blob);
     expect(container.querySelectorAll('[data-testid="docx-page-canvas"]')).toHaveLength(1);
+  });
+
+  it('should preserve floating anchor metadata for images and warn about unsupported wrap rendering', async () => {
+    const zip = new JSZip();
+
+    zip.file(
+      '[Content_Types].xml',
+      `
+        <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+          <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+          <Default Extension="xml" ContentType="application/xml"/>
+          <Default Extension="png" ContentType="image/png"/>
+          <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+        </Types>
+      `
+    );
+    zip.folder('_rels')!.file(
+      '.rels',
+      `
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdOffice" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+        </Relationships>
+      `
+    );
+    zip.folder('word')!.file(
+      'document.xml',
+      `
+        <w:document
+          xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+          xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+          xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+          xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+          xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+          <w:body>
+            <w:p>
+              <w:r>
+                <w:drawing>
+                  <wp:anchor simplePos="0" relativeHeight="251659264" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1" distL="114300" distR="228600">
+                    <wp:simplePos x="0" y="0"/>
+                    <wp:positionH relativeFrom="margin"><wp:posOffset>457200</wp:posOffset></wp:positionH>
+                    <wp:positionV relativeFrom="paragraph"><wp:align>top</wp:align></wp:positionV>
+                    <wp:extent cx="952500" cy="476250"/>
+                    <wp:effectExtent l="0" t="0" r="12700" b="12700"/>
+                    <wp:wrapSquare wrapText="bothSides"/>
+                    <wp:docPr id="5" name="Floating Picture"/>
+                    <a:graphic>
+                      <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                        <pic:pic>
+                          <pic:blipFill>
+                            <a:blip r:embed="rIdImage"/>
+                          </pic:blipFill>
+                        </pic:pic>
+                      </a:graphicData>
+                    </a:graphic>
+                  </wp:anchor>
+                </w:drawing>
+              </w:r>
+            </w:p>
+          </w:body>
+        </w:document>
+      `
+    );
+    zip.folder('word')!.folder('_rels')!.file(
+      'document.xml.rels',
+      `
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>
+        </Relationships>
+      `
+    );
+    zip.folder('word')!.folder('media')!.file('image1.png', new Uint8Array([1, 2, 3, 4]));
+
+    const doc = await DocxParser.parse(await zip.generateAsync({ type: 'arraybuffer' }));
+    const paragraph = doc.body[0] as any;
+    const floating = paragraph.floatingDrawings[0];
+
+    expect(floating.objectType).toBe('image');
+    expect(floating.anchor).toMatchObject({
+      drawingId: '5',
+      name: 'Floating Picture',
+      relativeHeight: 251659264,
+      behindDoc: false,
+      locked: false,
+      layoutInCell: true,
+      allowOverlap: true,
+      useSimplePosition: false,
+      horizontalPosition: { relativeFrom: 'margin', offset: 48 },
+      verticalPosition: { relativeFrom: 'paragraph', align: 'top' },
+      size: { width: 100, height: 50 },
+      wrap: {
+        type: 'square',
+        textWrap: 'bothSides',
+        distances: { left: 12, right: 24 }
+      }
+    });
+    expect(floating.anchor.effectExtent.right).toBeCloseTo(1.333, 2);
+    expect(floating.anchor.effectExtent.bottom).toBeCloseTo(1.333, 2);
+    expect(floating.drawing).toMatchObject({
+      path: 'word/media/image1.png',
+      position: {
+        width: 100,
+        height: 50
+      },
+      source: {
+        relationshipId: 'rIdImage',
+        resolvedTarget: 'word/media/image1.png'
+      }
+    });
+    expect(doc.warnings).toContainEqual(
+      expect.objectContaining({
+        code: 'renderer.unsupported-feature',
+        partPath: 'word/document.xml',
+        message: expect.stringContaining('wrap mode')
+      })
+    );
+  });
+
+  it('should parse anchored charts into floating drawing metadata using the shared chart model', async () => {
+    const zip = new JSZip();
+
+    zip.file(
+      '[Content_Types].xml',
+      `
+        <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+          <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+          <Default Extension="xml" ContentType="application/xml"/>
+          <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+        </Types>
+      `
+    );
+    zip.folder('_rels')!.file(
+      '.rels',
+      `
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdOffice" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+        </Relationships>
+      `
+    );
+    zip.folder('word')!.file(
+      'document.xml',
+      `
+        <w:document
+          xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+          xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+          xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+          xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+          xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">
+          <w:body>
+            <w:p>
+              <w:r>
+                <w:drawing>
+                  <wp:anchor simplePos="0" relativeHeight="0" behindDoc="0" locked="0" layoutInCell="1" allowOverlap="1">
+                    <wp:simplePos x="0" y="0"/>
+                    <wp:positionH relativeFrom="column"><wp:align>center</wp:align></wp:positionH>
+                    <wp:positionV relativeFrom="paragraph"><wp:posOffset>914400</wp:posOffset></wp:positionV>
+                    <wp:extent cx="1905000" cy="952500"/>
+                    <wp:wrapNone/>
+                    <wp:docPr id="9" name="Chart 9"/>
+                    <a:graphic>
+                      <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">
+                        <c:chart r:id="rIdChart"/>
+                      </a:graphicData>
+                    </a:graphic>
+                  </wp:anchor>
+                </w:drawing>
+              </w:r>
+            </w:p>
+          </w:body>
+        </w:document>
+      `
+    );
+    zip.folder('word')!.folder('_rels')!.file(
+      'document.xml.rels',
+      `
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target="charts/chart1.xml"/>
+        </Relationships>
+      `
+    );
+    zip.folder('word')!.folder('charts')!.file(
+      'chart1.xml',
+      `
+        <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">
+          <c:chart>
+            <c:plotArea>
+              <c:barChart>
+                <c:ser>
+                  <c:idx val="0"/>
+                  <c:order val="0"/>
+                  <c:tx><c:v>Series 1</c:v></c:tx>
+                  <c:cat><c:strRef><c:strCache><c:pt idx="0"><c:v>A</c:v></c:pt></c:strCache></c:strRef></c:cat>
+                  <c:val><c:numRef><c:numCache><c:pt idx="0"><c:v>1</c:v></c:pt></c:numCache></c:numRef></c:val>
+                </c:ser>
+              </c:barChart>
+            </c:plotArea>
+          </c:chart>
+        </c:chartSpace>
+      `
+    );
+
+    const doc = await DocxParser.parse(await zip.generateAsync({ type: 'arraybuffer' }));
+    const floating = (doc.body[0] as any).floatingDrawings[0];
+    const container = document.createElement('div');
+    const fakeCtx = {
+      scale: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      fillRect: vi.fn(),
+      strokeRect: vi.fn(),
+      beginPath: vi.fn(),
+      rect: vi.fn(),
+      clip: vi.fn(),
+      fillText: vi.fn(),
+      measureText: vi.fn(() => ({ width: 32 })),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+      setLineDash: vi.fn(),
+      arc: vi.fn(),
+      closePath: vi.fn(),
+      fill: vi.fn()
+    } as any;
+    const getContextSpy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => fakeCtx);
+
+    new DocxRenderer(container).render(doc);
+
+    expect(floating.objectType).toBe('chart');
+    expect(floating.anchor).toMatchObject({
+      drawingId: '9',
+      name: 'Chart 9',
+      horizontalPosition: { relativeFrom: 'column', align: 'center' },
+      verticalPosition: { relativeFrom: 'paragraph', offset: 96 },
+      size: { width: 200, height: 100 },
+      wrap: { type: 'none' }
+    });
+    expect(floating.drawing).toMatchObject({
+      id: '9',
+      name: 'Chart 9',
+      type: 'chart',
+      chartData: {
+        type: 'bar',
+        categories: ['A'],
+        is3D: false
+      },
+      source: {
+        relationshipId: 'rIdChart',
+        resolvedTarget: 'word/charts/chart1.xml'
+      },
+      position: {
+        width: 200,
+        height: 100
+      }
+    });
+    expect(fakeCtx.fillRect).toHaveBeenCalledWith(297, 192, 200, 100);
+
+    getContextSpy.mockRestore();
+  });
+
+  it('should parse OMML equations into shared math model and render a readable linearized fallback', async () => {
+    const zip = new JSZip();
+
+    zip.file(
+      '[Content_Types].xml',
+      `
+        <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+          <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+          <Default Extension="xml" ContentType="application/xml"/>
+          <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+        </Types>
+      `
+    );
+    zip.folder('_rels')!.file(
+      '.rels',
+      `
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdOffice" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+        </Relationships>
+      `
+    );
+    zip.folder('word')!.file(
+      'document.xml',
+      `
+        <w:document
+          xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+          xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">
+          <w:body>
+            <w:p>
+              <w:r><w:t>Eq: </w:t></w:r>
+              <m:oMath>
+                <m:sSup>
+                  <m:e><m:r><m:t>x</m:t></m:r></m:e>
+                  <m:sup><m:r><m:t>2</m:t></m:r></m:sup>
+                </m:sSup>
+                <m:r><m:t> + </m:t></m:r>
+                <m:f>
+                  <m:num><m:r><m:t>a</m:t></m:r></m:num>
+                  <m:den><m:r><m:t>b</m:t></m:r></m:den>
+                </m:f>
+                <m:r><m:t> = </m:t></m:r>
+                <m:rad>
+                  <m:deg/>
+                  <m:e><m:r><m:t>y</m:t></m:r></m:e>
+                </m:rad>
+              </m:oMath>
+            </w:p>
+            <w:p>
+              <m:oMathPara>
+                <m:oMath>
+                  <m:nary>
+                    <m:naryPr><m:chr m:val="∑"/></m:naryPr>
+                    <m:sub><m:r><m:t>i=1</m:t></m:r></m:sub>
+                    <m:sup><m:r><m:t>n</m:t></m:r></m:sup>
+                    <m:e><m:r><m:t>i</m:t></m:r></m:e>
+                  </m:nary>
+                </m:oMath>
+              </m:oMathPara>
+            </w:p>
+          </w:body>
+        </w:document>
+      `
+    );
+
+    const doc = await DocxParser.parse(await zip.generateAsync({ type: 'arraybuffer' }));
+    const inlineMath = (doc.body[0] as any).runs[1].math;
+    const blockMath = (doc.body[1] as any).runs[0].math;
+    const container = document.createElement('div');
+
+    new DocxRenderer(container).render(doc);
+
+    expect(inlineMath).toMatchObject({
+      type: 'math',
+      displayMode: 'inline',
+      body: {
+        type: 'sequence'
+      }
+    });
+    expect(blockMath).toMatchObject({
+      type: 'math',
+      displayMode: 'block'
+    });
+    expect(container.textContent).toContain('Eq: x² + (a)/(b) = √(y)');
+    expect(container.textContent).toContain('∑_(i=1)^n i');
+    expect(doc.warnings).toEqual([]);
   });
 
   it('should parse table merges, cell styles, symbols, text background, and numbering levels', async () => {
@@ -651,6 +1038,100 @@ describe('DocxParser', () => {
     expect(text).toContain('3. Third');
   });
 
+  it('should parse bookmarks and hyperlinks and expose them in rendered DOM semantics', async () => {
+    const zip = new JSZip();
+
+    zip.file(
+      '[Content_Types].xml',
+      `
+        <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+          <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+          <Default Extension="xml" ContentType="application/xml"/>
+          <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+        </Types>
+      `
+    );
+    zip.folder('_rels')!.file(
+      '.rels',
+      `
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdOffice" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+        </Relationships>
+      `
+    );
+    zip.folder('word')!.file(
+      'document.xml',
+      `
+        <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+          <w:body>
+            <w:p>
+              <w:bookmarkStart w:id="7" w:name="SectionOne"/>
+              <w:r><w:t>Section start</w:t></w:r>
+              <w:bookmarkEnd w:id="7"/>
+            </w:p>
+            <w:p>
+              <w:hyperlink r:id="rIdLink" w:tooltip="Visit Example">
+                <w:r><w:t>External Link</w:t></w:r>
+              </w:hyperlink>
+            </w:p>
+            <w:p>
+              <w:hyperlink w:anchor="SectionOne">
+                <w:r><w:t>Jump Back</w:t></w:r>
+              </w:hyperlink>
+            </w:p>
+          </w:body>
+        </w:document>
+      `
+    );
+    zip.folder('word')!.folder('_rels')!.file(
+      'document.xml.rels',
+      `
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.com" TargetMode="External"/>
+        </Relationships>
+      `
+    );
+
+    const doc = await DocxParser.parse(await zip.generateAsync({ type: 'arraybuffer' }));
+    const container = document.createElement('div');
+
+    new DocxRenderer(container).render(doc);
+
+    const bookmarkRun = (doc.body[0] as any).runs[0];
+    const externalRun = (doc.body[1] as any).runs[0];
+    const internalRun = (doc.body[2] as any).runs[0];
+    const links = Array.from(container.querySelectorAll('[data-testid="docx-hyperlink"]')) as HTMLAnchorElement[];
+    const bookmark = container.querySelector('#docx-bookmark-SectionOne');
+
+    expect(bookmarkRun.bookmarks).toMatchObject([
+      {
+        id: '7',
+        name: 'SectionOne',
+        target: '#docx-bookmark-SectionOne'
+      }
+    ]);
+    expect(externalRun.hyperlink).toMatchObject({
+      kind: 'hyperlink',
+      target: 'https://example.com',
+      targetMode: 'External',
+      tooltip: 'Visit Example'
+    });
+    expect(internalRun.hyperlink).toMatchObject({
+      kind: 'hyperlink',
+      target: '#docx-bookmark-SectionOne',
+      targetMode: 'Internal',
+      anchor: 'SectionOne'
+    });
+    expect(bookmark).toBeTruthy();
+    expect(links).toHaveLength(2);
+    expect(links[0].textContent).toBe('External Link');
+    expect(links[0].getAttribute('href')).toBe('https://example.com');
+    expect(links[0].target).toBe('_blank');
+    expect(links[1].textContent).toBe('Jump Back');
+    expect(links[1].getAttribute('href')).toBe('#docx-bookmark-SectionOne');
+    expect(links[1].dataset.bookmarkTarget).toBe('SectionOne');
+  });
+
   it('should parse revisions and cascade text and paragraph styles', async () => {
     const zip = new JSZip();
 
@@ -782,10 +1263,77 @@ describe('DocxParser', () => {
     expect(block.box.y + block.box.height).toBeLessThanOrEqual(contentBottom);
     expect(renderer.warnings.toArray()).toContainEqual(
       expect.objectContaining({
-        code: 'renderer.unsupported-feature',
+        code: 'renderer.clipped-content',
+        impact: 'clipped',
         message: expect.stringContaining('overflow clipped')
       })
     );
+  });
+
+  it('should wrap CJK text and align centered run fragments as whole lines', () => {
+    const doc: any = {
+      sourcePartPath: 'word/document.xml',
+      body: [
+        {
+          type: 'paragraph',
+          style: {
+            alignment: 'center',
+            text: { size: 24, fontFamily: 'SimSun' }
+          },
+          runs: [{ text: '编号' }, { text: '2' }]
+        },
+        {
+          type: 'paragraph',
+          style: {
+            text: { size: 22, fontFamily: 'SimSun' }
+          },
+          runs: [{ text: '本办法适用于公司各部门收费所的收费系统监控系统通信系统供配电系统'.repeat(3) }]
+        }
+      ],
+      headers: new Map(),
+      footers: new Map(),
+      styles: { byId: new Map(), defaults: { run: { size: 11 } } },
+      numbering: { abstractNums: new Map(), nums: new Map() },
+      settings: { compatibilityFlags: [], unsupported: [] },
+      sections: [
+        {
+          pageSize: { width: 6000, height: 12000 },
+          margins: { top: 720, right: 720, bottom: 720, left: 720 }
+        }
+      ],
+      warnings: []
+    };
+    const pages = new PageLayoutEngine().layout(doc);
+    const container = document.createElement('div');
+    const fakeCtx = {
+      scale: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      fillRect: vi.fn(),
+      strokeRect: vi.fn(),
+      beginPath: vi.fn(),
+      rect: vi.fn(),
+      clip: vi.fn(),
+      fillText: vi.fn(),
+      measureText: vi.fn((text: string) => ({ width: Array.from(text).length * 10 })),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+      setLineDash: vi.fn()
+    } as any;
+    const getContextSpy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => fakeCtx);
+
+    new DocxRenderer(container).render(doc);
+
+    const centeredCalls = (fakeCtx.fillText as ReturnType<typeof vi.fn>).mock.calls.filter(
+      call => call[0] === '编号' || call[0] === '2'
+    );
+    expect(centeredCalls).toHaveLength(2);
+    expect(centeredCalls[1][1]).toBeGreaterThan(centeredCalls[0][1] + 15);
+    expect(pages[0].blocks[1].box.height).toBeGreaterThan(120);
+    expect(pages[0].blocks[1].overflow).toBeUndefined();
+
+    getContextSpy.mockRestore();
   });
 
   it('should detect titlePg cover pages and use first-page header only for cover pages', async () => {

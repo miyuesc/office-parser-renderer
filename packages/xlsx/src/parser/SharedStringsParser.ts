@@ -1,7 +1,11 @@
-import { FileHandler, Logger, ColorParser } from '@opr/shared';
+import { FileHandler, Logger, ColorUtils, ThemeModel } from '@opr/shared';
 import { RichTextRun, Font } from './types';
 
 const logger = new Logger('SharedStringsParser');
+
+export interface SharedStringsParserOptions {
+  theme?: ThemeModel;
+}
 
 export class SharedStringsParser {
   /**
@@ -9,7 +13,7 @@ export class SharedStringsParser {
    * @param xmlString XML 内容
    * @returns 共享字符串数组 (string or RichTextRun[])
    */
-  static parse(xmlString: string): (string | RichTextRun[])[] {
+  static parse(xmlString: string, options: SharedStringsParserOptions = {}): (string | RichTextRun[])[] {
     const strings: (string | RichTextRun[])[] = [];
 
     try {
@@ -32,7 +36,7 @@ export class SharedStringsParser {
             const rPrNode = rNode.querySelector('rPr');
             let font: Font | undefined;
             if (rPrNode) {
-              font = this.parseRPr(rPrNode);
+              font = this.parseRPr(rPrNode, options.theme);
             }
             runs.push({ text, font });
           }
@@ -54,7 +58,7 @@ export class SharedStringsParser {
     return strings;
   }
 
-  private static parseRPr(node: Element): Font {
+  static parseRPr(node: Element, theme?: ThemeModel): Font {
     const font: Font = {};
 
     const rFont = node.querySelector('rFont');
@@ -65,12 +69,32 @@ export class SharedStringsParser {
 
     const color = node.querySelector('color');
     if (color) {
-      const rgb = color.getAttribute('rgb');
-      if (rgb) font.color = ColorParser.toCSS(rgb);
+      const colorRef = ColorUtils.createColorRef(
+        color.getAttribute('rgb'),
+        color.getAttribute('theme'),
+        color.getAttribute('indexed'),
+        color.getAttribute('tint')
+      );
+      const resolved = ColorUtils.resolveColorRef(colorRef, theme);
+      if (colorRef) font.colorRef = colorRef;
+      if (resolved) font.color = resolved;
     }
+
+    const scheme = node.querySelector('scheme')?.getAttribute('val') || undefined;
+    if (scheme) font.scheme = scheme;
 
     if (node.querySelector('b')) font.bold = true;
     if (node.querySelector('i')) font.italic = true;
+
+    font.descriptor = {
+      family: font.name,
+      scheme,
+      size: font.size,
+      bold: font.bold,
+      italic: font.italic,
+      color: font.color,
+      colorRef: font.colorRef
+    };
 
     return font;
   }

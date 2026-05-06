@@ -7,3 +7,4 @@ export * from './rendering';
 export * from './chart';
 export * from './layout';
 export * from './media';
+export * from './math';

@@ -202,4 +202,92 @@ describe('XlsxParser relationships integration', () => {
 
     expect(shape.style.fill.color).toBe('#112233');
   });
+
+  it('should resolve worksheet comments and attach them to blank cells', async () => {
+    const zip = new JSZip();
+
+    zip.file(
+      '[Content_Types].xml',
+      `
+        <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+          <Default Extension="xml" ContentType="application/xml"/>
+          <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+          <Override PartName="/xl/comments1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml"/>
+        </Types>
+      `
+    );
+
+    zip.folder('xl')!.file(
+      'workbook.xml',
+      `
+        <workbook xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+          <sheets>
+            <sheet name="Sheet Comments" sheetId="1" r:id="rId1"/>
+          </sheets>
+        </workbook>
+      `
+    );
+    zip.folder('xl')!.folder('_rels')!.file(
+      'workbook.xml.rels',
+      `
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rId1" Target="worksheets/sheet1.xml"/>
+        </Relationships>
+      `
+    );
+
+    zip.folder('xl')!.folder('worksheets')!.file(
+      'sheet1.xml',
+      `
+        <worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+          <sheetData>
+            <row r="1"><c r="A1" t="inlineStr"><is><t>Value</t></is></c></row>
+          </sheetData>
+        </worksheet>
+      `
+    );
+    zip.folder('xl')!.folder('worksheets')!.folder('_rels')!.file(
+      'sheet1.xml.rels',
+      `
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship
+            Id="rIdComment"
+            Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
+            Target="../comments1.xml"
+          />
+        </Relationships>
+      `
+    );
+    zip.folder('xl')!.file(
+      'comments1.xml',
+      `
+        <comments xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+          <authors>
+            <author>Alice</author>
+          </authors>
+          <commentList>
+            <comment ref="C3" authorId="0">
+              <text><t>Needs review</t></text>
+            </comment>
+          </commentList>
+        </comments>
+      `
+    );
+
+    const buffer = await zip.generateAsync({ type: 'arraybuffer' });
+    const doc = await XlsxParser.parse(buffer);
+
+    const sheet = doc.worksheets.get('1');
+    expect(sheet?.comments).toEqual([
+      {
+        ref: 'C3',
+        authorId: 0,
+        author: 'Alice',
+        text: 'Needs review',
+        visible: false
+      }
+    ]);
+    expect(sheet?.rows.get(3)?.cells.get(3)?.comment?.text).toBe('Needs review');
+    expect(sheet?.rows.get(3)?.cells.get(3)?.value).toBe('');
+  });
 });

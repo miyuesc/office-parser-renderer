@@ -1,62 +1,82 @@
 import { IChartData, ChartType } from '../model/IChartData';
 import { IRect, BaseChartRenderer } from './IChartRenderer';
 
+export interface ChartRendererOptions {
+  scale?: number;
+}
+
 export class ChartRenderer extends BaseChartRenderer {
-  constructor(data: IChartData) {
+  private readonly scale: number;
+
+  constructor(data: IChartData, options: ChartRendererOptions = {}) {
     super(data);
+    this.scale = Math.max(0.05, options.scale || 1);
   }
 
   render(ctx: CanvasRenderingContext2D, rect: IRect): void {
+    if (!this.hasRenderableArea(rect)) {
+      return;
+    }
+
     // 1. Background (White)
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
 
     // 2. Layout Calculation
     let plotRect = { ...rect };
-    const padding = 10;
+    const padding = this.scaled(10);
     plotRect.x += padding;
     plotRect.y += padding;
-    plotRect.width -= padding * 2;
-    plotRect.height -= padding * 2;
+    plotRect.width = Math.max(0, plotRect.width - padding * 2);
+    plotRect.height = Math.max(0, plotRect.height - padding * 2);
 
     // Title Space
     if (this.data.title) {
       this.renderTitle(ctx, rect, this.data.title);
-      plotRect.y += 30;
-      plotRect.height -= 30;
+      const titleHeight = Math.min(this.scaled(30), Math.max(0, plotRect.height * 0.3));
+      plotRect.y += titleHeight;
+      plotRect.height = Math.max(0, plotRect.height - titleHeight);
     }
 
     // Legend Space
     if (this.data.legend && this.data.legend.visible) {
       const legendPos = this.data.legend.position;
       if (legendPos === 'r' || legendPos === 'l') {
-        const legendWidth = 100;
-        plotRect.width -= legendWidth;
-        this.renderLegend(
-          ctx,
-          {
-            x: plotRect.x + plotRect.width,
-            y: plotRect.y,
-            width: legendWidth,
-            height: plotRect.height
-          },
-          this.data.legend
-        );
+        const legendWidth = Math.min(this.scaled(100), Math.max(0, plotRect.width * 0.35));
+        if (legendWidth > 0) {
+          plotRect.width = Math.max(0, plotRect.width - legendWidth);
+          this.renderLegend(
+            ctx,
+            {
+              x: plotRect.x + plotRect.width,
+              y: plotRect.y,
+              width: legendWidth,
+              height: plotRect.height
+            },
+            this.data.legend
+          );
+        }
       } else {
         // 'b' or 't'
-        const legendHeight = 30;
-        plotRect.height -= legendHeight;
-        this.renderLegend(
-          ctx,
-          {
-            x: plotRect.x,
-            y: plotRect.y + plotRect.height,
-            width: plotRect.width,
-            height: legendHeight
-          },
-          this.data.legend
-        );
+        const legendHeight = Math.min(this.scaled(30), Math.max(0, plotRect.height * 0.3));
+        if (legendHeight > 0) {
+          plotRect.height = Math.max(0, plotRect.height - legendHeight);
+          this.renderLegend(
+            ctx,
+            {
+              x: plotRect.x,
+              y: plotRect.y + plotRect.height,
+              width: plotRect.width,
+              height: legendHeight
+            },
+            this.data.legend
+          );
+        }
       }
+    }
+
+    if (!this.hasRenderableArea(plotRect)) {
+      return;
     }
 
     // 3. Render Chart Content
@@ -82,15 +102,16 @@ export class ChartRenderer extends BaseChartRenderer {
     ctx.save();
     ctx.fillStyle = '#333';
     const maxWidth = Math.max(20, rect.width - 20);
-    let fontSize = 16;
+    let fontSize = this.scaled(16, 4);
     ctx.font = `bold ${fontSize}px sans-serif`;
-    while (fontSize > 9 && ctx.measureText(title.text).width > maxWidth) {
-      fontSize -= 1;
+    const minFontSize = this.scaled(9, 3);
+    while (fontSize > minFontSize && ctx.measureText(title.text).width > maxWidth) {
+      fontSize = Math.max(minFontSize, fontSize - 1);
       ctx.font = `bold ${fontSize}px sans-serif`;
     }
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText(title.text, rect.x + rect.width / 2, rect.y + 10, maxWidth);
+    ctx.fillText(title.text, rect.x + rect.width / 2, rect.y + this.scaled(10), maxWidth);
     ctx.restore();
   }
 
@@ -131,24 +152,27 @@ export class ChartRenderer extends BaseChartRenderer {
     }
 
     ctx.save();
-    ctx.font = '12px sans-serif';
+    const fontSize = this.scaled(12, 4);
+    const swatchSize = this.scaled(10, 3);
+    const itemGap = this.scaled(20, 5);
+    ctx.font = `${fontSize}px sans-serif`;
     ctx.textBaseline = 'middle';
 
     if (legend.position === 'r' || legend.position === 'l') {
-      let y = rect.y + 20;
+      let y = rect.y + itemGap;
       items.forEach(item => {
         ctx.fillStyle = item.color;
-        ctx.fillRect(rect.x + 10, y - 5, 10, 10);
+        ctx.fillRect(rect.x + this.scaled(10), y - swatchSize / 2, swatchSize, swatchSize);
         ctx.fillStyle = '#333';
         ctx.textAlign = 'left';
-        ctx.fillText(item.label, rect.x + 25, y);
-        y += 20;
+        ctx.fillText(item.label, rect.x + this.scaled(25), y, Math.max(0, rect.width - this.scaled(30)));
+        y += itemGap;
       });
     } else {
       // Bottom / Top
       let totalWidth = 0;
       const itemWidths = items.map(item => {
-        const w = ctx.measureText(item.label).width + 30;
+        const w = ctx.measureText(item.label).width + this.scaled(30);
         totalWidth += w;
         return w;
       });
@@ -158,27 +182,35 @@ export class ChartRenderer extends BaseChartRenderer {
 
       items.forEach((item, i) => {
         ctx.fillStyle = item.color;
-        ctx.fillRect(x, y - 5, 10, 10);
+        ctx.fillRect(x, y - swatchSize / 2, swatchSize, swatchSize);
         ctx.fillStyle = '#333';
         ctx.textAlign = 'left';
-        ctx.fillText(item.label, x + 15, y);
+        ctx.fillText(item.label, x + this.scaled(15), y, Math.max(0, itemWidths[i] - this.scaled(18)));
         x += itemWidths[i];
       });
     }
     ctx.restore();
   }
 
-  private renderXYAxes(ctx: CanvasRenderingContext2D, plotRect: IRect, categories: string[], maxVal: number) {
-    const leftAxisWidth = 40;
-    const bottomAxisHeight = 20;
+  private renderXYAxes(ctx: CanvasRenderingContext2D, plotRect: IRect, categories: string[], maxVal: number): IRect | undefined {
+    if (!this.hasRenderableArea(plotRect)) {
+      return undefined;
+    }
+
+    const leftAxisWidth = Math.min(this.scaled(40), Math.max(0, plotRect.width * 0.3));
+    const bottomAxisHeight = Math.min(this.scaled(20), Math.max(0, plotRect.height * 0.25));
 
     // Adjust plotRect for axes
     const chartRect = {
       x: plotRect.x + leftAxisWidth,
       y: plotRect.y,
-      width: plotRect.width - leftAxisWidth,
-      height: plotRect.height - bottomAxisHeight
+      width: Math.max(0, plotRect.width - leftAxisWidth),
+      height: Math.max(0, plotRect.height - bottomAxisHeight)
     };
+
+    if (!this.hasRenderableArea(chartRect)) {
+      return undefined;
+    }
 
     ctx.save();
     ctx.strokeStyle = '#d9d9d9'; // Grid line color
@@ -187,7 +219,8 @@ export class ChartRenderer extends BaseChartRenderer {
     // Y Axis Grid & Labels
     const numTicks = 5;
     ctx.fillStyle = '#595959';
-    ctx.font = '10px sans-serif';
+    const axisFontSize = this.scaled(10, 3);
+    ctx.font = `${axisFontSize}px sans-serif`;
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
 
@@ -205,7 +238,7 @@ export class ChartRenderer extends BaseChartRenderer {
       }
 
       // Label
-      ctx.fillText(Math.round(val).toString(), chartRect.x - 5, y);
+      ctx.fillText(Math.round(val).toString(), chartRect.x - this.scaled(5), y, Math.max(0, leftAxisWidth - this.scaled(6)));
     }
 
     // Main Axes Lines
@@ -225,7 +258,7 @@ export class ChartRenderer extends BaseChartRenderer {
       const xStep = chartRect.width / numCats;
       categories.forEach((cat, i) => {
         const x = chartRect.x + xStep * i + xStep / 2;
-        ctx.fillText(cat, x, chartRect.y + chartRect.height + 5);
+        ctx.fillText(cat, x, chartRect.y + chartRect.height + this.scaled(5), Math.max(0, xStep - this.scaled(4)));
       });
     }
 
@@ -258,6 +291,7 @@ export class ChartRenderer extends BaseChartRenderer {
     // Use the rect passed from render() which already handles title/legend spacing
     // renderXYAxes now returns the inner chartRect (excluding axis labels)
     const chartRect = this.renderXYAxes(ctx, rect, categories, maxVal);
+    if (!chartRect) return;
 
     // 4. Draw Bars
     const numSeries = series.length;
@@ -266,6 +300,7 @@ export class ChartRenderer extends BaseChartRenderer {
     const groupPadding = categoryWidth * 0.3; // More breathing room
     const availableWidth = categoryWidth - groupPadding;
     const barWidth = availableWidth / numSeries;
+    if (barWidth <= 0) return;
 
     series.forEach((s, sIdx) => {
       const fillColor = s.fillColor || this.getDefaultColor(sIdx);
@@ -341,6 +376,7 @@ export class ChartRenderer extends BaseChartRenderer {
 
     const maxVal = this.getMaxVal(series);
     const chartRect = this.renderXYAxes(ctx, rect, categories, maxVal);
+    if (!chartRect) return;
 
     const numCats = categories.length;
     const xStep = chartRect.width / numCats;
@@ -348,7 +384,7 @@ export class ChartRenderer extends BaseChartRenderer {
     series.forEach((s, sIdx) => {
       const color = s.fillColor || this.getDefaultColor(sIdx);
       ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = this.scaled(2, 0.5);
       ctx.beginPath();
 
       s.data.forEach((val, cIdx) => {
@@ -367,14 +403,14 @@ export class ChartRenderer extends BaseChartRenderer {
 
       // Markers
       ctx.fillStyle = '#fff'; // White center
-      ctx.lineWidth = 2;
+      ctx.lineWidth = this.scaled(2, 0.5);
       s.data.forEach((val, cIdx) => {
         if (cIdx >= numCats) return;
         const x = chartRect.x + xStep * cIdx + xStep / 2;
         const y = chartRect.y + chartRect.height - (val / maxVal) * chartRect.height;
 
         ctx.beginPath();
-        ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+        ctx.arc(x, y, this.scaled(3.5, 0.5), 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
       });
@@ -392,10 +428,12 @@ export class ChartRenderer extends BaseChartRenderer {
     const s = series[0];
     const total = s.data.reduce((acc, v) => acc + v, 0);
     if (total === 0) return;
+    if (!this.hasRenderableArea(rect)) return;
 
     const centerX = rect.x + rect.width / 2;
     const centerY = rect.y + rect.height / 2;
-    const radius = (Math.min(rect.width, rect.height) / 2) * 0.8;
+    const radius = Math.max(0, (Math.min(rect.width, rect.height) / 2) * 0.8);
+    if (radius <= 0) return;
 
     let startAngle = -Math.PI / 2; // Start from top
 
@@ -416,7 +454,7 @@ export class ChartRenderer extends BaseChartRenderer {
       ctx.fill();
 
       ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = this.scaled(1.5, 0.5);
       ctx.stroke();
 
       // Labels (simplified)
@@ -427,7 +465,7 @@ export class ChartRenderer extends BaseChartRenderer {
         const ly = centerY + Math.sin(midAngle) * labelR;
 
         ctx.fillStyle = '#fff';
-        ctx.font = 'bold 11px sans-serif';
+        ctx.font = `bold ${this.scaled(11, 3)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(Math.round((val / total) * 100) + '%', lx, ly);
@@ -440,8 +478,9 @@ export class ChartRenderer extends BaseChartRenderer {
   private renderPieDepth(ctx: CanvasRenderingContext2D, rect: IRect, data: number[], total: number) {
     const centerX = rect.x + rect.width / 2;
     const centerY = rect.y + rect.height / 2;
-    const radius = (Math.min(rect.width, rect.height) / 2) * 0.8;
-    const depth = Math.max(4, Math.min(radius * 0.12, 14));
+    const radius = Math.max(0, (Math.min(rect.width, rect.height) / 2) * 0.8);
+    if (radius <= 0) return;
+    const depth = Math.max(this.scaled(4, 0.5), Math.min(radius * 0.12, this.scaled(14, 1)));
     let startAngle = -Math.PI / 2;
 
     for (let layer = depth; layer >= 1; layer -= 2) {
@@ -483,11 +522,19 @@ export class ChartRenderer extends BaseChartRenderer {
     ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
 
     ctx.fillStyle = '#666';
-    ctx.font = '14px sans-serif';
+    ctx.font = `${this.scaled(14, 4)}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(text, rect.x + rect.width / 2, rect.y + rect.height / 2);
     ctx.restore();
+  }
+
+  private scaled(value: number, min = 0): number {
+    return Math.max(min, value * this.scale);
+  }
+
+  private hasRenderableArea(rect: IRect): boolean {
+    return rect.width > 0 && rect.height > 0 && Number.isFinite(rect.width) && Number.isFinite(rect.height);
   }
 
   private shadeColor(color: string, percent: number): string {

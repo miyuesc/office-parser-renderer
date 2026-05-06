@@ -13,6 +13,7 @@
           class="file-input"
         />
         <button class="btn btn-primary" @click="loadTestXlsx">测试 XLSX</button>
+        <button class="btn btn-primary" @click="loadTestDocx">测试 DOCX</button>
       </div>
     </header>
 
@@ -241,6 +242,23 @@ async function loadTestXlsx() {
     const doc = await XlsxParser.parse(buffer);
 
     currentDoc = { format: 'xlsx', fileName: '测试xlsx.xlsx', doc };
+    renderDocument(currentDoc);
+  } catch (err) {
+    logger.error('Failed to load test xlsx:', err);
+    alert('测试文件加载失败。');
+  }
+}
+
+/**
+ * 加载测试 DOCX 文件
+ */
+async function loadTestDocx() {
+  try {
+    const response = await fetch('./测试docx.docx');
+    const buffer = await response.arrayBuffer();
+    const doc = await DocxParser.parse(buffer);
+
+    currentDoc = { format: 'docx', fileName: '测试docx.docx', doc };
     renderDocument(currentDoc);
   } catch (err) {
     logger.error('Failed to load test xlsx:', err);

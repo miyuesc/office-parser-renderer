@@ -9,6 +9,13 @@ export interface DrawCmd {
   border: IBorder;
 }
 
+export interface BorderClipRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export class BorderRenderer {
   /**
    * 计算单个单元格的边框绘制指令
@@ -135,27 +142,36 @@ export class BorderRenderer {
     frozenRows: number,
     frozenCols: number,
     fixedWidth: number,
-    fixedHeight: number
+    fixedHeight: number,
+    clipRect?: BorderClipRect
   ) {
     const cx = cmd.isVertical ? cmd.x : cmd.x + cmd.len / 2;
     const cy = cmd.isVertical ? cmd.y + cmd.len / 2 : cmd.y;
 
+    if (clipRect && (clipRect.width <= 0 || clipRect.height <= 0)) {
+      return;
+    }
+
     ctx.save();
     ctx.beginPath();
 
-    // Clipping Logic to handle scrolling under locked panes
-    if (cx <= fixedWidth && cy <= fixedHeight) {
-      // Top-Left corner (locked-locked)
-      ctx.rect(0, 0, fixedWidth + 1, fixedHeight + 1);
-    } else if (cx <= fixedWidth) {
-      // Left pane (locked col, scrolling row)
-      ctx.rect(0, fixedHeight, fixedWidth + 1, 99999);
-    } else if (cy <= fixedHeight) {
-      // Top pane (scrolling col, locked row)
-      ctx.rect(fixedWidth, 0, 99999, fixedHeight + 1);
+    if (clipRect) {
+      ctx.rect(clipRect.x, clipRect.y, clipRect.width, clipRect.height);
     } else {
-      // Main body (scrolling both)
-      ctx.rect(fixedWidth, fixedHeight, 99999, 99999);
+      // Clipping Logic to handle scrolling under locked panes
+      if (cx <= fixedWidth && cy <= fixedHeight) {
+        // Top-Left corner (locked-locked)
+        ctx.rect(0, 0, fixedWidth, fixedHeight);
+      } else if (cx <= fixedWidth) {
+        // Left pane (locked col, scrolling row)
+        ctx.rect(0, fixedHeight, fixedWidth, 99999);
+      } else if (cy <= fixedHeight) {
+        // Top pane (scrolling col, locked row)
+        ctx.rect(fixedWidth, 0, 99999, fixedHeight);
+      } else {
+        // Main body (scrolling both)
+        ctx.rect(fixedWidth, fixedHeight, 99999, 99999);
+      }
     }
     ctx.clip();
 

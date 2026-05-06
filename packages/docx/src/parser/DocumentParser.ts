@@ -1,13 +1,19 @@
 import {
+  BookmarkResource,
+  ChartParser,
+  DrawingElement,
   FileHandler,
   getFirstElementByLocalName,
   MediaRegistry,
+  OfficeChart,
   OfficeImage,
   PackageReader,
+  RelationshipTarget,
+  WarningCollector,
   parseNumberAttr,
   UnitConversion
 } from '@opr/shared';
-import { DocxBlock, DocxField, DocxHeaderFooterRef, DocxParagraph, DocxRun, DocxSection, DocxTable, DocxTableCell } from '../model';
+import { DocxBlock, DocxField, DocxFloatingDrawing, DocxHeaderFooterRef, DocxParagraph, DocxRun, DocxSection, DocxTable, DocxTableCell } from '../model';
 import {
   attr,
   childElementsByLocalName,
@@ -17,9 +23,16 @@ import {
   valueOfFirst
 } from './xml';
 import { normalizeLegacySymbolText } from './symbols';
+import { MathParser } from './MathParser';
+
+interface DocumentParserOptions {
+  pkg?: PackageReader;
+  sourcePartPath?: string;
+  warnings?: WarningCollector;
+}
 
 export class DocumentParser {
-  static parse(xmlString: string, options: { pkg?: PackageReader; sourcePartPath?: string } = {}): { body: DocxBlock[]; sections: DocxSection[] } {
+  static parse(xmlString: string, options: DocumentParserOptions = {}): { body: DocxBlock[]; sections: DocxSection[] } {
     const doc = FileHandler.parseXML(xmlString);
     const body = getFirstElementByLocalName(doc, 'body');
     const blocks: DocxBlock[] = [];
@@ -54,7 +67,7 @@ export class DocumentParser {
     return { body: blocks, sections };
   }
 
-  static parseBlocksFromElement(container: ParentNode, options: { pkg?: PackageReader; sourcePartPath?: string } = {}): DocxBlock[] {
+  static parseBlocksFromElement(container: ParentNode, options: DocumentParserOptions = {}): DocxBlock[] {
     const blocks: DocxBlock[] = [];
 
     for (const child of Array.from(container.childNodes)) {
@@ -73,11 +86,12 @@ export class DocumentParser {
     return blocks;
   }
 
-  private static parseParagraph(node: Element, options: { pkg?: PackageReader; sourcePartPath?: string }): DocxParagraph {
+  private static parseParagraph(node: Element, options: DocumentParserOptions): DocxParagraph {
     const pPr = firstChildElementByLocalName(node, 'pPr');
     const styleId = pPr ? valueOfFirst(pPr, 'pStyle') : undefined;
     const numPr = pPr ? firstChildElementByLocalName(pPr, 'numPr') : undefined;
     const sectPr = pPr ? firstChildElementByLocalName(pPr, 'sectPr') : undefined;
+    const content = this.parseParagraphContent(node, options);
 
     return {
       type: 'paragraph',
@@ -89,43 +103,133 @@ export class DocumentParser {
             numId: valueOfFirst(numPr, 'numId')
           }
         : undefined,
-      runs: this.parseParagraphRuns(node, options),
+      runs: content.runs,
+      floatingDrawings: content.floatingDrawings.length > 0 ? content.floatingDrawings : undefined,
       section: sectPr ? this.parseSection(sectPr) : undefined
     };
   }
 
-  private static parseParagraphRuns(node: Element, options: { pkg?: PackageReader; sourcePartPath?: string }): DocxRun[] {
-    const runs: DocxRun[] = [];
+  private static parseParagraphContent(node: Element, options: DocumentParserOptions): {
+    runs: DocxRun[];
+    floatingDrawings: DocxFloatingDrawing[];
+  } {
+    const parsed = this.parseRunsFromContainer(node, options);
+    if (parsed.trailingBookmarks.length > 0) {
+      parsed.runs.push({
+        text: '',
+        bookmarks: parsed.trailingBookmarks
+      });
+    }
 
-    for (const child of Array.from(node.childNodes)) {
+    return {
+      runs: parsed.runs,
+      floatingDrawings: parsed.floatingDrawings
+    };
+  }
+
+  private static parseRunsFromContainer(
+    container: ParentNode,
+    options: DocumentParserOptions,
+    context: {
+      revision?: DocxRun['revision'];
+      hyperlink?: DocxRun['hyperlink'];
+      leadingBookmarks?: BookmarkResource[];
+    } = {}
+  ): { runs: DocxRun[]; floatingDrawings: DocxFloatingDrawing[]; trailingBookmarks: BookmarkResource[] } {
+    const runs: DocxRun[] = [];
+    const floatingDrawings: DocxFloatingDrawing[] = [];
+    let pendingBookmarks = [...(context.leadingBookmarks || [])];
+
+    for (const child of Array.from(container.childNodes)) {
       if (child.nodeType !== 1) {
         continue;
       }
 
       const element = child as Element;
-      if (element.localName === 'r') {
-        runs.push(this.parseRun(element, options));
-      } else if (element.localName === 'ins' || element.localName === 'del') {
-        const revision = {
-          type: element.localName === 'ins' ? 'insert' : 'delete',
-          id: attr(element, 'id'),
-          author: attr(element, 'author'),
-          date: attr(element, 'date')
-        } as const;
-        for (const run of childElementsByLocalName(element, 'r')) {
-          runs.push(this.parseRun(run, options, revision));
+      if (element.localName === 'bookmarkStart') {
+        const bookmark = this.parseBookmark(element, options);
+        if (bookmark) {
+          pendingBookmarks.push(bookmark);
         }
+        continue;
+      }
+
+      if (element.localName === 'bookmarkEnd') {
+        continue;
+      }
+
+      if (element.localName === 'r') {
+        const parsedRun = this.parseRun(element, options, {
+          revision: context.revision,
+          hyperlink: context.hyperlink,
+          bookmarks: pendingBookmarks
+        });
+        runs.push(parsedRun.run);
+        floatingDrawings.push(...parsedRun.floatingDrawings);
+        pendingBookmarks = [];
+        continue;
+      }
+
+      if (element.localName === 'oMath' || element.localName === 'oMathPara') {
+        runs.push({
+          text: '',
+          math: MathParser.parse(element, {
+            warnings: options.warnings,
+            partPath: options.sourcePartPath
+          }),
+          hyperlink: context.hyperlink,
+          bookmarks: pendingBookmarks.length > 0 ? [...pendingBookmarks] : undefined,
+          revision: context.revision
+        });
+        pendingBookmarks = [];
+        continue;
+      }
+
+      if (element.localName === 'ins' || element.localName === 'del') {
+        const parsed = this.parseRunsFromContainer(element, options, {
+          revision: {
+            type: element.localName === 'ins' ? 'insert' : 'delete',
+            id: attr(element, 'id'),
+            author: attr(element, 'author'),
+            date: attr(element, 'date')
+          },
+          hyperlink: context.hyperlink,
+          leadingBookmarks: pendingBookmarks
+        });
+        runs.push(...parsed.runs);
+        floatingDrawings.push(...parsed.floatingDrawings);
+        pendingBookmarks = parsed.trailingBookmarks;
+        continue;
+      }
+
+      if (element.localName === 'hyperlink') {
+        const parsed = this.parseRunsFromContainer(element, options, {
+          revision: context.revision,
+          hyperlink: this.parseHyperlink(element, options),
+          leadingBookmarks: pendingBookmarks
+        });
+        runs.push(...parsed.runs);
+        floatingDrawings.push(...parsed.floatingDrawings);
+        pendingBookmarks = parsed.trailingBookmarks;
       }
     }
 
-    return runs;
+    return {
+      runs,
+      floatingDrawings,
+      trailingBookmarks: pendingBookmarks
+    };
   }
 
   private static parseRun(
     node: Element,
-    options: { pkg?: PackageReader; sourcePartPath?: string },
-    revision?: DocxRun['revision']
-  ): DocxRun {
+    options: DocumentParserOptions,
+    context: {
+      revision?: DocxRun['revision'];
+      hyperlink?: DocxRun['hyperlink'];
+      bookmarks?: BookmarkResource[];
+    } = {}
+  ): { run: DocxRun; floatingDrawings: DocxFloatingDrawing[] } {
     const rPr = firstChildElementByLocalName(node, 'rPr');
     const styleId = rPr ? valueOfFirst(rPr, 'rStyle') : undefined;
     const breaks = childElementsByLocalName(node, 'br').map(br => attr(br, 'type') || 'line');
@@ -149,19 +253,25 @@ export class DocumentParser {
             fontFamily: symbolFontFamily
           }
         : style;
+    const floatingDrawings = this.parseRunFloatingDrawings(node, options);
 
     return {
-      text: text + deletedText + symbolText,
-      style: resolvedStyle,
-      styleId,
-      breaks: breaks.length > 0 ? breaks : undefined,
-      fields: fields.length > 0 ? fields : undefined,
-      images: this.parseRunImages(node, options),
-      revision
+      run: {
+        text: text + deletedText + symbolText,
+        style: resolvedStyle,
+        styleId,
+        breaks: breaks.length > 0 ? breaks : undefined,
+        fields: fields.length > 0 ? fields : undefined,
+        images: this.parseRunImages(node, options),
+        hyperlink: context.hyperlink,
+        bookmarks: context.bookmarks && context.bookmarks.length > 0 ? [...context.bookmarks] : undefined,
+        revision: context.revision
+      },
+      floatingDrawings
     };
   }
 
-  private static parseTable(node: Element, options: { pkg?: PackageReader; sourcePartPath?: string }): DocxTable {
+  private static parseTable(node: Element, options: DocumentParserOptions): DocxTable {
     const tblPr = firstChildElementByLocalName(node, 'tblPr');
     const tblGrid = firstChildElementByLocalName(node, 'tblGrid');
 
@@ -180,7 +290,7 @@ export class DocumentParser {
     };
   }
 
-  private static parseTableCell(cell: Element, options: { pkg?: PackageReader; sourcePartPath?: string }): DocxTableCell {
+  private static parseTableCell(cell: Element, options: DocumentParserOptions): DocxTableCell {
     const tcPr = firstChildElementByLocalName(cell, 'tcPr');
     const gridSpan = tcPr ? parseNumberAttr(valueOfFirst(tcPr, 'gridSpan'), 1) : undefined;
     const vMerge = tcPr ? firstChildElementByLocalName(tcPr, 'vMerge') : undefined;
@@ -289,7 +399,7 @@ export class DocumentParser {
 
   private static parseRunImages(
     node: Element,
-    options: { pkg?: PackageReader; sourcePartPath?: string }
+    options: DocumentParserOptions
   ): OfficeImage[] | undefined {
     if (!options.pkg || !options.sourcePartPath) {
       return undefined;
@@ -298,6 +408,15 @@ export class DocumentParser {
     const drawings = childElementsByLocalName(node, 'drawing');
     const images = drawings.flatMap(drawing => this.parseDrawingImages(drawing, options.pkg!, options.sourcePartPath!));
     return images.length > 0 ? images : undefined;
+  }
+
+  private static parseRunFloatingDrawings(node: Element, options: DocumentParserOptions): DocxFloatingDrawing[] {
+    if (!options.pkg || !options.sourcePartPath) {
+      return [];
+    }
+
+    const drawings = childElementsByLocalName(node, 'drawing');
+    return drawings.flatMap(drawing => this.parseDrawingFloatingDrawings(drawing, options));
   }
 
   private static parseDrawingImages(drawing: Element, pkg: PackageReader, sourcePartPath: string): OfficeImage[] {
@@ -355,6 +474,246 @@ export class DocumentParser {
     return images;
   }
 
+  private static parseDrawingFloatingDrawings(drawing: Element, options: DocumentParserOptions): DocxFloatingDrawing[] {
+    const anchors = this.findDescendantsByLocalName(drawing, 'anchor');
+
+    return anchors
+      .map(anchor => this.parseFloatingDrawing(anchor, options))
+      .filter((item): item is DocxFloatingDrawing => !!item);
+  }
+
+  private static parseFloatingDrawing(anchor: Element, options: DocumentParserOptions): DocxFloatingDrawing | undefined {
+    if (!options.pkg || !options.sourcePartPath) {
+      return undefined;
+    }
+
+    const anchorMetadata = this.parseFloatingAnchorMetadata(anchor);
+    const drawing = this.parseFloatingDrawingElement(anchor, options.pkg, options.sourcePartPath);
+    const objectType = this.getFloatingDrawingType(drawing);
+    const wrapType = anchorMetadata.wrap?.type;
+
+    if (wrapType && wrapType !== 'none') {
+      options.warnings?.unsupportedFeature(`DOCX floating drawing wrap mode is parsed but not rendered: ${wrapType}`, options.sourcePartPath);
+    }
+
+    if (!drawing) {
+      options.warnings?.unsupportedFeature('DOCX floating drawing metadata was parsed but the drawing payload is not yet supported', options.sourcePartPath);
+    }
+
+    return {
+      objectType,
+      drawing,
+      anchor: anchorMetadata
+    };
+  }
+
+  private static parseFloatingDrawingElement(anchor: Element, pkg: PackageReader, sourcePartPath: string): DrawingElement | undefined {
+    const image = this.parseFloatingImage(anchor, pkg, sourcePartPath);
+    if (image) {
+      return image;
+    }
+
+    return this.parseFloatingChart(anchor, pkg, sourcePartPath);
+  }
+
+  private static parseFloatingImage(anchor: Element, pkg: PackageReader, sourcePartPath: string): OfficeImage | undefined {
+    const blip = this.firstDescendantByLocalName(anchor, 'blip');
+    const relationshipId = blip ? this.getDrawingRelationshipId(blip) : undefined;
+    if (!relationshipId) {
+      return undefined;
+    }
+
+    const resource = new MediaRegistry(pkg).resolveRelationship(sourcePartPath, relationshipId);
+    if (!resource?.data || resource.kind !== 'image') {
+      return undefined;
+    }
+
+    const docPr = firstChildElementByLocalName(anchor, 'docPr');
+    const extent = firstChildElementByLocalName(anchor, 'extent');
+    const width = UnitConversion.emuToPixel(parseNumberAttr(extent ? extent.getAttribute('cx') || undefined : undefined));
+    const height = UnitConversion.emuToPixel(parseNumberAttr(extent ? extent.getAttribute('cy') || undefined : undefined));
+    const drawingId = (docPr ? attr(docPr, 'id') : undefined) || relationshipId;
+
+    return {
+      id: `${sourcePartPath}:${relationshipId}:${drawingId}`,
+      blob: new Blob([resource.data as BlobPart], {
+        type: resource.contentType || this.getMimeType(resource.extension || '')
+      }),
+      extension: resource.extension || 'png',
+      path: resource.path,
+      contentType: resource.contentType,
+      source: this.toResourceRef(
+        {
+          id: relationshipId,
+          target: resource.target,
+          targetMode: resource.targetMode,
+          resolvedTarget: resource.resolvedTarget
+        } as RelationshipTarget,
+        pkg
+      ),
+      position: {
+        type: 'absolute',
+        width: width || 120,
+        height: height || 80
+      },
+      style: undefined
+    };
+  }
+
+  private static parseFloatingChart(anchor: Element, pkg: PackageReader, sourcePartPath: string): OfficeChart | undefined {
+    const graphicData = this.firstDescendantByLocalName(anchor, 'graphicData');
+    if (!graphicData || graphicData.getAttribute('uri') !== 'http://schemas.openxmlformats.org/drawingml/2006/chart') {
+      return undefined;
+    }
+
+    const chartRef = this.firstDescendantByLocalName(graphicData, 'chart');
+    const relationshipId = chartRef ? this.getRelationshipId(chartRef) : undefined;
+    if (!relationshipId) {
+      return undefined;
+    }
+
+    const relationship = pkg.getRelationships(sourcePartPath).get(relationshipId);
+    if (!relationship?.resolvedTarget) {
+      return undefined;
+    }
+
+    const xmlString = pkg.readText(relationship.resolvedTarget);
+    if (!xmlString) {
+      return undefined;
+    }
+
+    const chartData = new ChartParser().parse(xmlString);
+    if (!chartData) {
+      return undefined;
+    }
+
+    if (chartData.externalData) {
+      const externalDataRelationship = pkg.getRelationships(relationship.resolvedTarget).get(chartData.externalData.relationshipId);
+      if (externalDataRelationship) {
+        chartData.externalData = {
+          ...chartData.externalData,
+          target: externalDataRelationship.target,
+          targetMode: externalDataRelationship.targetMode,
+          resolvedTarget: externalDataRelationship.resolvedTarget,
+          contentType: externalDataRelationship.resolvedTarget
+            ? pkg.getPart(externalDataRelationship.resolvedTarget)?.contentType
+            : undefined
+        };
+      }
+    }
+
+    const docPr = firstChildElementByLocalName(anchor, 'docPr');
+    const extent = firstChildElementByLocalName(anchor, 'extent');
+    const width = UnitConversion.emuToPixel(parseNumberAttr(extent ? extent.getAttribute('cx') || undefined : undefined));
+    const height = UnitConversion.emuToPixel(parseNumberAttr(extent ? extent.getAttribute('cy') || undefined : undefined));
+
+    return {
+      id: (docPr ? attr(docPr, 'id') : undefined) || relationshipId,
+      name: (docPr ? attr(docPr, 'name') : undefined) || 'Chart',
+      type: 'chart',
+      chartData,
+      source: this.toResourceRef(relationship, pkg),
+      position: {
+        type: 'absolute',
+        width: width || 120,
+        height: height || 80
+      }
+    };
+  }
+
+  private static parseFloatingAnchorMetadata(anchor: Element): DocxFloatingDrawing['anchor'] {
+    const docPr = firstChildElementByLocalName(anchor, 'docPr');
+    const extent = firstChildElementByLocalName(anchor, 'extent');
+    const effectExtent = firstChildElementByLocalName(anchor, 'effectExtent');
+    const simplePos = firstChildElementByLocalName(anchor, 'simplePos');
+
+    return {
+      drawingId: docPr ? attr(docPr, 'id') : undefined,
+      name: docPr ? attr(docPr, 'name') : undefined,
+      relativeHeight: parseNumberAttr(anchor.getAttribute('relativeHeight') || undefined),
+      behindDoc: this.parseBooleanValue(anchor.getAttribute('behindDoc')),
+      locked: this.parseBooleanValue(anchor.getAttribute('locked')),
+      layoutInCell: this.parseBooleanValue(anchor.getAttribute('layoutInCell')),
+      allowOverlap: this.parseBooleanValue(anchor.getAttribute('allowOverlap')),
+      useSimplePosition: this.parseBooleanValue(anchor.getAttribute('simplePos')),
+      simplePosition: simplePos
+        ? {
+            x: UnitConversion.emuToPixel(parseNumberAttr(simplePos.getAttribute('x') || undefined)),
+            y: UnitConversion.emuToPixel(parseNumberAttr(simplePos.getAttribute('y') || undefined))
+          }
+        : undefined,
+      horizontalPosition: this.parseFloatingPosition(firstChildElementByLocalName(anchor, 'positionH')),
+      verticalPosition: this.parseFloatingPosition(firstChildElementByLocalName(anchor, 'positionV')),
+      size: extent
+        ? {
+            width: UnitConversion.emuToPixel(parseNumberAttr(extent.getAttribute('cx') || undefined)),
+            height: UnitConversion.emuToPixel(parseNumberAttr(extent.getAttribute('cy') || undefined))
+          }
+        : undefined,
+      effectExtent: effectExtent
+        ? {
+            left: UnitConversion.emuToPixel(parseNumberAttr(effectExtent.getAttribute('l') || undefined)),
+            top: UnitConversion.emuToPixel(parseNumberAttr(effectExtent.getAttribute('t') || undefined)),
+            right: UnitConversion.emuToPixel(parseNumberAttr(effectExtent.getAttribute('r') || undefined)),
+            bottom: UnitConversion.emuToPixel(parseNumberAttr(effectExtent.getAttribute('b') || undefined))
+          }
+        : undefined,
+      wrap: this.parseFloatingWrap(anchor)
+    };
+  }
+
+  private static parseFloatingPosition(node?: Element) {
+    if (!node) {
+      return undefined;
+    }
+
+    const align = firstChildElementByLocalName(node, 'align');
+    const posOffset = firstChildElementByLocalName(node, 'posOffset');
+
+    return {
+      relativeFrom: node.getAttribute('relativeFrom') || undefined,
+      align: align?.textContent || undefined,
+      offset: posOffset?.textContent ? UnitConversion.emuToPixel(parseNumberAttr(posOffset.textContent)) : undefined
+    };
+  }
+
+  private static parseFloatingWrap(anchor: Element) {
+    const wrapNode =
+      firstChildElementByLocalName(anchor, 'wrapNone') ||
+      firstChildElementByLocalName(anchor, 'wrapSquare') ||
+      firstChildElementByLocalName(anchor, 'wrapTight') ||
+      firstChildElementByLocalName(anchor, 'wrapThrough') ||
+      firstChildElementByLocalName(anchor, 'wrapTopAndBottom');
+    if (!wrapNode) {
+      return undefined;
+    }
+
+    const localName = wrapNode.localName || wrapNode.nodeName.split(':').pop() || 'wrapNone';
+
+    return {
+      type: localName.replace(/^wrap/, '').replace(/^./, char => char.toLowerCase()),
+      textWrap: wrapNode.getAttribute('wrapText') || undefined,
+      distances: {
+        top: this.parseDistanceValue(wrapNode.getAttribute('distT') || anchor.getAttribute('distT') || undefined),
+        right: this.parseDistanceValue(wrapNode.getAttribute('distR') || anchor.getAttribute('distR') || undefined),
+        bottom: this.parseDistanceValue(wrapNode.getAttribute('distB') || anchor.getAttribute('distB') || undefined),
+        left: this.parseDistanceValue(wrapNode.getAttribute('distL') || anchor.getAttribute('distL') || undefined)
+      }
+    };
+  }
+
+  private static getFloatingDrawingType(drawing?: DrawingElement): DocxFloatingDrawing['objectType'] {
+    if (!drawing) {
+      return 'unknown';
+    }
+
+    if ('blob' in drawing) {
+      return 'image';
+    }
+
+    return drawing.type;
+  }
+
   private static getDrawingRelationshipId(node: Element): string | undefined {
     const direct = node.getAttribute('r:embed') || node.getAttribute('r:link');
     if (direct) {
@@ -387,6 +746,40 @@ export class DocumentParser {
       default:
         return 'application/octet-stream';
     }
+  }
+
+  private static toResourceRef(relationship: RelationshipTarget, pkg: PackageReader) {
+    return {
+      relationshipId: relationship.id,
+      target: relationship.target,
+      targetMode: relationship.targetMode,
+      resolvedTarget: relationship.resolvedTarget,
+      contentType: relationship.resolvedTarget ? pkg.getPart(relationship.resolvedTarget)?.contentType : undefined
+    };
+  }
+
+  private static findDescendantsByLocalName(node: ParentNode, localName: string): Element[] {
+    return Array.from((node as Element).querySelectorAll('*')).filter(child => child.localName === localName) as Element[];
+  }
+
+  private static firstDescendantByLocalName(node: ParentNode, localName: string): Element | undefined {
+    return this.findDescendantsByLocalName(node, localName)[0];
+  }
+
+  private static parseBooleanValue(value?: string | null): boolean | undefined {
+    if (value === undefined || value === null || value === '') {
+      return undefined;
+    }
+
+    return value === '1' || value.toLowerCase() === 'true' || value.toLowerCase() === 'on';
+  }
+
+  private static parseDistanceValue(value?: string): number | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    return UnitConversion.emuToPixel(parseNumberAttr(value));
   }
 
   private static parseSection(node: Element): DocxSection {
@@ -457,5 +850,80 @@ export class DocumentParser {
       instruction: instruction.trim(),
       type
     };
+  }
+
+  private static parseHyperlink(
+    node: Element,
+    options: { pkg?: PackageReader; sourcePartPath?: string }
+  ): DocxRun['hyperlink'] | undefined {
+    const anchor = attr(node, 'anchor');
+    const tooltip = attr(node, 'tooltip');
+    const relationshipId = this.getRelationshipId(node);
+    const sourcePartPath = options.sourcePartPath || 'word/document.xml';
+
+    if (relationshipId && options.pkg && options.sourcePartPath) {
+      const resource = new MediaRegistry(options.pkg).resolveRelationship(options.sourcePartPath, relationshipId);
+      if (resource?.kind === 'hyperlink') {
+        return {
+          id: resource.id,
+          kind: 'hyperlink',
+          relationshipId: resource.relationshipId,
+          target: resource.target,
+          targetMode: resource.targetMode,
+          resolvedTarget: resource.resolvedTarget,
+          path: resource.path,
+          extension: resource.extension,
+          contentType: resource.contentType,
+          data: resource.data,
+          tooltip,
+          anchor
+        };
+      }
+    }
+
+    if (!anchor) {
+      return undefined;
+    }
+
+    return {
+      id: relationshipId || `${sourcePartPath}#${anchor}`,
+      kind: 'hyperlink',
+      relationshipId,
+      target: `#${this.toBookmarkTargetId(anchor)}`,
+      targetMode: 'Internal',
+      resolvedTarget: `${sourcePartPath}#${anchor}`,
+      tooltip,
+      anchor
+    };
+  }
+
+  private static parseBookmark(
+    node: Element,
+    options: { pkg?: PackageReader; sourcePartPath?: string }
+  ): BookmarkResource | undefined {
+    const id = attr(node, 'id');
+    const name = attr(node, 'name') || id;
+    if (!id || !name) {
+      return undefined;
+    }
+
+    const target = `#${this.toBookmarkTargetId(name)}`;
+    if (options.pkg) {
+      return new MediaRegistry(options.pkg).registerBookmark(id, name, target);
+    }
+
+    return {
+      id,
+      kind: 'bookmark',
+      name,
+      target,
+      targetMode: 'Internal',
+      resolvedTarget: target
+    };
+  }
+
+  private static toBookmarkTargetId(name: string): string {
+    const normalized = name.trim().replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+    return `docx-bookmark-${normalized || 'target'}`;
   }
 }

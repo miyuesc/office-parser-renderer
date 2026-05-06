@@ -8,9 +8,11 @@ import {
   ThemeParser
 } from '@opr/shared';
 import { Worksheet, XlsxDocument } from './types';
+import { parseCellRef } from '../model';
 import { SharedStringsParser } from './SharedStringsParser';
 import { StylesParser } from './StylesParser';
 import { WorksheetParser } from './WorksheetParser';
+import { CommentsParser } from './CommentsParser';
 
 const logger = new Logger('XlsxParser');
 
@@ -42,6 +44,7 @@ export class XlsxParser {
           borders: [],
           cellXfs: [],
           numFmts: new Map(),
+          differentialStyles: [],
           theme
         };
       }
@@ -49,7 +52,7 @@ export class XlsxParser {
       // 3. 解析 Shared Strings
       const sharedStringsXml = pkg.readText('xl/sharedStrings.xml');
       if (sharedStringsXml) {
-        doc.sharedStrings = SharedStringsParser.parse(sharedStringsXml);
+        doc.sharedStrings = SharedStringsParser.parse(sharedStringsXml, { theme });
       }
 
       // 3. 解析 Workbook (获取 Sheet 列表)
@@ -81,9 +84,10 @@ export class XlsxParser {
           const file = this.readTextCaseInsensitive(pkg, path);
 
           if (file) {
-            const worksheet = WorksheetParser.parse(file, doc.sharedStrings, pkg.getRelationships(path));
+            const worksheet = WorksheetParser.parse(file, doc.sharedStrings, pkg.getRelationships(path), { theme });
 
             this.applyWorksheetIdentity(worksheet, info);
+            this.parseCommentsForWorksheet(worksheet, path, pkg);
 
             await this.parseImagesForWorksheet(worksheet, path, pkg, theme);
 
@@ -99,7 +103,8 @@ export class XlsxParser {
               continue;
             }
 
-            const worksheet = WorksheetParser.parse(xmlStr, doc.sharedStrings, pkg.getRelationships(path));
+            const worksheet = WorksheetParser.parse(xmlStr, doc.sharedStrings, pkg.getRelationships(path), { theme });
+            this.parseCommentsForWorksheet(worksheet, path, pkg);
 
             await this.parseImagesForWorksheet(worksheet, path, pkg, theme);
 
@@ -166,6 +171,58 @@ export class XlsxParser {
           worksheet.drawings = DrawingParser.parsePart(pkg, drawingPath, { theme });
         }
       }
+    }
+  }
+
+  private static parseCommentsForWorksheet(worksheet: Worksheet, path: string, pkg: PackageReader) {
+    const commentsRelationship = pkg
+      .getRelationships(path)
+      .list()
+      .find(relationship => relationship.type?.endsWith('/comments') && relationship.resolvedTarget);
+
+    if (!commentsRelationship?.resolvedTarget) {
+      return;
+    }
+
+    const commentsXml = pkg.readText(commentsRelationship.resolvedTarget);
+    if (!commentsXml) {
+      return;
+    }
+
+    const comments = CommentsParser.parse(commentsXml);
+    if (comments.length === 0) {
+      return;
+    }
+
+    worksheet.comments = comments;
+
+    for (const comment of comments) {
+      const address = parseCellRef(comment.ref);
+      if (!address) {
+        continue;
+      }
+
+      let row = worksheet.rows.get(address.row);
+      if (!row) {
+        row = {
+          index: address.row,
+          cells: new Map()
+        };
+        worksheet.rows.set(address.row, row);
+      }
+
+      let cell = row.cells.get(address.col);
+      if (!cell) {
+        cell = {
+          row: address.row,
+          col: address.col,
+          type: 'string',
+          value: ''
+        };
+        row.cells.set(address.col, cell);
+      }
+
+      cell.comment = comment;
     }
   }
 }

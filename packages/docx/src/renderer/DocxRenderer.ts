@@ -1,4 +1,15 @@
-import { FontMapping, ImageRenderer, OfficeImage, ParagraphStyle, TextStyle, WarningCollector } from '@opr/shared';
+import {
+  ChartRenderer,
+  CommonRendererOptions,
+  FontMapping,
+  ImageRenderer,
+  OfficeImage,
+  ParagraphStyle,
+  TextStyle,
+  WarningCollector,
+  defaultCommonRendererOptions,
+  serializeOfficeMath
+} from '@opr/shared';
 import { DocxLayoutPage, PageLayoutEngine } from '../layout';
 import {
   DocxBlock,
@@ -13,9 +24,22 @@ import {
 import { DocxNavigationBuilder } from '../navigation';
 import { normalizeLegacyListMarker } from '../parser/symbols';
 
-export interface DocxRendererOptions {
+export interface DocxRendererOptions extends CommonRendererOptions {
   width?: number;
   pageGap?: number;
+  /** 是否显示左侧目录导航，默认为 false */
+  showNavigationPane?: boolean;
+  /** 是否显示分页外观，默认为 true */
+  showPagination?: boolean;
+  /** 是否显示页眉/页脚，默认为 true */
+  showHeaderFooter?: boolean;
+  /** 是否显示封面，默认为 true */
+  showCoverPage?: boolean;
+  /** 是否显示修订增加内容，默认为 true */
+  showInsertedRevisionText?: boolean;
+  /** 是否显示修订删除内容，默认为 false */
+  showDeletedRevisionText?: boolean;
+  /** @deprecated use showDeletedRevisionText */
   showDeletedText?: boolean;
 }
 
@@ -27,6 +51,31 @@ export interface DocxRendererStats {
   tocCount: number;
   tableCount: number;
 }
+
+type DocxRenderableRun = { text: string; style: TextStyle; images?: OfficeImage[] };
+
+type DocxTextLineItem = {
+  type: 'text';
+  text: string;
+  style: TextStyle;
+  width: number;
+};
+
+type DocxImageLineItem = {
+  type: 'image';
+  image: OfficeImage;
+  width: number;
+  height: number;
+};
+
+type DocxCanvasLine = {
+  items: Array<DocxTextLineItem | DocxImageLineItem>;
+  width: number;
+  height: number;
+  baselineOffset: number;
+  x: number;
+  availableWidth: number;
+};
 
 export class DocxRenderer {
   readonly warnings = new WarningCollector();
@@ -45,22 +94,34 @@ export class DocxRenderer {
     tableCount: 0
   };
 
-  constructor(private readonly container: HTMLElement, private readonly options: DocxRendererOptions = {}) {}
+  private options: Required<Omit<DocxRendererOptions, 'width' | 'pageGap' | 'showDeletedText'>> &
+    Pick<DocxRendererOptions, 'width' | 'pageGap' | 'showDeletedText'>;
+
+  constructor(private readonly container: HTMLElement, options: DocxRendererOptions = {}) {
+    this.options = this.normalizeOptions(options);
+  }
 
   render(docx: DocxDocument): void {
     this.currentDocument = docx;
     this.container.innerHTML = '';
+    this.container.style.display = 'block';
+    this.container.style.alignItems = '';
     this.container.style.overflow = 'auto';
-    this.container.style.background = '#f3f4f6';
-    this.container.style.padding = `${this.options.pageGap ?? 24}px 0`;
+    this.container.style.background = this.options.showPagination ? '#f3f4f6' : '#ffffff';
+    this.container.style.padding = this.options.showPagination ? `${this.options.pageGap ?? 24}px 0` : '0';
 
     const layout = new PageLayoutEngine().layout(docx);
     this.pageScale = this.computePageScale(layout);
     this.listPrefixCache = this.buildListPrefixCache(docx);
     this.navigation = DocxNavigationBuilder.build(docx, layout);
     this.stats = this.computeStats(docx, layout);
+    const pageContainer = this.createRenderShell();
 
     for (const page of layout) {
+      if (!this.options.showCoverPage && page.isCoverPage) {
+        continue;
+      }
+
       const pageEl = this.createPageElement(page.pageBox.width, page.pageBox.height);
       pageEl.dataset.pageIndex = String(page.pageIndex);
       if (page.isCoverPage) {
@@ -80,7 +141,7 @@ export class DocxRenderer {
       this.renderPageCanvas(canvas, docx, page, renderContext);
       this.populateTextLayer(textLayer, docx, page, renderContext);
 
-      this.container.appendChild(pageEl);
+      pageContainer.appendChild(pageEl);
     }
   }
 
@@ -90,6 +151,137 @@ export class DocxRenderer {
 
   getStats(): DocxRendererStats {
     return this.stats;
+  }
+
+  getRenderOptions(): DocxRendererOptions {
+    return { ...this.options };
+  }
+
+  setRenderOptions(options: Partial<DocxRendererOptions>): void {
+    this.options = this.normalizeOptions({ ...this.options, ...options });
+    if (this.currentDocument) {
+      this.render(this.currentDocument);
+    }
+  }
+
+  setShowCharts(show: boolean) {
+    this.setRenderOptions({ showCharts: show });
+  }
+
+  toggleShowCharts(show?: boolean) {
+    const next = show ?? !this.options.showCharts;
+    this.setShowCharts(next);
+    return next;
+  }
+
+  setShowInsertedElements(show: boolean) {
+    this.setRenderOptions({ showInsertedElements: show });
+  }
+
+  toggleShowInsertedElements(show?: boolean) {
+    const next = show ?? !this.options.showInsertedElements;
+    this.setShowInsertedElements(next);
+    return next;
+  }
+
+  setShowImages(show: boolean) {
+    this.setRenderOptions({ showImages: show });
+  }
+
+  toggleShowImages(show?: boolean) {
+    const next = show ?? !this.options.showImages;
+    this.setShowImages(next);
+    return next;
+  }
+
+  setShowAudio(show: boolean) {
+    this.setRenderOptions({ showAudio: show });
+  }
+
+  toggleShowAudio(show?: boolean) {
+    const next = show ?? !this.options.showAudio;
+    this.setShowAudio(next);
+    return next;
+  }
+
+  setShowVideo(show: boolean) {
+    this.setRenderOptions({ showVideo: show });
+  }
+
+  toggleShowVideo(show?: boolean) {
+    const next = show ?? !this.options.showVideo;
+    this.setShowVideo(next);
+    return next;
+  }
+
+  setShowComments(show: boolean) {
+    this.setRenderOptions({ showComments: show });
+  }
+
+  toggleShowComments(show?: boolean) {
+    const next = show ?? !this.options.showComments;
+    this.setShowComments(next);
+    return next;
+  }
+
+  setShowNavigationPane(show: boolean) {
+    this.setRenderOptions({ showNavigationPane: show });
+  }
+
+  toggleNavigationPane(show?: boolean) {
+    const next = show ?? !this.options.showNavigationPane;
+    this.setShowNavigationPane(next);
+    return next;
+  }
+
+  setShowPagination(show: boolean) {
+    this.setRenderOptions({ showPagination: show });
+  }
+
+  togglePagination(show?: boolean) {
+    const next = show ?? !this.options.showPagination;
+    this.setShowPagination(next);
+    return next;
+  }
+
+  setShowHeaderFooter(show: boolean) {
+    this.setRenderOptions({ showHeaderFooter: show });
+  }
+
+  toggleHeaderFooter(show?: boolean) {
+    const next = show ?? !this.options.showHeaderFooter;
+    this.setShowHeaderFooter(next);
+    return next;
+  }
+
+  setShowCoverPage(show: boolean) {
+    this.setRenderOptions({ showCoverPage: show });
+  }
+
+  toggleCoverPage(show?: boolean) {
+    const next = show ?? !this.options.showCoverPage;
+    this.setShowCoverPage(next);
+    return next;
+  }
+
+  setShowInsertedRevisionText(show: boolean) {
+    this.setRenderOptions({ showInsertedRevisionText: show });
+  }
+
+  toggleInsertedRevisionText(show?: boolean) {
+    const next = show ?? !this.options.showInsertedRevisionText;
+    this.setShowInsertedRevisionText(next);
+    return next;
+  }
+
+  setShowDeletedRevisionText(show: boolean) {
+    this.setRenderOptions({ showDeletedRevisionText: show, showDeletedText: show });
+  }
+
+  toggleDeletedRevisionText(show?: boolean) {
+    const next = show ?? !this.options.showDeletedRevisionText;
+    this.setShowDeletedRevisionText(next);
+    return next;
   }
 
   jumpToHeading(headingId: string): boolean {
@@ -112,6 +304,78 @@ export class DocxRenderer {
     return true;
   }
 
+  private normalizeOptions(options: DocxRendererOptions) {
+    const showDeletedRevisionText = options.showDeletedRevisionText ?? options.showDeletedText ?? false;
+
+    return {
+      ...defaultCommonRendererOptions,
+      width: options.width,
+      pageGap: options.pageGap,
+      showDeletedText: options.showDeletedText,
+      showNavigationPane: options.showNavigationPane ?? false,
+      showPagination: options.showPagination ?? true,
+      showHeaderFooter: options.showHeaderFooter ?? true,
+      showCoverPage: options.showCoverPage ?? true,
+      showInsertedRevisionText: options.showInsertedRevisionText ?? true,
+      showDeletedRevisionText,
+      showCharts: options.showCharts ?? defaultCommonRendererOptions.showCharts,
+      showInsertedElements: options.showInsertedElements ?? defaultCommonRendererOptions.showInsertedElements,
+      showImages: options.showImages ?? defaultCommonRendererOptions.showImages,
+      showAudio: options.showAudio ?? defaultCommonRendererOptions.showAudio,
+      showVideo: options.showVideo ?? defaultCommonRendererOptions.showVideo,
+      showComments: options.showComments ?? defaultCommonRendererOptions.showComments
+    };
+  }
+
+  private createRenderShell(): HTMLElement {
+    if (!this.options.showNavigationPane) {
+      return this.container;
+    }
+
+    this.container.style.display = 'flex';
+    this.container.style.alignItems = 'stretch';
+    this.container.style.padding = '0';
+
+    const nav = document.createElement('aside');
+    nav.dataset.testid = 'docx-navigation-pane';
+    nav.style.width = '240px';
+    nav.style.flex = '0 0 240px';
+    nav.style.overflow = 'auto';
+    nav.style.borderRight = '1px solid #e5e7eb';
+    nav.style.background = '#ffffff';
+    nav.style.padding = '12px';
+
+    for (const heading of this.navigation.toc) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = heading.text;
+      button.dataset.headingId = heading.id;
+      button.style.display = 'block';
+      button.style.width = '100%';
+      button.style.textAlign = 'left';
+      button.style.border = '0';
+      button.style.background = 'transparent';
+      button.style.padding = '6px 4px';
+      button.style.cursor = 'pointer';
+      button.style.font = '13px Arial, sans-serif';
+      button.style.paddingLeft = `${Math.max(0, heading.level - 1) * 12 + 4}px`;
+      button.onclick = () => this.jumpToHeading(heading.id);
+      nav.appendChild(button);
+    }
+
+    const pages = document.createElement('div');
+    pages.dataset.testid = 'docx-page-container';
+    pages.style.flex = '1';
+    pages.style.minWidth = '0';
+    pages.style.overflow = 'auto';
+    pages.style.background = this.options.showPagination ? '#f3f4f6' : '#ffffff';
+    pages.style.padding = this.options.showPagination ? `${this.options.pageGap ?? 24}px 0` : '0';
+
+    this.container.appendChild(nav);
+    this.container.appendChild(pages);
+    return pages;
+  }
+
   private createPageElement(width: number, height: number): HTMLElement {
     const page = document.createElement('div');
     const pageWidth = Math.max(1, Math.round((width || 816) * this.pageScale));
@@ -122,9 +386,9 @@ export class DocxRenderer {
     page.style.boxSizing = 'border-box';
     page.style.width = `${pageWidth}px`;
     page.style.height = `${pageHeight}px`;
-    page.style.margin = `0 auto ${this.options.pageGap ?? 24}px`;
+    page.style.margin = this.options.showPagination ? `0 auto ${this.options.pageGap ?? 24}px` : '0 auto';
     page.style.background = '#ffffff';
-    page.style.boxShadow = '0 1px 4px rgba(15, 23, 42, 0.18)';
+    page.style.boxShadow = this.options.showPagination ? '0 1px 4px rgba(15, 23, 42, 0.18)' : 'none';
 
     return page;
   }
@@ -182,9 +446,14 @@ export class DocxRenderer {
     ctx.scale(scaleX, scaleY);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, page.pageBox.width, page.pageBox.height);
-    ctx.strokeStyle = '#d1d5db';
-    ctx.lineWidth = 1 / scaleX;
-    ctx.strokeRect(0.5 / scaleX, 0.5 / scaleY, page.pageBox.width - 1 / scaleX, page.pageBox.height - 1 / scaleY);
+    if (this.options.showPagination) {
+      ctx.strokeStyle = '#d1d5db';
+      ctx.lineWidth = 1 / scaleX;
+      ctx.strokeRect(0.5 / scaleX, 0.5 / scaleY, page.pageBox.width - 1 / scaleX, page.pageBox.height - 1 / scaleY);
+    }
+    const floatingDrawings = this.collectPageFloatingDrawings(page);
+
+    this.renderFloatingDrawingsCanvas(ctx, page, floatingDrawings, 'behind');
 
     const header = this.resolveHeaderFooter(documentModel, 'header', page);
     if (header) {
@@ -197,6 +466,8 @@ export class DocxRenderer {
       }
     });
 
+    this.renderFloatingDrawingsCanvas(ctx, page, floatingDrawings, 'front');
+
     const footer = this.resolveHeaderFooter(documentModel, 'footer', page);
     if (footer) {
       this.renderHeaderFooterCanvas(ctx, footer, documentModel, page, context);
@@ -208,10 +479,78 @@ export class DocxRenderer {
   private reportPageOverflow(page: DocxLayoutPage) {
     for (const item of page.blocks) {
       if (item.overflow?.clipped) {
-        this.warnings.unsupportedFeature(
+        this.warnings.clippedContent(
           `DOCX block overflow clipped on page ${page.pageIndex + 1}; estimated height ${Math.round(item.overflow.estimatedHeight)}px`
         );
       }
+    }
+  }
+
+  private collectPageFloatingDrawings(page: DocxLayoutPage) {
+    return page.blocks
+      .flatMap(item => {
+        if (item.block.type !== 'paragraph' || !item.block.floatingDrawings?.length) {
+          return [];
+        }
+
+        return item.block.floatingDrawings.map(floating => ({
+          floating,
+          paragraph: item.block,
+          box: item.box
+        }));
+      })
+      .sort((left, right) => (left.floating.anchor.relativeHeight || 0) - (right.floating.anchor.relativeHeight || 0));
+  }
+
+  private renderFloatingDrawingsCanvas(
+    ctx: CanvasRenderingContext2D,
+    page: DocxLayoutPage,
+    floatingDrawings: ReturnType<DocxRenderer['collectPageFloatingDrawings']>,
+    layer: 'behind' | 'front'
+  ) {
+    for (const item of floatingDrawings) {
+      const isBehind = item.floating.anchor.behindDoc === true;
+      if ((layer === 'behind' && !isBehind) || (layer === 'front' && isBehind)) {
+        continue;
+      }
+
+      this.renderFloatingDrawingCanvas(ctx, page, item.floating, item.box);
+    }
+  }
+
+  private renderFloatingDrawingCanvas(
+    ctx: CanvasRenderingContext2D,
+    page: DocxLayoutPage,
+    floating: NonNullable<DocxParagraph['floatingDrawings']>[number],
+    paragraphBox: { x: number; y: number; width: number; height: number }
+  ) {
+    if (!this.shouldRenderFloatingDrawing(floating)) {
+      return;
+    }
+
+    const drawing = floating.drawing;
+    if (!drawing) {
+      return;
+    }
+
+    const rect = this.resolveFloatingDrawingRect(page, floating, paragraphBox);
+    if (rect.width <= 0 || rect.height <= 0) {
+      return;
+    }
+
+    if ('blob' in drawing) {
+      const bitmap = this.getOrQueueImageBitmap(drawing);
+      if (!bitmap) {
+        this.renderImagePlaceholder(ctx, rect.x, rect.y, rect.width, rect.height);
+        return;
+      }
+
+      ImageRenderer.render(ctx, drawing, bitmap, rect.x, rect.y, rect.width, rect.height);
+      return;
+    }
+
+    if (drawing.type === 'chart') {
+      new ChartRenderer(drawing.chartData).render(ctx, rect);
     }
   }
 
@@ -299,61 +638,167 @@ export class DocxRenderer {
     const paragraphStyle = this.resolveParagraphStyle(documentModel, paragraph);
     const paragraphTextStyle = paragraphStyle.text || this.resolveParagraphTextStyle(documentModel, paragraph);
     const runs = this.createRenderableRuns(paragraph, documentModel, context, paragraphTextStyle);
-    const lineHeight = this.getLineHeight(paragraphTextStyle);
     const contentX = x + this.toPx(paragraphStyle.indent?.left || 0);
     const firstLineOffset = this.toPx((paragraphStyle.indent?.firstLine || 0) - (paragraphStyle.indent?.hanging || 0));
     const rightIndent = this.toPx(paragraphStyle.indent?.right || 0);
     const contentWidth = Math.max(1, width - (contentX - x) - rightIndent);
-    const lineStartX = contentX + firstLineOffset + this.getListPrefixWidth(paragraph);
-    let cursorX = lineStartX;
-    let cursorY = y + this.toPx(paragraphStyle.spacing?.before || 0) + lineHeight;
-
     const prefix = this.getListPrefix(paragraph, documentModel);
-    if (prefix) {
-      this.applyTextStyle(ctx, paragraphTextStyle);
-      ctx.fillText(prefix, contentX + firstLineOffset, cursorY);
-    }
 
-    for (const run of runs) {
-      this.applyTextStyle(ctx, run.style);
-      for (const image of run.images || []) {
-        const imageWidth = Math.min(image.position.width, width);
-        if (cursorX > lineStartX) {
-          cursorX = lineStartX;
-          cursorY += lineHeight;
-        }
-        const imageY = cursorY - lineHeight * 0.72;
-        this.renderInlineImage(ctx, image, cursorX, imageY, imageWidth, image.position.height);
-        cursorY += image.position.height + 8;
-        cursorX = lineStartX;
-      }
+    const lines = this.layoutParagraphLines(
+      ctx,
+      paragraph,
+      paragraphStyle,
+      paragraphTextStyle,
+      runs,
+      prefix,
+      contentX,
+      contentWidth,
+      firstLineOffset
+    );
+    let lineY = y + this.toPx(paragraphStyle.spacing?.before || 0);
 
-      const tokens = this.splitTextForWrap(run.text);
-      for (const token of tokens) {
-        if (token === '\n') {
-          cursorX = lineStartX;
-          cursorY += lineHeight;
+    for (const line of lines) {
+      let cursorX = this.alignLineX(line, paragraphStyle);
+      const baselineY = lineY + line.baselineOffset;
+
+      for (const item of line.items) {
+        if (item.type === 'image') {
+          this.renderInlineImage(ctx, item.image, cursorX, lineY, item.width, item.height);
+          cursorX += item.width;
           continue;
         }
 
-        const tokenWidth = ctx.measureText(token).width;
-        if (cursorX > lineStartX && cursorX + tokenWidth > contentX + contentWidth) {
-          cursorX = contentX + this.getListPrefixWidth(paragraph);
-          cursorY += lineHeight;
-        }
-        const drawX = this.alignTextX(ctx, token, cursorX, contentX, contentWidth, paragraphStyle);
-
-        if (run.style.highlight) {
-          ctx.fillStyle = this.toCssColor(run.style.highlight, '#fff2cc');
-          ctx.fillRect(drawX, cursorY - lineHeight * 0.82, tokenWidth, lineHeight);
-          this.applyTextStyle(ctx, run.style);
+        if (item.style.highlight) {
+          ctx.fillStyle = this.toCssColor(item.style.highlight, '#fff2cc');
+          ctx.fillRect(cursorX, lineY, item.width, line.height);
         }
 
-        ctx.fillText(token, drawX, cursorY);
-        this.renderTextDecorations(ctx, run.style, drawX, cursorY, tokenWidth);
-        cursorX += tokenWidth;
+        this.applyTextStyle(ctx, item.style);
+        ctx.fillText(item.text, cursorX, baselineY);
+        this.renderTextDecorations(ctx, item.style, cursorX, baselineY, item.width);
+        cursorX += item.width;
+      }
+
+      lineY += line.height;
+    }
+  }
+
+  private layoutParagraphLines(
+    ctx: CanvasRenderingContext2D,
+    paragraph: DocxParagraph,
+    paragraphStyle: ParagraphStyle,
+    paragraphTextStyle: TextStyle,
+    runs: DocxRenderableRun[],
+    prefix: string,
+    contentX: number,
+    contentWidth: number,
+    firstLineOffset: number
+  ): DocxCanvasLine[] {
+    const defaultLineHeight = this.getLineHeight(paragraphTextStyle, paragraphStyle);
+    const listPrefixWidth = this.getListPrefixWidth(paragraph);
+    const lines: DocxCanvasLine[] = [];
+    let isFirstLine = true;
+    let line = this.createCanvasLine(contentX, contentWidth, firstLineOffset, 0, defaultLineHeight, isFirstLine);
+
+    const pushLine = () => {
+      if (line.items.length === 0) {
+        line.height = Math.max(line.height, defaultLineHeight);
+      }
+      lines.push(line);
+      isFirstLine = false;
+      line = this.createCanvasLine(contentX, contentWidth, 0, listPrefixWidth, defaultLineHeight, isFirstLine);
+    };
+
+    const addTextToken = (text: string, style: TextStyle) => {
+      if (/^\s+$/.test(text) && line.items.length === 0) {
+        return;
+      }
+
+      this.applyTextStyle(ctx, style);
+      const width = ctx.measureText(text).width;
+      if (line.items.length > 0 && line.width + width > line.availableWidth) {
+        pushLine();
+        if (/^\s+$/.test(text)) {
+          return;
+        }
+      }
+
+      if (width > line.availableWidth && text.length > 1) {
+        for (const character of Array.from(text)) {
+          addTextToken(character, style);
+        }
+        return;
+      }
+
+      line.items.push({ type: 'text', text, style, width });
+      line.width += width;
+      this.expandLineMetrics(line, this.getLineHeight(style, paragraphStyle));
+    };
+
+    if (prefix) {
+      addTextToken(prefix, paragraphTextStyle);
+    }
+
+    for (const run of runs) {
+      for (const image of run.images || []) {
+        const imageWidth = Math.min(image.position.width, Math.max(1, line.availableWidth));
+        if (line.items.length > 0) {
+          pushLine();
+        }
+        line.items.push({
+          type: 'image',
+          image,
+          width: imageWidth,
+          height: image.position.height
+        });
+        line.width = imageWidth;
+        this.expandLineMetrics(line, image.position.height + 8);
+        pushLine();
+      }
+
+      for (const token of this.splitTextForWrap(run.text)) {
+        if (token === '\n') {
+          pushLine();
+          continue;
+        }
+        addTextToken(token, run.style);
       }
     }
+
+    if (line.items.length > 0 || lines.length === 0) {
+      lines.push(line);
+    }
+
+    return lines;
+  }
+
+  private createCanvasLine(
+    contentX: number,
+    contentWidth: number,
+    firstLineOffset: number,
+    hangingOffset: number,
+    lineHeight: number,
+    isFirstLine: boolean
+  ): DocxCanvasLine {
+    const x = contentX + (isFirstLine ? firstLineOffset : hangingOffset);
+    const availableWidth = Math.max(1, contentX + contentWidth - x);
+    return {
+      items: [],
+      width: 0,
+      height: lineHeight,
+      baselineOffset: Math.max(1, Math.round(lineHeight * 0.78)),
+      x,
+      availableWidth
+    };
+  }
+
+  private expandLineMetrics(line: DocxCanvasLine, itemHeight: number) {
+    if (itemHeight <= line.height) {
+      return;
+    }
+
+    line.height = Math.ceil(itemHeight);
+    line.baselineOffset = Math.max(1, Math.round(line.height * 0.78));
   }
 
   private renderTableCanvas(
@@ -462,7 +907,15 @@ export class DocxRenderer {
       p.dataset.headingId = heading.id;
     }
 
-    p.textContent = this.getListPrefix(paragraph, documentModel) + paragraph.runs.map(run => this.renderRunText(run, context)).join('');
+    const prefix = this.getListPrefix(paragraph, documentModel);
+    if (prefix) {
+      p.appendChild(document.createTextNode(prefix));
+    }
+
+    for (const run of paragraph.runs) {
+      this.appendRunDom(p, run, context);
+    }
+
     return p;
   }
 
@@ -486,7 +939,7 @@ export class DocxRenderer {
       tableEl.appendChild(tr);
     }
 
-    this.warnings.unsupportedFeature('DOCX table layout uses MVP canvas table grid rendering');
+    this.warnings.degradedFeature('DOCX table layout uses MVP canvas table grid rendering');
     return tableEl;
   }
 
@@ -512,6 +965,10 @@ export class DocxRenderer {
     type: 'header' | 'footer',
     page: DocxLayoutPage
   ): DocxHeaderFooterPart | undefined {
+    if (!this.options.showHeaderFooter) {
+      return undefined;
+    }
+
     const refs = type === 'header' ? documentModel.sections[0]?.headerRefs : documentModel.sections[0]?.footerRefs;
     const parts = type === 'header' ? documentModel.headers : documentModel.footers;
     if (!refs || refs.length === 0) {
@@ -534,7 +991,10 @@ export class DocxRenderer {
     paragraphStyle: TextStyle
   ): Array<{ text: string; style: TextStyle; images?: OfficeImage[] }> {
     return paragraph.runs.flatMap(run => {
-      const style = this.applyRevisionStyle({ ...paragraphStyle, ...this.resolveRunStyle(documentModel, run), ...run.style }, run);
+      const style = this.applyRevisionStyle(
+        this.applyHyperlinkStyle({ ...paragraphStyle, ...this.resolveRunStyle(documentModel, run), ...run.style }, run),
+        run
+      );
       const text = this.renderRunText(run, context);
       const parts = text.split(/(\n)/g).filter(Boolean);
       const withBreaks = parts.length > 0 ? parts : [''];
@@ -544,7 +1004,7 @@ export class DocxRenderer {
         }
       }
       const renderRuns = withBreaks.map(part => ({ text: part, style, images: undefined as OfficeImage[] | undefined }));
-      if (run.images && run.images.length > 0) {
+      if (this.options.showInsertedElements && this.options.showImages && run.images && run.images.length > 0) {
         renderRuns.push({ text: '', style, images: run.images });
       }
       return renderRuns;
@@ -559,6 +1019,10 @@ export class DocxRenderer {
     width: number,
     height: number
   ) {
+    if (!this.options.showInsertedElements || !this.options.showImages) {
+      return;
+    }
+
     const bitmap = this.getOrQueueImageBitmap(image);
     if (!bitmap) {
       this.renderImagePlaceholder(ctx, x, y, width, height);
@@ -568,6 +1032,22 @@ export class DocxRenderer {
     ImageRenderer.render(ctx, image, bitmap, x, y, width, height);
   }
 
+  private shouldRenderFloatingDrawing(floating: NonNullable<DocxParagraph['floatingDrawings']>[number]) {
+    if (!this.options.showInsertedElements) {
+      return false;
+    }
+
+    if (floating.objectType === 'image') {
+      return this.options.showImages;
+    }
+
+    if (floating.objectType === 'chart') {
+      return this.options.showCharts;
+    }
+
+    return true;
+  }
+
   private getOrQueueImageBitmap(image: OfficeImage): ImageBitmap | undefined {
     if (this.imageCache.has(image.id)) {
       return this.imageCache.get(image.id);
@@ -575,7 +1055,7 @@ export class DocxRenderer {
 
     if (!this.imageLoading.has(image.id)) {
       if (typeof createImageBitmap !== 'function') {
-        this.warnings.unsupportedFeature('DOCX image bitmap decoding is unavailable in this environment');
+        this.warnings.fallbackFeature('DOCX image bitmap decoding is unavailable in this environment');
         return undefined;
       }
 
@@ -590,7 +1070,7 @@ export class DocxRenderer {
         })
         .catch(() => {
           this.imageLoading.delete(image.id);
-          this.warnings.unsupportedFeature(`DOCX image could not be decoded: ${image.path || image.id}`);
+          this.warnings.fallbackFeature(`DOCX image could not be decoded: ${image.path || image.id}`);
         });
     }
 
@@ -612,12 +1092,19 @@ export class DocxRenderer {
   }
 
   private renderRunText(run: DocxRun, context: { pageIndex: number; totalPages: number }): string {
-    if (!this.options.showDeletedText && run.revision?.type === 'delete') {
+    if (!this.options.showInsertedRevisionText && run.revision?.type === 'insert') {
       return '';
     }
 
+    if (!this.options.showDeletedRevisionText && run.revision?.type === 'delete') {
+      return '';
+    }
+
+    const mathText = run.math ? serializeOfficeMath(run.math) : '';
+    const baseText = run.text + mathText;
+
     if (!run.fields || run.fields.length === 0) {
-      return run.text;
+      return baseText;
     }
 
     const fieldText = run.fields
@@ -628,7 +1115,7 @@ export class DocxRenderer {
       })
       .join('');
 
-    return run.text + fieldText;
+    return baseText + fieldText;
   }
 
   private resolveParagraphTextStyle(documentModel: DocxDocument, paragraph: DocxParagraph): TextStyle {
@@ -721,6 +1208,18 @@ export class DocxRenderer {
     return style;
   }
 
+  private applyHyperlinkStyle(style: TextStyle, run: DocxRun): TextStyle {
+    if (!run.hyperlink) {
+      return style;
+    }
+
+    return {
+      ...style,
+      color: style.color || '#0563c1',
+      underline: style.underline || true
+    };
+  }
+
   private applyTextStyle(ctx: CanvasRenderingContext2D, style: TextStyle) {
     const size = style.size || 11;
     const fontStyle = style.italic ? 'italic ' : '';
@@ -759,28 +1258,23 @@ export class DocxRenderer {
       return ['\n'];
     }
 
-    return text.split(/(\s+)/).filter(part => part.length > 0);
+    return text.split(/(\n|\s+)/).filter(part => part.length > 0);
   }
 
-  private getLineHeight(style: TextStyle) {
-    return Math.round((style.size || 11) * 1.333 * 1.35);
+  private getLineHeight(style: TextStyle, paragraphStyle?: ParagraphStyle) {
+    const fontHeight = (style.size || 11) * 1.333;
+    const requestedLineHeight = paragraphStyle?.spacing?.line ? this.toPx(paragraphStyle.spacing.line) : 0;
+    return Math.ceil(Math.max(fontHeight * 1.45, requestedLineHeight, fontHeight + 6));
   }
 
-  private alignTextX(
-    ctx: CanvasRenderingContext2D,
-    token: string,
-    cursorX: number,
-    contentX: number,
-    contentWidth: number,
-    paragraphStyle: ParagraphStyle
-  ) {
+  private alignLineX(line: DocxCanvasLine, paragraphStyle: ParagraphStyle) {
     if (paragraphStyle.alignment === 'center') {
-      return contentX + (contentWidth - ctx.measureText(token).width) / 2;
+      return line.x + Math.max(0, (line.availableWidth - line.width) / 2);
     }
     if (paragraphStyle.alignment === 'right') {
-      return contentX + contentWidth - ctx.measureText(token).width;
+      return line.x + Math.max(0, line.availableWidth - line.width);
     }
-    return cursorX;
+    return line.x;
   }
 
   private toPx(twips: number) {
@@ -934,7 +1428,15 @@ export class DocxRenderer {
         }
 
         return block.runs
-          .map(run => (!this.options.showDeletedText && run.revision?.type === 'delete' ? '' : run.text))
+          .map(run => {
+            if (!this.options.showInsertedRevisionText && run.revision?.type === 'insert') {
+              return '';
+            }
+            if (!this.options.showDeletedRevisionText && run.revision?.type === 'delete') {
+              return '';
+            }
+            return run.math ? serializeOfficeMath(run.math) : run.text;
+          })
           .join('');
       })
       .join(' ');
@@ -952,6 +1454,134 @@ export class DocxRenderer {
       );
       return count + 1 + nested;
     }, 0);
+  }
+
+  private resolveFloatingDrawingRect(
+    page: DocxLayoutPage,
+    floating: NonNullable<DocxParagraph['floatingDrawings']>[number],
+    paragraphBox: { x: number; y: number; width: number; height: number }
+  ) {
+    const fallbackWidth = floating.drawing?.position.width || 0;
+    const fallbackHeight = floating.drawing?.position.height || 0;
+    const width = floating.anchor.size?.width || fallbackWidth;
+    const height = floating.anchor.size?.height || fallbackHeight;
+
+    if (floating.anchor.useSimplePosition && floating.anchor.simplePosition) {
+      return {
+        x: floating.anchor.simplePosition.x,
+        y: floating.anchor.simplePosition.y,
+        width,
+        height
+      };
+    }
+
+    return {
+      x: this.resolveFloatingAxisPosition(
+        floating.anchor.horizontalPosition,
+        width,
+        this.getHorizontalReferenceRect(page, paragraphBox, floating.anchor.horizontalPosition?.relativeFrom),
+        paragraphBox.x
+      ),
+      y: this.resolveFloatingAxisPosition(
+        floating.anchor.verticalPosition,
+        height,
+        this.getVerticalReferenceRect(page, paragraphBox, floating.anchor.verticalPosition?.relativeFrom),
+        paragraphBox.y
+      ),
+      width,
+      height
+    };
+  }
+
+  private resolveFloatingAxisPosition(
+    position: { align?: string; offset?: number } | undefined,
+    size: number,
+    reference: { start: number; length: number },
+    fallback: number
+  ) {
+    if (!position) {
+      return fallback;
+    }
+
+    if (typeof position.offset === 'number') {
+      return reference.start + position.offset;
+    }
+
+    switch (position.align) {
+      case 'center':
+        return reference.start + (reference.length - size) / 2;
+      case 'right':
+      case 'bottom':
+      case 'outside':
+        return reference.start + reference.length - size;
+      case 'left':
+      case 'top':
+      case 'inside':
+        return reference.start;
+      default:
+        return fallback;
+    }
+  }
+
+  private getHorizontalReferenceRect(
+    page: DocxLayoutPage,
+    paragraphBox: { x: number; y: number; width: number; height: number },
+    relativeFrom?: string
+  ) {
+    const margins = page.pageBox.margins;
+    const pageWidth = page.pageBox.width;
+    const marginRect = {
+      start: margins.left,
+      length: Math.max(1, pageWidth - margins.left - margins.right)
+    };
+    const leftMarginRect = { start: 0, length: margins.left };
+    const rightMarginRect = { start: pageWidth - margins.right, length: margins.right };
+    const insideRect = page.pageIndex % 2 === 0 ? leftMarginRect : rightMarginRect;
+    const outsideRect = page.pageIndex % 2 === 0 ? rightMarginRect : leftMarginRect;
+
+    switch (relativeFrom) {
+      case 'page':
+        return { start: 0, length: pageWidth };
+      case 'margin':
+        return marginRect;
+      case 'leftMargin':
+        return leftMarginRect;
+      case 'rightMargin':
+        return rightMarginRect;
+      case 'insideMargin':
+        return insideRect;
+      case 'outsideMargin':
+        return outsideRect;
+      case 'column':
+      case 'character':
+      case 'paragraph':
+      default:
+        return { start: paragraphBox.x, length: paragraphBox.width };
+    }
+  }
+
+  private getVerticalReferenceRect(
+    page: DocxLayoutPage,
+    paragraphBox: { x: number; y: number; width: number; height: number },
+    relativeFrom?: string
+  ) {
+    const margins = page.pageBox.margins;
+    const pageHeight = page.pageBox.height;
+
+    switch (relativeFrom) {
+      case 'page':
+        return { start: 0, length: pageHeight };
+      case 'margin':
+        return { start: margins.top, length: Math.max(1, pageHeight - margins.top - margins.bottom) };
+      case 'topMargin':
+        return { start: 0, length: margins.top };
+      case 'bottomMargin':
+        return { start: pageHeight - margins.bottom, length: margins.bottom };
+      case 'line':
+      case 'paragraph':
+      default:
+        return { start: paragraphBox.y, length: paragraphBox.height };
+    }
   }
 
   private findHeadingByBlockIndex(navigation: DocxNavigation, blockIndex: number) {
@@ -976,6 +1606,49 @@ export class DocxRenderer {
     }
 
     return color.startsWith('#') || color.startsWith('rgb') ? color : `#${color}`;
+  }
+
+  private appendRunDom(parent: HTMLElement, run: DocxRun, context: { pageIndex: number; totalPages: number }) {
+    for (const bookmark of run.bookmarks || []) {
+      const marker = document.createElement('span');
+      marker.id = this.getBookmarkDomId(bookmark.target);
+      marker.dataset.bookmarkId = bookmark.id;
+      marker.dataset.bookmarkName = bookmark.name;
+      marker.dataset.testid = 'docx-bookmark';
+      parent.appendChild(marker);
+    }
+
+    const text = this.renderRunText(run, context);
+    if (!text) {
+      return;
+    }
+
+    if (!run.hyperlink) {
+      parent.appendChild(document.createTextNode(text));
+      return;
+    }
+
+    const anchor = document.createElement('a');
+    anchor.textContent = text;
+    anchor.href = run.hyperlink.target;
+    anchor.dataset.hyperlinkMode = run.hyperlink.targetMode;
+    anchor.dataset.testid = 'docx-hyperlink';
+    if (run.hyperlink.anchor) {
+      anchor.dataset.bookmarkTarget = run.hyperlink.anchor;
+    }
+    if (run.hyperlink.tooltip) {
+      anchor.title = run.hyperlink.tooltip;
+    }
+    if (run.hyperlink.targetMode === 'External') {
+      anchor.target = '_blank';
+      anchor.rel = 'noopener noreferrer';
+    }
+
+    parent.appendChild(anchor);
+  }
+
+  private getBookmarkDomId(target: string) {
+    return target.startsWith('#') ? target.slice(1) : target;
   }
 
   private computePageScale(layout: DocxLayoutPage[]) {

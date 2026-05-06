@@ -7,3 +7,4 @@ export * from './ShapeRenderer';
 export * from './VirtualScrollbar';
 export * from './ZoomController';
 export * from './DragController';
+export * from './RendererOptions';

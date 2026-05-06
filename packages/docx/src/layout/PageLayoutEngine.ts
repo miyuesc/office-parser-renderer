@@ -1,5 +1,5 @@
-import { LayoutBox, PageBox } from '@opr/shared';
-import { DocxBlock, DocxDocument, DocxParagraph, DocxSection, DocxTable } from '../model';
+import { LayoutBox, PageBox, ParagraphStyle, TextStyle, serializeOfficeMath } from '@opr/shared';
+import { DocxBlock, DocxDocument, DocxParagraph, DocxRun, DocxSection, DocxTable } from '../model';
 
 export interface DocxLayoutOptions {
   pixelsPerTwip?: number;
@@ -59,7 +59,7 @@ export class PageLayoutEngine {
         cursorY = pageBox.margins.top;
       }
 
-      const height = this.estimateBlockHeight(block, contentWidth);
+      const height = this.estimateBlockHeight(document, block, contentWidth);
 
       if (cursorY + height > contentBottom && pages[pages.length - 1].blocks.length > 0) {
         pages.push(this.createPage(pages.length, pageBox, currentSection));
@@ -124,32 +124,177 @@ export class PageLayoutEngine {
     return pageBox.height - pageBox.margins.bottom;
   }
 
-  private estimateBlockHeight(block: DocxBlock, width: number): number {
+  private estimateBlockHeight(document: DocxDocument, block: DocxBlock, width: number): number {
     if (block.type === 'table') {
-      return this.estimateTableHeight(block, width);
+      return this.estimateTableHeight(document, block, width);
     }
 
-    return this.estimateParagraphHeight(block, width);
+    return this.estimateParagraphHeight(document, block, width);
   }
 
-  private estimateParagraphHeight(paragraph: DocxParagraph, width: number): number {
-    const text = paragraph.runs.map(run => run.text).join('');
-    const approximateCharsPerLine = Math.max(12, Math.floor(width / 7));
-    const lines = Math.max(1, Math.ceil(text.length / approximateCharsPerLine));
+  private estimateParagraphHeight(document: DocxDocument, paragraph: DocxParagraph, width: number): number {
+    const paragraphStyle = this.resolveParagraphStyle(document, paragraph);
+    const paragraphTextStyle = paragraphStyle.text || this.resolveParagraphTextStyle(document, paragraph);
+    const lineHeight = this.getLineHeight(paragraphTextStyle, paragraphStyle);
+    const spacingBefore = this.toPx(paragraphStyle.spacing?.before || 0);
+    const spacingAfter = this.toPx(paragraphStyle.spacing?.after || 0);
+    const leftIndent = this.toPx(paragraphStyle.indent?.left || 0);
+    const rightIndent = this.toPx(paragraphStyle.indent?.right || 0);
+    const firstLineOffset = this.toPx((paragraphStyle.indent?.firstLine || 0) - (paragraphStyle.indent?.hanging || 0));
+    const firstLineWidth = Math.max(1, width - leftIndent - rightIndent - Math.max(0, firstLineOffset));
+    const followingLineWidth = Math.max(1, width - leftIndent - rightIndent);
+    let currentLineWidth = 0;
+    let currentMaxWidth = firstLineWidth;
+    let lineCount = 1;
+
+    const commitLine = () => {
+      lineCount += 1;
+      currentLineWidth = 0;
+      currentMaxWidth = followingLineWidth;
+    };
+
+    for (const run of paragraph.runs) {
+      const runStyle = { ...paragraphTextStyle, ...this.resolveRunStyle(document, run), ...run.style };
+      const text = run.math ? serializeOfficeMath(run.math) : run.text;
+      for (const token of this.splitTextForWrap(text)) {
+        if (token === '\n') {
+          commitLine();
+          continue;
+        }
+
+        const tokenWidth = this.estimateTextWidth(token, runStyle);
+        if (currentLineWidth > 0 && currentLineWidth + tokenWidth > currentMaxWidth) {
+          commitLine();
+        }
+
+        if (tokenWidth > currentMaxWidth && token.length > 1) {
+          for (const character of Array.from(token)) {
+            const characterWidth = this.estimateTextWidth(character, runStyle);
+            if (currentLineWidth > 0 && currentLineWidth + characterWidth > currentMaxWidth) {
+              commitLine();
+            }
+            currentLineWidth += characterWidth;
+          }
+        } else {
+          currentLineWidth += tokenWidth;
+        }
+      }
+
+      for (const br of run.breaks || []) {
+        if (br === 'line' || br === 'page') {
+          commitLine();
+        }
+      }
+    }
+
     const imageHeight = paragraph.runs.reduce((height, run) => {
       const runImageHeight = (run.images || []).reduce((sum, image) => sum + image.position.height + 8, 0);
       return height + runImageHeight;
     }, 0);
-    return lines * 22 + imageHeight + 8;
+    return spacingBefore + lineCount * lineHeight + spacingAfter + imageHeight + 6;
   }
 
-  private estimateTableHeight(table: DocxTable, width: number): number {
+  private estimateTableHeight(document: DocxDocument, table: DocxTable, width: number): number {
     return table.rows.reduce((height, row) => {
       const cellHeights = row.cells.map(cell =>
-        cell.blocks.reduce((cellHeight, block) => cellHeight + this.estimateBlockHeight(block, width), 12)
+        cell.blocks.reduce((cellHeight, block) => cellHeight + this.estimateBlockHeight(document, block, width), 12)
       );
       return height + Math.max(28, ...cellHeights);
     }, 0);
+  }
+
+  private resolveParagraphTextStyle(document: DocxDocument, paragraph: DocxParagraph): TextStyle {
+    const paragraphStyle = this.resolveParagraphStyle(document, paragraph);
+    return paragraphStyle.text || {
+      fontFamily: 'Arial',
+      size: 11,
+      color: '#111111'
+    };
+  }
+
+  private resolveParagraphStyle(document: DocxDocument, paragraph: DocxParagraph): ParagraphStyle {
+    const defaultParagraph = document.styles.defaults?.paragraph || {};
+    const defaultText = document.styles.defaults?.run || {};
+    const styleChain = paragraph.styleId ? this.resolveStyleChain(document, paragraph.styleId) : [];
+    const resolved = styleChain.reduce(
+      (style, docxStyle) => ({
+        ...style,
+        ...docxStyle.paragraph,
+        text: {
+          ...(style.text || {}),
+          ...(docxStyle.text || {}),
+          ...(docxStyle.paragraph?.text || {})
+        }
+      }),
+      {
+        ...defaultParagraph,
+        text: {
+          fontFamily: 'Arial',
+          size: 11,
+          color: '#111111',
+          ...defaultText,
+          ...(defaultParagraph.text || {})
+        }
+      } as ParagraphStyle
+    );
+
+    return {
+      ...resolved,
+      ...paragraph.style,
+      text: {
+        ...(resolved.text || {}),
+        ...(paragraph.style?.text || {})
+      }
+    };
+  }
+
+  private resolveRunStyle(document: DocxDocument, run: DocxRun): TextStyle {
+    if (!run.styleId) {
+      return {};
+    }
+
+    return this.resolveStyleChain(document, run.styleId).reduce(
+      (style, docxStyle) => ({
+        ...style,
+        ...(docxStyle.text || {})
+      }),
+      {} as TextStyle
+    );
+  }
+
+  private resolveStyleChain(document: DocxDocument, styleId: string) {
+    const chain = [];
+    const seen = new Set<string>();
+    let current = document.styles.byId.get(styleId);
+    while (current && !seen.has(current.id)) {
+      seen.add(current.id);
+      chain.unshift(current);
+      current = current.basedOn ? document.styles.byId.get(current.basedOn) : undefined;
+    }
+    return chain;
+  }
+
+  private splitTextForWrap(text: string): string[] {
+    return text.split(/(\n|\s+)/).filter(part => part.length > 0);
+  }
+
+  private estimateTextWidth(text: string, style: TextStyle): number {
+    const fontPx = (style.size || 11) * 1.333;
+    return Array.from(text).reduce((width, character) => {
+      if (/\s/.test(character)) {
+        return width + fontPx * 0.35;
+      }
+      if (/[\u2e80-\u9fff\uff00-\uffef]/.test(character)) {
+        return width + fontPx;
+      }
+      return width + fontPx * 0.58;
+    }, 0);
+  }
+
+  private getLineHeight(style: TextStyle, paragraphStyle?: ParagraphStyle) {
+    const fontHeight = (style.size || 11) * 1.333;
+    const requestedLineHeight = paragraphStyle?.spacing?.line ? this.toPx(paragraphStyle.spacing.line) : 0;
+    return Math.ceil(Math.max(fontHeight * 1.45, requestedLineHeight, fontHeight + 6));
   }
 
   private toPx(twips: number): number {

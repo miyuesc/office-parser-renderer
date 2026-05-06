@@ -1,5 +1,5 @@
 import { FileHandler, Logger, ColorUtils, ThemeModel } from '@opr/shared';
-import { Styles, Font, Fill, CellXf, Alignment, Border, BorderPr } from './types';
+import { Styles, Font, Fill, CellXf, Alignment, Border, BorderPr, DifferentialStyle } from './types';
 
 const logger = new Logger('StylesParser');
 
@@ -11,6 +11,7 @@ export class StylesParser {
       borders: [],
       cellXfs: [],
       numFmts: new Map(),
+      differentialStyles: [],
       theme: options.theme
     };
 
@@ -63,6 +64,15 @@ export class StylesParser {
         const xfNodes = cellXfsNode.querySelectorAll('xf');
         for (let i = 0; i < xfNodes.length; i++) {
           styles.cellXfs.push(this.parseCellXf(xfNodes[i]));
+        }
+      }
+
+      // 6. Dxfs (Conditional formatting differential styles)
+      const dxfsNode = doc.querySelector('dxfs');
+      if (dxfsNode) {
+        const dxfNodes = dxfsNode.querySelectorAll('dxf');
+        for (let i = 0; i < dxfNodes.length; i++) {
+          styles.differentialStyles.push(this.parseDifferentialStyle(dxfNodes[i], options.theme));
         }
       }
     } catch (e) {
@@ -218,7 +228,26 @@ export class StylesParser {
     return undefined;
   }
 
-  // ...
+  private static parseDifferentialStyle(node: Element, theme?: ThemeModel): DifferentialStyle {
+    const style: DifferentialStyle = {};
+
+    const fontNode = node.querySelector('font');
+    if (fontNode) {
+      style.font = this.parseFont(fontNode, theme);
+    }
+
+    const fillNode = node.querySelector('fill');
+    if (fillNode) {
+      style.fill = this.parseFill(fillNode, theme);
+    }
+
+    const borderNode = node.querySelector('border');
+    if (borderNode) {
+      style.border = this.parseBorder(borderNode, theme);
+    }
+
+    return style;
+  }
 
   private static parseCellXf(node: Element): CellXf {
     const numFmtId = parseInt(node.getAttribute('numFmtId') || '0', 10);

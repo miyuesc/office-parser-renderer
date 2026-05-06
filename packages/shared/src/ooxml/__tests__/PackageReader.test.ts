@@ -123,14 +123,37 @@ describe('WarningCollector', () => {
       {
         code: 'package.missing-part',
         partPath: 'xl/missing.xml',
+        category: 'package',
         severity: 'warning'
       },
       {
         code: 'renderer.unsupported-feature',
         partPath: 'xl/styles.xml',
+        category: 'fidelity',
+        impact: 'unsupported',
         severity: 'info'
       }
     ]);
     expect(warnings.bySeverity('warning')).toHaveLength(1);
+  });
+
+  it('should classify renderer fidelity warnings by impact', () => {
+    const warnings = new WarningCollector();
+
+    warnings.degradedFeature('Chart labels are approximated', 'xl/charts/chart1.xml', 'rIdChart');
+    warnings.clippedContent('Floating object is clipped to page bounds', 'word/document.xml');
+    warnings.fallbackFeature('OMML uses linear text fallback', 'word/document.xml');
+
+    expect(warnings.byImpact('degraded')).toMatchObject([
+      {
+        code: 'renderer.degraded-feature',
+        category: 'fidelity',
+        impact: 'degraded',
+        severity: 'warning',
+        relationshipId: 'rIdChart'
+      }
+    ]);
+    expect(warnings.byImpact('clipped')).toHaveLength(1);
+    expect(warnings.byImpact('fallback')).toHaveLength(1);
   });
 });

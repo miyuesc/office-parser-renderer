@@ -118,6 +118,67 @@ describe('XlsxParser', () => {
     expect(doc.styles?.fonts[0].descriptor?.family).toBe('Aptos');
   });
 
+  it('should pass theme colors and tint into shared string rich text', async () => {
+    const zip = new JSZip();
+    zip.file(
+      '[Content_Types].xml',
+      `
+        <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+          <Default Extension="xml" ContentType="application/xml"/>
+          <Override PartName="/xl/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
+        </Types>
+      `
+    );
+    zip.folder('xl')!.folder('theme')!.file(
+      'theme1.xml',
+      `
+        <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Theme 1">
+          <a:themeElements>
+            <a:clrScheme name="Office">
+              <a:lt1><a:srgbClr val="FFFFFF"/></a:lt1>
+              <a:dk1><a:srgbClr val="000000"/></a:dk1>
+            </a:clrScheme>
+            <a:fontScheme name="Office">
+              <a:majorFont><a:latin typeface="Aptos Display"/></a:majorFont>
+              <a:minorFont><a:latin typeface="Aptos"/></a:minorFont>
+            </a:fontScheme>
+          </a:themeElements>
+        </a:theme>
+      `
+    );
+    zip.folder('xl')!.file(
+      'sharedStrings.xml',
+      `
+        <sst>
+          <si>
+            <r>
+              <rPr><color theme="1" tint="0.5"/></rPr>
+              <t>LightText1</t>
+            </r>
+          </si>
+        </sst>
+      `
+    );
+    zip.folder('xl')!.folder('worksheets')!.file(
+      'sheet1.xml',
+      `
+        <worksheet>
+          <sheetData>
+            <row r="1"><c r="A1" t="s"><v>0</v></c></row>
+          </sheetData>
+        </worksheet>
+      `
+    );
+
+    const buffer = await zip.generateAsync({ type: 'arraybuffer' });
+    const doc = await XlsxParser.parse(buffer);
+    const richText = doc.sharedStrings[0] as any[];
+    const cell = Array.from(doc.worksheets.values())[0].rows.get(1)!.cells.get(1)!;
+
+    expect(richText[0].font.color).toBe('#808080');
+    expect(cell.richText?.[0].font?.color).toBe('#808080');
+  });
+
   it('should expose stable worksheet identity from workbook metadata', async () => {
     const zip = new JSZip();
     zip.folder('xl')!.file(

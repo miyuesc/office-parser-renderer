@@ -1,4 +1,4 @@
-import { FileHandler, getFirstElementByLocalName, PackageReader, RelationshipTarget } from '@opr/shared';
+import { FileHandler, getFirstElementByLocalName, PackageReader, RelationshipTarget, WarningCollector } from '@opr/shared';
 import { DocxHeaderFooterPart, DocxHeaderFooterRef } from '../model';
 import { DocumentParser } from './DocumentParser';
 
@@ -7,7 +7,8 @@ export class HeaderFooterParser {
     pkg: PackageReader,
     sourcePartPath: string,
     headerRefs: DocxHeaderFooterRef[],
-    footerRefs: DocxHeaderFooterRef[]
+    footerRefs: DocxHeaderFooterRef[],
+    warnings?: WarningCollector
   ): {
     headers: Map<string, DocxHeaderFooterPart>;
     footers: Map<string, DocxHeaderFooterPart>;
@@ -18,7 +19,7 @@ export class HeaderFooterParser {
 
     for (const ref of headerRefs) {
       const relationship = rels.get(ref.relationshipId);
-      const part = relationship ? this.parsePart(pkg, relationship, 'header', ref.type) : undefined;
+      const part = relationship ? this.parsePart(pkg, relationship, 'header', ref.type, warnings) : undefined;
       if (part) {
         ref.partPath = part.partPath;
         headers.set(ref.relationshipId, part);
@@ -27,7 +28,7 @@ export class HeaderFooterParser {
 
     for (const ref of footerRefs) {
       const relationship = rels.get(ref.relationshipId);
-      const part = relationship ? this.parsePart(pkg, relationship, 'footer', ref.type) : undefined;
+      const part = relationship ? this.parsePart(pkg, relationship, 'footer', ref.type, warnings) : undefined;
       if (part) {
         ref.partPath = part.partPath;
         footers.set(ref.relationshipId, part);
@@ -41,7 +42,8 @@ export class HeaderFooterParser {
     pkg: PackageReader,
     relationship: RelationshipTarget,
     type: 'header' | 'footer',
-    variant: string
+    variant: string,
+    warnings?: WarningCollector
   ): DocxHeaderFooterPart | undefined {
     if (!relationship.resolvedTarget || relationship.targetMode === 'External') {
       return undefined;
@@ -63,7 +65,7 @@ export class HeaderFooterParser {
       type,
       variant,
       partPath: relationship.resolvedTarget,
-      blocks: DocumentParser.parseBlocksFromElement(root, { pkg, sourcePartPath: relationship.resolvedTarget })
+      blocks: DocumentParser.parseBlocksFromElement(root, { pkg, sourcePartPath: relationship.resolvedTarget, warnings })
     };
   }
 }

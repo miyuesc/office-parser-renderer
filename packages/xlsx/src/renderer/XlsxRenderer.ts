@@ -1,4 +1,4 @@
-import { Worksheet, XlsxDocument, Styles, WorksheetHyperlink } from '../parser/types';
+import { Worksheet, XlsxDocument, Styles, WorksheetComment, WorksheetHyperlink } from '../parser/types';
 import { getCell as getWorksheetCell, getCellByRef as getWorksheetCellByRef, parseCellRef } from '../model';
 import {
   UnitConversion,
@@ -8,16 +8,22 @@ import {
   ShapeRenderer,
   VirtualScrollbar,
   ZoomController,
-  DragController
+  DragController,
+  CommonRendererOptions,
+  defaultCommonRendererOptions
 } from '@opr/shared';
 
-import { CellRenderer } from './CellRenderer';
-import { BorderRenderer, DrawCmd } from './BorderRenderer';
+import { CellRenderer, FormulaDisplayMode } from './CellRenderer';
+import { ConditionalFormattingEvaluator } from './ConditionalFormattingEvaluator';
+import { BorderClipRect, BorderRenderer, DrawCmd } from './BorderRenderer';
 
 /**
  * 渲染器配置选项
  */
-export interface XlsxRendererOptions {
+export type XlsxDisplayScale = number | 'width' | 'height';
+export type XlsxCellLocateMode = { cell?: number; row?: number };
+
+export interface XlsxRendererOptions extends CommonRendererOptions {
   /** 画布宽度 */
   width: number;
   /** 画布高度 */
@@ -34,6 +40,12 @@ export interface XlsxRendererOptions {
   showRowHeaders?: boolean;
   /** 是否显示列号，默认为 false */
   showColHeaders?: boolean;
+  /** 公式显示策略：auto 优先缓存结果，缺失时回退公式；formula 强制显示公式；value 仅显示缓存结果 */
+  formulaDisplay?: FormulaDisplayMode;
+  /** 显示比例：百分比数字、width 按内容宽度适配、height 按内容高度适配 */
+  displayScale?: XlsxDisplayScale;
+  /** 初始化定位目标：cell 为列号，row 为行号 */
+  locateCellMode?: XlsxCellLocateMode;
 }
 
 interface MergeInfo {
@@ -61,6 +73,8 @@ export class XlsxRenderer {
   private tabBar: HTMLElement;
   /* 主渲染画布 */
   private canvas: HTMLCanvasElement;
+  /* 批注浮层 */
+  private commentTooltip: HTMLDivElement;
   /* 2D 渲染上下文 */
   private ctx: CanvasRenderingContext2D;
   /* 当前渲染的 Worksheet */
@@ -80,6 +94,9 @@ export class XlsxRenderer {
 
   private totalWidth = 0;
   private totalHeight = 0;
+  private static readonly MIN_ROW_HEADER_WIDTH = 24;
+  private static readonly MIN_COL_HEADER_HEIGHT = 16;
+  private static readonly MIN_HEADER_FONT_SIZE = 8;
 
   // Components
   private scrollbar: VirtualScrollbar;
@@ -89,6 +106,7 @@ export class XlsxRenderer {
 
   // State
   private scale = 1.0;
+  private conditionalFormattingEvaluator: ConditionalFormattingEvaluator | null = null;
 
   // Image Cache
   private imageCache: Map<string, ImageBitmap> = new Map();
@@ -138,6 +156,12 @@ export class XlsxRenderer {
     this.canvasWrapper.appendChild(this.canvas);
     this.ctx = this.canvas.getContext('2d')!;
 
+    this.commentTooltip = document.createElement('div');
+    this.commentTooltip.className = 'xlsx-comment-tooltip';
+    this.commentTooltip.dataset.testid = 'xlsx-comment-tooltip';
+    this.commentTooltip.style.display = 'none';
+    this.canvasWrapper.appendChild(this.commentTooltip);
+
     // Tab Bar
     this.tabBar = document.createElement('div');
     this.tabBar.className = 'xlsx-tab-bar';
@@ -177,7 +201,12 @@ export class XlsxRenderer {
       renderFrozenRows: options.renderFrozenRows !== undefined ? options.renderFrozenRows : true,
       renderFrozenCols: options.renderFrozenCols !== undefined ? options.renderFrozenCols : true,
       showRowHeaders: options.showRowHeaders !== undefined ? options.showRowHeaders : false,
-      showColHeaders: options.showColHeaders !== undefined ? options.showColHeaders : false
+      showColHeaders: options.showColHeaders !== undefined ? options.showColHeaders : false,
+      formulaDisplay: options.formulaDisplay || 'auto',
+      displayScale: options.displayScale,
+      locateCellMode: options.locateCellMode,
+      ...defaultCommonRendererOptions,
+      ...this.pickCommonOptions(options)
     };
 
     // Initialize Scrollbar with render request callback
@@ -249,6 +278,20 @@ export class XlsxRenderer {
         border-top: 2px solid #217346;
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
       }
+      .xlsx-comment-tooltip {
+        position: absolute;
+        z-index: 5;
+        min-width: 160px;
+        max-width: 280px;
+        padding: 8px 10px;
+        border: 1px solid #d4b106;
+        background: #fff8c5;
+        color: #222;
+        font: 12px/1.4 Arial, sans-serif;
+        white-space: pre-wrap;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+        pointer-events: none;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -267,6 +310,7 @@ export class XlsxRenderer {
     this.scrollbarHideTimer = window.setTimeout(() => {
       this.scrollbar.fadeOut();
     }, 2000); // 2 seconds delay
+    this.hideCommentTooltip();
   }
 
   private handleWheel(event: WheelEvent) {
@@ -377,10 +421,13 @@ export class XlsxRenderer {
     // Pass Hover state to scrollbar
     this.scrollbar.handleHover(mouseX, mouseY, { width: this.options.width, height: this.options.height });
     const hyperlink = this.getHyperlinkAt(mouseX, mouseY);
+    this.updateCommentTooltip(mouseX, mouseY);
     if (!this.dragController.getIsDragging() && hyperlink) {
       this.canvas.style.cursor = 'pointer';
     } else if (!this.dragController.getIsDragging()) {
       this.canvas.style.cursor = 'default';
+    } else {
+      this.hideCommentTooltip();
     }
 
     this.dragController.handleMouseMove(e);
@@ -452,6 +499,9 @@ export class XlsxRenderer {
     // Check Drawings/Images for bounds extension
     if (this.worksheet.drawings) {
       for (const drawing of this.worksheet.drawings) {
+        if (!this.shouldRenderDrawing(drawing)) {
+          continue;
+        }
         const { x, y, width: w, height: h } = this.getDrawingContentBounds(drawing);
 
         if (x + w > contentWidth) contentWidth = x + w + 50; // Add some margin
@@ -504,6 +554,7 @@ export class XlsxRenderer {
     this.options.width = newW;
     this.options.height = newH;
 
+    this.applyDisplayScale();
     this.render();
   }
 
@@ -521,6 +572,8 @@ export class XlsxRenderer {
       this.updateTabsActiveState();
     }
 
+    this.rebuildConditionalFormattingEvaluator();
+
     // 重新计算合并单元格和自动行高
     this.prepareMerges();
     this.calculateAutoRowHeights();
@@ -529,6 +582,8 @@ export class XlsxRenderer {
     this.scrollX = 0;
     this.scrollY = 0;
     this.calculateContentSize();
+    this.applyDisplayScale();
+    this.applyInitialCellLocation();
 
     this.render();
   }
@@ -603,6 +658,7 @@ export class XlsxRenderer {
       for (const [colIndex, cell] of row.cells) {
         const mergeInfo = this.mergeIndex.get(`${row.index},${colIndex}`);
         if (mergeInfo && !mergeInfo.isMaster) continue;
+        const conditionalStyle = this.conditionalFormattingEvaluator?.getStyle(row.index, colIndex);
 
         let wrapText = false;
         let fontSize = Math.round(UnitConversion.ptToPixel(11) * this.scale);
@@ -625,6 +681,20 @@ export class XlsxRenderer {
           }
         }
 
+        if (conditionalStyle?.font) {
+          const conditionalFont = conditionalStyle.font;
+          const sizePt = conditionalFont.size || conditionalFont.descriptor?.size;
+          if (sizePt) {
+            fontSize = Math.round(UnitConversion.ptToPixel(sizePt) * this.scale);
+          }
+          const rawName = conditionalFont.name || conditionalFont.descriptor?.family;
+          if (rawName) {
+            fontFamily = FontMapping[rawName]?.safe_css_family || `"${rawName}", Arial, sans-serif`;
+          }
+          if (conditionalFont.bold !== undefined) isBold = Boolean(conditionalFont.bold);
+          if (conditionalFont.italic !== undefined) isItalic = Boolean(conditionalFont.italic);
+        }
+
         if (wrapText) {
           const fontStr = `${isItalic ? 'italic ' : ''}${isBold ? 'bold ' : ''}${fontSize}px ${fontFamily}`;
           this.ctx.font = fontStr;
@@ -633,7 +703,7 @@ export class XlsxRenderer {
           const padding = 2 * this.scale;
           const effectiveW = colW - padding;
 
-          const text = CellRenderer.getCellText(cell, styles);
+          const text = CellRenderer.getCellText(cell, styles, this.options.formulaDisplay);
           const lines = CellRenderer.breakTextIntoLines(this.ctx, text, effectiveW);
 
           const lineHeight = fontSize * 1.25;
@@ -679,6 +749,39 @@ export class XlsxRenderer {
     return h * this.scale;
   }
 
+  private pickCommonOptions(options: Partial<CommonRendererOptions>): CommonRendererOptions {
+    return {
+      ...(options.showCharts !== undefined ? { showCharts: options.showCharts } : {}),
+      ...(options.showInsertedElements !== undefined ? { showInsertedElements: options.showInsertedElements } : {}),
+      ...(options.showImages !== undefined ? { showImages: options.showImages } : {}),
+      ...(options.showAudio !== undefined ? { showAudio: options.showAudio } : {}),
+      ...(options.showVideo !== undefined ? { showVideo: options.showVideo } : {}),
+      ...(options.showComments !== undefined ? { showComments: options.showComments } : {})
+    };
+  }
+
+  private applyDisplayScale() {
+    const displayScale = this.options.displayScale;
+    if (displayScale === undefined) {
+      return;
+    }
+
+    let nextScale: number;
+    if (typeof displayScale === 'number') {
+      nextScale = displayScale / 100;
+    } else {
+      const { contentWidth, contentHeight } = this.calculateContentSize();
+      const baseWidth = contentWidth / this.scale;
+      const baseHeight = contentHeight / this.scale;
+      nextScale = displayScale === 'width' ? this.options.width / Math.max(1, baseWidth) : this.options.height / Math.max(1, baseHeight);
+    }
+
+    nextScale = Math.max(0.2, Math.min(4.0, Math.round(nextScale * 100) / 100));
+    if (Math.abs(nextScale - this.scale) > 0.001) {
+      this.setScale(nextScale, { x: this.options.width / 2, y: this.options.height / 2 });
+    }
+  }
+
   public setScale(scale: number, origin?: { x: number; y: number }) {
     const oldScale = this.scale;
     this.scale = scale;
@@ -710,6 +813,143 @@ export class XlsxRenderer {
     this.clampScroll();
 
     this.render();
+  }
+
+  public setFormulaDisplay(mode: FormulaDisplayMode) {
+    if (this.options.formulaDisplay === mode) {
+      return;
+    }
+
+    this.options.formulaDisplay = mode;
+    this.calculateAutoRowHeights();
+    this.calculateContentSize();
+    this.render();
+  }
+
+  public getRenderOptions(): XlsxRendererOptions {
+    return { ...this.options };
+  }
+
+  public setRenderOptions(options: Partial<XlsxRendererOptions>) {
+    this.options = {
+      ...this.options,
+      ...this.pickCommonOptions(options),
+      ...options,
+      width: options.width ?? this.options.width,
+      height: options.height ?? this.options.height,
+      rowHeight: options.rowHeight ?? this.options.rowHeight,
+      colWidth: options.colWidth ?? this.options.colWidth
+    };
+
+    this.prepareMerges();
+    this.calculateAutoRowHeights();
+    this.calculateContentSize();
+    this.applyDisplayScale();
+    if (options.locateCellMode) {
+      this.applyInitialCellLocation();
+    }
+    this.hideCommentTooltip();
+    this.render();
+  }
+
+  public setShowCharts(show: boolean) {
+    this.setRenderOptions({ showCharts: show });
+  }
+
+  public toggleShowCharts(show?: boolean) {
+    const next = show ?? !this.options.showCharts;
+    this.setShowCharts(next);
+    return next;
+  }
+
+  public setShowInsertedElements(show: boolean) {
+    this.setRenderOptions({ showInsertedElements: show });
+  }
+
+  public toggleShowInsertedElements(show?: boolean) {
+    const next = show ?? !this.options.showInsertedElements;
+    this.setShowInsertedElements(next);
+    return next;
+  }
+
+  public setShowImages(show: boolean) {
+    this.setRenderOptions({ showImages: show });
+  }
+
+  public toggleShowImages(show?: boolean) {
+    const next = show ?? !this.options.showImages;
+    this.setShowImages(next);
+    return next;
+  }
+
+  public setShowAudio(show: boolean) {
+    this.setRenderOptions({ showAudio: show });
+  }
+
+  public toggleShowAudio(show?: boolean) {
+    const next = show ?? !this.options.showAudio;
+    this.setShowAudio(next);
+    return next;
+  }
+
+  public setShowVideo(show: boolean) {
+    this.setRenderOptions({ showVideo: show });
+  }
+
+  public toggleShowVideo(show?: boolean) {
+    const next = show ?? !this.options.showVideo;
+    this.setShowVideo(next);
+    return next;
+  }
+
+  public setShowComments(show: boolean) {
+    this.setRenderOptions({ showComments: show });
+  }
+
+  public toggleShowComments(show?: boolean) {
+    const next = show ?? !this.options.showComments;
+    this.setShowComments(next);
+    return next;
+  }
+
+  public setRenderFrozenRows(show: boolean) {
+    this.setRenderOptions({ renderFrozenRows: show });
+  }
+
+  public toggleFrozenRows(show?: boolean) {
+    const next = show ?? !this.options.renderFrozenRows;
+    this.setRenderFrozenRows(next);
+    return next;
+  }
+
+  public setRenderFrozenCols(show: boolean) {
+    this.setRenderOptions({ renderFrozenCols: show });
+  }
+
+  public toggleFrozenCols(show?: boolean) {
+    const next = show ?? !this.options.renderFrozenCols;
+    this.setRenderFrozenCols(next);
+    return next;
+  }
+
+  public setDisplayScale(displayScale: XlsxDisplayScale) {
+    this.options.displayScale = displayScale;
+    this.applyDisplayScale();
+    this.render();
+  }
+
+  public getScale() {
+    return this.scale;
+  }
+
+  public setCellLocateMode(target: XlsxCellLocateMode) {
+    this.options.locateCellMode = target;
+    this.applyInitialCellLocation();
+    this.render();
+  }
+
+  public locateCell(target: XlsxCellLocateMode) {
+    this.scrollToCellLocation(target);
   }
 
   /**
@@ -810,8 +1050,8 @@ export class XlsxRenderer {
     const frozenRows = this.options.renderFrozenRows && frozen?.state === 'frozen' && frozen.ySplit ? frozen.ySplit : 0;
 
     // 行/列标号区域尺寸
-    const rowHeaderWidth = this.options.showRowHeaders ? 40 * this.scale : 0;
-    const colHeaderHeight = this.options.showColHeaders ? 24 * this.scale : 0;
+    const rowHeaderWidth = this.getRowHeaderWidth();
+    const colHeaderHeight = this.getColHeaderHeight();
 
     // Clear
     ctx.clearRect(0, 0, width, height);
@@ -832,6 +1072,12 @@ export class XlsxRenderer {
 
     const rows = Array.from(this.worksheet.rows.values()).sort((a, b) => a.index - b.index);
     const borderCmds = new Map<string, DrawCmd>();
+    const scrollableClip = {
+      x: fixedWidth,
+      y: fixedHeight,
+      width: width - fixedWidth,
+      height: height - fixedHeight
+    };
 
     // ========== 第一层：渲染非冻结区域（可滚动区域） ==========
     // 添加 Clip 防止滚动内容溢出到冻结区域
@@ -852,11 +1098,7 @@ export class XlsxRenderer {
     ctx.restore();
 
     // 渲染边框
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = '#000000';
-    for (const cmd of borderCmds.values()) {
-      BorderRenderer.renderCmd(ctx, cmd, frozenRows, frozenCols, fixedWidth, fixedHeight);
-    }
+    this.renderBorderCommands(ctx, borderCmds, frozenRows, frozenCols, fixedWidth, fixedHeight, scrollableClip);
 
     this.renderDrawingsInRegion(ctx, width, height, {
       rowHeaderWidth,
@@ -867,7 +1109,9 @@ export class XlsxRenderer {
     });
 
     // ========== 第二层：重绘冻结区域（确保置顶） ==========
-    const frozenBorderCmds = new Map<string, DrawCmd>();
+    const frozenRowsBorderCmds = new Map<string, DrawCmd>();
+    const frozenColsBorderCmds = new Map<string, DrawCmd>();
+    const frozenCornerBorderCmds = new Map<string, DrawCmd>();
 
     // 冻结行区域（顶部，仅水平滚动）
     if (frozenRows > 0) {
@@ -885,7 +1129,7 @@ export class XlsxRenderer {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(fx, fy, fw, fh);
 
-      this.renderCellsInRegion(ctx, rows, styles, defaultFont, frozenBorderCmds, {
+      this.renderCellsInRegion(ctx, rows, styles, defaultFont, frozenRowsBorderCmds, {
         rowHeaderWidth,
         colHeaderHeight,
         fixedWidth,
@@ -913,7 +1157,7 @@ export class XlsxRenderer {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(fx, fy, fw, fh);
 
-      this.renderCellsInRegion(ctx, rows, styles, defaultFont, frozenBorderCmds, {
+      this.renderCellsInRegion(ctx, rows, styles, defaultFont, frozenColsBorderCmds, {
         rowHeaderWidth,
         colHeaderHeight,
         fixedWidth,
@@ -941,7 +1185,7 @@ export class XlsxRenderer {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(fx, fy, fw, fh);
 
-      this.renderCellsInRegion(ctx, rows, styles, defaultFont, frozenBorderCmds, {
+      this.renderCellsInRegion(ctx, rows, styles, defaultFont, frozenCornerBorderCmds, {
         rowHeaderWidth,
         colHeaderHeight,
         fixedWidth,
@@ -954,11 +1198,24 @@ export class XlsxRenderer {
     }
 
     // 渲染冻结区域的边框
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = '#000000';
-    for (const cmd of frozenBorderCmds.values()) {
-      BorderRenderer.renderCmd(ctx, cmd, frozenRows, frozenCols, fixedWidth, fixedHeight);
-    }
+    this.renderBorderCommands(ctx, frozenRowsBorderCmds, frozenRows, frozenCols, fixedWidth, fixedHeight, {
+      x: fixedWidth,
+      y: colHeaderHeight,
+      width: width - fixedWidth,
+      height: fixedHeight - colHeaderHeight
+    });
+    this.renderBorderCommands(ctx, frozenColsBorderCmds, frozenRows, frozenCols, fixedWidth, fixedHeight, {
+      x: rowHeaderWidth,
+      y: fixedHeight,
+      width: fixedWidth - rowHeaderWidth,
+      height: height - fixedHeight
+    });
+    this.renderBorderCommands(ctx, frozenCornerBorderCmds, frozenRows, frozenCols, fixedWidth, fixedHeight, {
+      x: rowHeaderWidth,
+      y: colHeaderHeight,
+      width: fixedWidth - rowHeaderWidth,
+      height: fixedHeight - colHeaderHeight
+    });
 
     this.renderDrawingsInRegion(ctx, width, height, {
       rowHeaderWidth,
@@ -1428,8 +1685,44 @@ export class XlsxRenderer {
     defaultFont: string
   ) {
     if (!row) return;
+    const conditionalStyle = row ? this.conditionalFormattingEvaluator?.getStyle(row.index, colIndex) : undefined;
 
-    CellRenderer.render(ctx, row as any, colIndex, x, y, w, h, styles, defaultFont, this.scale);
+    CellRenderer.render(
+      ctx,
+      row as any,
+      colIndex,
+      x,
+      y,
+      w,
+      h,
+      styles,
+      defaultFont,
+      this.scale,
+      this.options.formulaDisplay,
+      conditionalStyle
+    );
+
+    const cell = row.cells.get(colIndex);
+    if (cell?.comment) {
+      this.drawCommentIndicator(ctx, x, y, w, h);
+    }
+  }
+
+  private drawCommentIndicator(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+    if (!this.options.showComments) {
+      return;
+    }
+
+    const size = Math.max(5, Math.min(9 * this.scale, w / 3, h / 3));
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x + w - size, y);
+    ctx.lineTo(x + w, y);
+    ctx.lineTo(x + w, y + size);
+    ctx.closePath();
+    ctx.fillStyle = '#d13438';
+    ctx.fill();
+    ctx.restore();
   }
 
   private getDrawingContentBounds(drawing: NonNullable<Worksheet['drawings']>[number]) {
@@ -1537,12 +1830,16 @@ export class XlsxRenderer {
       resolveImageBitmap: (image: any) => this.getOrQueueImageBitmap(image),
       scheduleRender: () => this.render(),
       renderChart: (chartCtx: CanvasRenderingContext2D, chart: any, rect: { x: number; y: number; width: number; height: number }) => {
-        const chartRenderer = new ChartRenderer(chart.chartData);
+        const chartRenderer = new ChartRenderer(chart.chartData, { scale: this.scale });
         chartRenderer.render(chartCtx, rect);
       }
     };
 
     for (const drawing of this.worksheet.drawings) {
+      if (!this.shouldRenderDrawing(drawing)) {
+        continue;
+      }
+
       const { x: screenX, y: screenY, width: w, height: h, paneRect } = this.getDrawingScreenBounds(drawing, options);
 
       // Check if visible (simple culling)
@@ -1577,6 +1874,22 @@ export class XlsxRenderer {
 
       ctx.restore();
     }
+  }
+
+  private shouldRenderDrawing(drawing: NonNullable<Worksheet['drawings']>[number]) {
+    if (!this.options.showInsertedElements) {
+      return false;
+    }
+
+    if ('blob' in drawing) {
+      return this.options.showImages !== false;
+    }
+
+    if (drawing.type === 'chart') {
+      return this.options.showCharts !== false;
+    }
+
+    return true;
   }
 
   private getOrQueueImageBitmap(image: { id: string; blob: Blob }): ImageBitmap | undefined {
@@ -1644,6 +1957,20 @@ export class XlsxRenderer {
     return label || 'A';
   }
 
+  private getRowHeaderWidth(): number {
+    if (!this.options.showRowHeaders) return 0;
+    return Math.max(XlsxRenderer.MIN_ROW_HEADER_WIDTH, 40 * this.scale);
+  }
+
+  private getColHeaderHeight(): number {
+    if (!this.options.showColHeaders) return 0;
+    return Math.max(XlsxRenderer.MIN_COL_HEADER_HEIGHT, 24 * this.scale);
+  }
+
+  private getHeaderFontSize(): number {
+    return Math.max(XlsxRenderer.MIN_HEADER_FONT_SIZE, Math.round(11 * this.scale));
+  }
+
   private isBeforeViewportEdge(position: number, size: number, edge: number) {
     return position + size < edge - XlsxRenderer.CULLING_EPSILON;
   }
@@ -1659,6 +1986,26 @@ export class XlsxRenderer {
       { totalWidth: this.totalWidth, totalHeight: this.totalHeight },
       { scrollX: this.scrollX, scrollY: this.scrollY }
     );
+  }
+
+  private renderBorderCommands(
+    ctx: CanvasRenderingContext2D,
+    commands: Map<string, DrawCmd>,
+    frozenRows: number,
+    frozenCols: number,
+    fixedWidth: number,
+    fixedHeight: number,
+    clipRect: BorderClipRect
+  ) {
+    if (clipRect.width <= 0 || clipRect.height <= 0) {
+      return;
+    }
+
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#000000';
+    for (const cmd of commands.values()) {
+      BorderRenderer.renderCmd(ctx, cmd, frozenRows, frozenCols, fixedWidth, fixedHeight, clipRect);
+    }
   }
 
   /**
@@ -1715,32 +2062,41 @@ export class XlsxRenderer {
       ctx.fillStyle = '#666';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = `${Math.round(11 * this.scale)}px Arial`;
+      ctx.font = `${this.getHeaderFontSize()}px Arial`;
 
       let rawX = rowHeaderWidth;
       const maxCol = this.getMaxRenderableCol();
       for (let c = 1; c <= maxCol; c++) {
         const colW = this.getColWidth(c);
+        const isFrozenCol = c <= frozenCols;
+        const paneLeft = isFrozenCol ? rowHeaderWidth : fixedWidth;
+        const paneRight = isFrozenCol && frozenCols > 0 ? fixedWidth : width;
         let screenX = rawX;
 
         if (c > frozenCols) {
           screenX = rawX - this.scrollX;
-          if (this.isBeforeViewportEdge(screenX, colW, rowHeaderWidth)) {
+          if (this.isBeforeViewportEdge(screenX, colW, paneLeft)) {
             rawX += colW;
             continue;
           }
         }
 
-        if (!this.isAfterViewportEdge(screenX, width)) {
+        if (!this.isAfterViewportEdge(screenX, paneRight)) {
+          const labelX = screenX + colW / 2;
           const label = this.getColumnLabel(c);
-          ctx.fillText(label, screenX + colW / 2, colHeaderHeight / 2);
+          if (labelX >= paneLeft && labelX <= paneRight) {
+            ctx.fillText(label, labelX, colHeaderHeight / 2);
+          }
 
           // 列分隔线
-          ctx.strokeStyle = '#e0e0e0';
-          ctx.beginPath();
-          ctx.moveTo(Math.floor(screenX + colW) + 0.5, 0);
-          ctx.lineTo(Math.floor(screenX + colW) + 0.5, colHeaderHeight);
-          ctx.stroke();
+          const separatorX = Math.floor(screenX + colW) + 0.5;
+          if (separatorX >= paneLeft && separatorX <= paneRight) {
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.beginPath();
+            ctx.moveTo(separatorX, 0);
+            ctx.lineTo(separatorX, colHeaderHeight);
+            ctx.stroke();
+          }
         }
         rawX += colW;
       }
@@ -1767,7 +2123,7 @@ export class XlsxRenderer {
       ctx.fillStyle = '#666';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = `${Math.round(11 * this.scale)}px Arial`;
+      ctx.font = `${this.getHeaderFontSize()}px Arial`;
 
       let currentY = colHeaderHeight;
       let prevRowIdx = 0;
@@ -1775,6 +2131,9 @@ export class XlsxRenderer {
       for (const row of rows) {
         const r = row.index;
         const rowH = this.getRowHeight(r);
+        const isFrozenRow = r <= frozenRows;
+        const paneTop = isFrozenRow ? colHeaderHeight : fixedHeight;
+        const paneBottom = isFrozenRow && frozenRows > 0 ? fixedHeight : height;
 
         // 处理行间隙
         const gap = r - prevRowIdx - 1;
@@ -1789,19 +2148,30 @@ export class XlsxRenderer {
         let screenY = rawY;
         if (r > frozenRows) {
           screenY = rawY - this.scrollY;
-          if (this.isBeforeViewportEdge(screenY, rowH, colHeaderHeight)) continue;
+          if (this.isBeforeViewportEdge(screenY, rowH, paneTop)) continue;
         }
 
-        if (this.isAfterViewportEdge(screenY, height)) break;
+        if (this.isAfterViewportEdge(screenY, paneBottom)) {
+          if (isFrozenRow) {
+            continue;
+          }
+          break;
+        }
 
-        ctx.fillText(String(r), rowHeaderWidth / 2, screenY + rowH / 2);
+        const labelY = screenY + rowH / 2;
+        if (labelY >= paneTop && labelY <= paneBottom) {
+          ctx.fillText(String(r), rowHeaderWidth / 2, labelY);
+        }
 
         // 行分隔线
-        ctx.strokeStyle = '#e0e0e0';
-        ctx.beginPath();
-        ctx.moveTo(0, Math.floor(screenY + rowH) + 0.5);
-        ctx.lineTo(rowHeaderWidth, Math.floor(screenY + rowH) + 0.5);
-        ctx.stroke();
+        const separatorY = Math.floor(screenY + rowH) + 0.5;
+        if (separatorY >= paneTop && separatorY <= paneBottom) {
+          ctx.strokeStyle = '#e0e0e0';
+          ctx.beginPath();
+          ctx.moveTo(0, separatorY);
+          ctx.lineTo(rowHeaderWidth, separatorY);
+          ctx.stroke();
+        }
       }
     }
 
@@ -1889,6 +2259,19 @@ export class XlsxRenderer {
     this.scrollToCell(ref);
   }
 
+  private applyInitialCellLocation() {
+    if (this.options.locateCellMode) {
+      this.scrollToCellLocation(this.options.locateCellMode);
+    }
+  }
+
+  private scrollToCellLocation(target: XlsxCellLocateMode) {
+    this.scrollTo({
+      row: target.row,
+      col: target.cell
+    });
+  }
+
   /**
    * 启动高亮动画
    */
@@ -1920,6 +2303,15 @@ export class XlsxRenderer {
     };
 
     animate();
+  }
+
+  private rebuildConditionalFormattingEvaluator() {
+    this.conditionalFormattingEvaluator =
+      this.worksheet && this.worksheetDocument?.styles
+        ? new ConditionalFormattingEvaluator(this.worksheet, this.worksheetDocument.styles)
+        : this.worksheet
+          ? new ConditionalFormattingEvaluator(this.worksheet)
+          : null;
   }
 
   public zoomTo(scale: number) {
@@ -2010,10 +2402,10 @@ export class XlsxRenderer {
 
     // 如果行列标号可见，需要加上偏移
     if (this.options.showRowHeaders) {
-      screenX += 40 * this.scale;
+      screenX += this.getRowHeaderWidth();
     }
     if (this.options.showColHeaders) {
-      screenY += 24 * this.scale;
+      screenY += this.getColHeaderHeight();
     }
 
     return {
@@ -2046,6 +2438,69 @@ export class XlsxRenderer {
     }
 
     return undefined;
+  }
+
+  private getCommentAt(x: number, y: number): WorksheetComment | undefined {
+    if (!this.options.showComments || !this.worksheet?.comments) {
+      return undefined;
+    }
+
+    for (const comment of this.worksheet.comments) {
+      const address = parseCellRef(comment.ref);
+      if (!address) {
+        continue;
+      }
+
+      const bounds = this.getCellInfo(address.row, address.col)?.screenBounds;
+      if (bounds && x >= bounds.x && x <= bounds.x + bounds.width && y >= bounds.y && y <= bounds.y + bounds.height) {
+        return comment;
+      }
+    }
+
+    return undefined;
+  }
+
+  private updateCommentTooltip(x: number, y: number) {
+    if (this.dragController.getIsDragging()) {
+      this.hideCommentTooltip();
+      return;
+    }
+
+    const comment = this.getCommentAt(x, y);
+    if (!comment) {
+      this.hideCommentTooltip();
+      return;
+    }
+
+    const address = parseCellRef(comment.ref);
+    if (!address) {
+      this.hideCommentTooltip();
+      return;
+    }
+
+    const bounds = this.getCellInfo(address.row, address.col)?.screenBounds;
+    if (!bounds) {
+      this.hideCommentTooltip();
+      return;
+    }
+
+    this.commentTooltip.textContent = comment.author ? `${comment.author}:\n${comment.text}` : comment.text;
+    this.commentTooltip.style.display = 'block';
+
+    const wrapperWidth = this.canvasWrapper.clientWidth || this.options.width;
+    const wrapperHeight = this.canvasWrapper.clientHeight || this.options.height;
+    const tooltipWidth = this.commentTooltip.offsetWidth || 220;
+    const tooltipHeight = this.commentTooltip.offsetHeight || 64;
+
+    const left = Math.min(Math.max(bounds.x + bounds.width + 8, 0), Math.max(wrapperWidth - tooltipWidth - 8, 0));
+    const top = Math.min(Math.max(bounds.y + 8, 0), Math.max(wrapperHeight - tooltipHeight - 8, 0));
+
+    this.commentTooltip.style.left = `${left}px`;
+    this.commentTooltip.style.top = `${top}px`;
+  }
+
+  private hideCommentTooltip() {
+    this.commentTooltip.style.display = 'none';
   }
 
   private openHyperlink(hyperlink: WorksheetHyperlink) {

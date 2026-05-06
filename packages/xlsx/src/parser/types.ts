@@ -48,6 +48,8 @@ export interface Worksheet {
   drawings?: (OfficeImage | OfficeShape | OfficeChart)[];
   drawingRId?: string;
   hyperlinks?: WorksheetHyperlink[];
+  comments?: WorksheetComment[];
+  conditionalFormattings?: WorksheetConditionalFormatting[];
 }
 
 export interface WorksheetHyperlink {
@@ -59,11 +61,77 @@ export interface WorksheetHyperlink {
   relationshipId?: string;
 }
 
+export interface WorksheetComment {
+  ref: string;
+  author?: string;
+  authorId?: number;
+  text: string;
+  visible?: boolean;
+}
+
+export interface WorksheetConditionalFormatting {
+  sqref: string[];
+  rules: ConditionalFormattingRule[];
+}
+
+export interface ConditionalFormattingRule {
+  type: string;
+  dxfId?: number;
+  priority?: number;
+  stopIfTrue?: boolean;
+  operator?: string;
+  text?: string;
+  rank?: number;
+  percent?: boolean;
+  bottom?: boolean;
+  aboveAverage?: boolean;
+  equalAverage?: boolean;
+  stdDev?: number;
+  timePeriod?: string;
+  formulas: string[];
+  colorScale?: ConditionalFormattingColorScale;
+  dataBar?: ConditionalFormattingDataBar;
+  iconSet?: ConditionalFormattingIconSet;
+}
+
+export interface ConditionalFormattingColorScale {
+  values: ConditionalFormattingValueObject[];
+  colors: ConditionalFormattingColor[];
+}
+
+export interface ConditionalFormattingValueObject {
+  type: string;
+  value?: string;
+  gte?: boolean;
+}
+
+export interface ConditionalFormattingColor {
+  color?: string;
+  colorRef?: ColorRef;
+}
+
+export interface ConditionalFormattingDataBar {
+  values: ConditionalFormattingValueObject[];
+  color?: string;
+  colorRef?: ColorRef;
+  minLength?: number;
+  maxLength?: number;
+  showValue?: boolean;
+}
+
+export interface ConditionalFormattingIconSet {
+  name?: string;
+  values: ConditionalFormattingValueObject[];
+  reverse?: boolean;
+  showValue?: boolean;
+}
+
 export interface Column {
   min: number;
   max: number;
   width: number;
   customWidth: boolean;
+  styleId?: number;
 }
 
 export interface Row {
@@ -71,6 +139,7 @@ export interface Row {
   cells: Map<number, Cell>; // colIndex (1-based) -> Cell
   height?: number;
   customHeight?: boolean;
+  styleId?: number;
 }
 
 export type CellType = 'string' | 'number' | 'boolean' | 'date' | 'error' | 'sharedString' | 'inlineString';
@@ -87,8 +156,10 @@ export interface Cell {
   richText?: RichTextRun[]; // Add this
   type: CellType;
   formula?: string;
+  hasFormulaResult?: boolean;
   styleId?: number;
   hyperlink?: WorksheetHyperlink;
+  comment?: WorksheetComment;
 }
 
 export interface Styles {
@@ -97,7 +168,33 @@ export interface Styles {
   borders: Border[]; // Index -> Border
   cellXfs: CellXf[]; // Index -> Style
   numFmts: Map<number, string>; // numFmtId -> formatCode
+  differentialStyles: DifferentialStyle[];
   theme?: ThemeModel;
+}
+
+export interface DifferentialStyle {
+  font?: Font;
+  fill?: Fill;
+  border?: Border;
+}
+
+export interface ConditionalFormattingDataBarDisplay {
+  color: string;
+  xRatio: number;
+  widthRatio: number;
+  showValue: boolean;
+}
+
+export interface ConditionalRenderStyle extends DifferentialStyle {
+  dataBar?: ConditionalFormattingDataBarDisplay;
+  iconSet?: ConditionalFormattingIconSetDisplay;
+}
+
+export interface ConditionalFormattingIconSetDisplay {
+  name: string;
+  iconIndex: number;
+  iconCount: number;
+  showValue: boolean;
 }
 
 export interface Border {

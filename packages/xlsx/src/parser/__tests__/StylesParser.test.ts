@@ -71,6 +71,21 @@ describe('StylesParser', () => {
     expect(styles.fonts[0].descriptor?.scheme).toBe('major');
   });
 
+  it('should resolve zero-alpha Excel font colors as visible colors', () => {
+    const xml = `
+      <styleSheet>
+        <fonts count="1">
+          <font>
+            <color rgb="000000FF"/>
+          </font>
+        </fonts>
+      </styleSheet>
+    `;
+    const styles = StylesParser.parse(xml);
+
+    expect(styles.fonts[0].color).toBe('rgb(0, 0, 255)');
+  });
+
   it('should parse fills', () => {
     const xml = `
       <styleSheet>
@@ -160,5 +175,31 @@ describe('StylesParser', () => {
     const xf = styles.cellXfs[0];
     expect(xf.borderId).toBe(0);
     expect(xf.applyBorder).toBe(true);
+  });
+
+  it('should parse differential styles for conditional formatting', () => {
+    const xml = `
+      <styleSheet>
+        <dxfs count="1">
+          <dxf>
+            <font>
+              <b/>
+              <color rgb="FFFF0000"/>
+            </font>
+            <fill>
+              <patternFill patternType="solid">
+                <fgColor rgb="FFFFFF00"/>
+              </patternFill>
+            </fill>
+          </dxf>
+        </dxfs>
+      </styleSheet>
+    `;
+    const styles = StylesParser.parse(xml);
+
+    expect(styles.differentialStyles).toHaveLength(1);
+    expect(styles.differentialStyles[0].font?.bold).toBe(true);
+    expect(styles.differentialStyles[0].font?.color).toContain('255, 0, 0');
+    expect(styles.differentialStyles[0].fill?.fgColor).toContain('255, 255, 0');
   });
 });

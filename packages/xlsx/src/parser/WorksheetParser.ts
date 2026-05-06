@@ -1,5 +1,14 @@
-import { FileHandler, getElementsByLocalName, getOptionalAttr, Logger, RelationshipsResolver } from '@opr/shared';
-import { Worksheet, Row, Cell, RichTextRun, WorksheetHyperlink } from './types';
+import {
+  ColorUtils,
+  FileHandler,
+  getElementsByLocalName,
+  getOptionalAttr,
+  Logger,
+  RelationshipsResolver,
+  ThemeModel
+} from '@opr/shared';
+import { Worksheet, Row, Cell, RichTextRun, WorksheetHyperlink, WorksheetConditionalFormatting, ConditionalFormattingRule } from './types';
+import { SharedStringsParser } from './SharedStringsParser';
 
 const logger = new Logger('WorksheetParser');
 
@@ -13,7 +22,8 @@ export class WorksheetParser {
   static parse(
     xmlString: string,
     sharedStrings: (string | RichTextRun[])[],
-    rels: RelationshipsResolver = RelationshipsResolver.empty()
+    rels: RelationshipsResolver = RelationshipsResolver.empty(),
+    options: { theme?: ThemeModel } = {}
   ): Worksheet {
     const worksheet: Worksheet = {
       name: '', // 在 workbook.xml 中定义，这里暂时为空
@@ -68,8 +78,15 @@ export class WorksheetParser {
           const max = parseInt(colNode.getAttribute('max') || '1', 10);
           const width = parseFloat(colNode.getAttribute('width') || '10');
           const customWidth = colNode.getAttribute('customWidth') === '1';
+          const styleId = this.parseStyleId(colNode.getAttribute('style'));
 
-          const colInfo = { min, max, width, customWidth };
+          const colInfo = {
+            min,
+            max,
+            width,
+            customWidth,
+            ...(styleId !== undefined ? { styleId } : {})
+          };
 
           // 展开 col 范围 (min-max) 到每一列
           for (let c = min; c <= max; c++) {
@@ -84,7 +101,7 @@ export class WorksheetParser {
         const rowNodes = sheetData.querySelectorAll('row');
         for (let i = 0; i < rowNodes.length; i++) {
           const rowNode = rowNodes[i];
-          const row = this.parseRow(rowNode, sharedStrings);
+          const row = this.parseRow(rowNode, sharedStrings, worksheet.cols, options.theme);
           worksheet.rows.set(row.index, row);
         }
       }
@@ -124,6 +141,9 @@ export class WorksheetParser {
           }
         }
       }
+
+      // 7. Parse conditional formatting rules.
+      worksheet.conditionalFormattings = this.parseConditionalFormattings(doc);
     } catch (e) {
       logger.error('Failed to parse worksheet', e);
     }
@@ -131,10 +151,16 @@ export class WorksheetParser {
     return worksheet;
   }
 
-  private static parseRow(rowNode: Element, sharedStrings: (string | RichTextRun[])[]): Row {
+  private static parseRow(
+    rowNode: Element,
+    sharedStrings: (string | RichTextRun[])[],
+    cols: Map<number, { styleId?: number }>,
+    theme?: ThemeModel
+  ): Row {
     const rIndex = parseInt(rowNode.getAttribute('r') || '0', 10);
     const ht = rowNode.getAttribute('ht');
     const customHeight = rowNode.getAttribute('customHeight') === '1';
+    const rowStyleId = this.parseStyleId(rowNode.getAttribute('s'));
 
     const row: Row = {
       index: rIndex,
@@ -145,27 +171,35 @@ export class WorksheetParser {
     if (ht) {
       row.height = parseFloat(ht);
     }
+    if (rowStyleId !== undefined) {
+      row.styleId = rowStyleId;
+    }
 
     const cNodes = rowNode.querySelectorAll('c');
     for (let i = 0; i < cNodes.length; i++) {
       const cNode = cNodes[i];
-      const cell = this.parseCell(cNode, rIndex, sharedStrings);
+      const colIndex = this.getCellColumnIndex(cNode);
+      const inheritedStyleId = rowStyleId ?? cols.get(colIndex)?.styleId;
+      const cell = this.parseCell(cNode, rIndex, sharedStrings, theme, inheritedStyleId, colIndex);
       row.cells.set(cell.col, cell);
     }
 
     return row;
   }
 
-  private static parseCell(cNode: Element, rowIndex: number, sharedStrings: (string | RichTextRun[])[]): Cell {
-    const rAttr = cNode.getAttribute('r'); // e.g. "A1"
+  private static parseCell(
+    cNode: Element,
+    rowIndex: number,
+    sharedStrings: (string | RichTextRun[])[],
+    theme?: ThemeModel,
+    inheritedStyleId?: number,
+    parsedColIndex?: number
+  ): Cell {
     const tAttr = cNode.getAttribute('t') || 'n'; // type: s, b, e, str, inlineStr, n(default)
     const sAttr = cNode.getAttribute('s'); // style index
 
     // 计算列索引
-    let colIndex = 0;
-    if (rAttr) {
-      colIndex = this.getColumnIndex(rAttr);
-    }
+    const colIndex = parsedColIndex ?? this.getCellColumnIndex(cNode);
 
     const cell: Cell = {
       row: rowIndex,
@@ -174,8 +208,11 @@ export class WorksheetParser {
       value: ''
     };
 
-    if (sAttr) {
-      cell.styleId = parseInt(sAttr, 10);
+    const ownStyleId = this.parseStyleId(sAttr);
+    if (ownStyleId !== undefined) {
+      cell.styleId = ownStyleId;
+    } else if (inheritedStyleId !== undefined) {
+      cell.styleId = inheritedStyleId;
     }
 
     // 获取值 <v>
@@ -213,13 +250,12 @@ export class WorksheetParser {
             for (let j = 0; j < rNodes.length; j++) {
               const r = rNodes[j];
               const t = r.querySelector('t')?.textContent || '';
-              // const rPr = r.querySelector('rPr');
-              // TODO: parse rPr inline - reusing similar logic?
-              // For MVP, if SharedStrings has helpers, maybe genericize?
-              // Copy-paste simple logic for now.
-              const run: RichTextRun = { text: t };
+              const rPr = r.querySelector('rPr');
+              const run: RichTextRun = {
+                text: t,
+                ...(rPr ? { font: SharedStringsParser.parseRPr(rPr, theme) } : {})
+              };
               fullText += t;
-              // ... parse font (simplified)
               runs.push(run);
             }
             cell.richText = runs;
@@ -261,6 +297,7 @@ export class WorksheetParser {
     const fNode = cNode.querySelector('f');
     if (fNode) {
       cell.formula = fNode.textContent || '';
+      cell.hasFormulaResult = vNode !== null;
     }
 
     return cell;
@@ -278,6 +315,20 @@ export class WorksheetParser {
       index = index * 26 + (colStr.charCodeAt(i) - 64);
     }
     return index;
+  }
+
+  private static getCellColumnIndex(cNode: Element): number {
+    const rAttr = cNode.getAttribute('r');
+    return rAttr ? this.getColumnIndex(rAttr) : 0;
+  }
+
+  private static parseStyleId(value: string | null): number | undefined {
+    if (value === null || value === '') {
+      return undefined;
+    }
+
+    const parsed = parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : undefined;
   }
 
   private static parseDimension(ref: string) {
@@ -344,5 +395,204 @@ export class WorksheetParser {
     }
 
     return hyperlinks;
+  }
+
+  private static parseConditionalFormattings(doc: Document): WorksheetConditionalFormatting[] {
+    const nodes = getElementsByLocalName(doc, 'conditionalFormatting');
+    const conditionalFormattings: WorksheetConditionalFormatting[] = [];
+
+    for (const node of nodes) {
+      const sqref = getOptionalAttr(node, 'sqref');
+      if (!sqref) {
+        continue;
+      }
+
+      const rules = getElementsByLocalName(node, 'cfRule')
+        .map(ruleNode => this.parseConditionalFormattingRule(ruleNode))
+        .filter((rule): rule is ConditionalFormattingRule => Boolean(rule))
+        .sort((left, right) => (left.priority ?? Number.MAX_SAFE_INTEGER) - (right.priority ?? Number.MAX_SAFE_INTEGER));
+
+      if (rules.length === 0) {
+        continue;
+      }
+
+      conditionalFormattings.push({
+        sqref: sqref.trim().split(/\s+/).filter(Boolean),
+        rules
+      });
+    }
+
+    return conditionalFormattings;
+  }
+
+  private static parseConditionalFormattingRule(node: Element): ConditionalFormattingRule | undefined {
+    const type = getOptionalAttr(node, 'type');
+    if (!type) {
+      return undefined;
+    }
+
+    const colorScale = this.parseColorScale(getElementsByLocalName(node, 'colorScale')[0]);
+    const dataBar = this.parseDataBar(getElementsByLocalName(node, 'dataBar')[0]);
+    const iconSet = this.parseIconSet(getElementsByLocalName(node, 'iconSet')[0]);
+    const rank = this.parseOptionalInteger(getOptionalAttr(node, 'rank'));
+    const stdDev = this.parseOptionalInteger(getOptionalAttr(node, 'stdDev'));
+    const percent = this.parseOptionalBoolean(getOptionalAttr(node, 'percent'));
+    const bottom = this.parseOptionalBoolean(getOptionalAttr(node, 'bottom'));
+    const aboveAverage = this.parseOptionalBoolean(getOptionalAttr(node, 'aboveAverage'));
+    const equalAverage = this.parseOptionalBoolean(getOptionalAttr(node, 'equalAverage'));
+    const timePeriod = getOptionalAttr(node, 'timePeriod');
+
+    return {
+      type,
+      dxfId: this.parseOptionalInteger(getOptionalAttr(node, 'dxfId')),
+      priority: this.parseOptionalInteger(getOptionalAttr(node, 'priority')),
+      stopIfTrue: getOptionalAttr(node, 'stopIfTrue') === '1',
+      operator: getOptionalAttr(node, 'operator'),
+      text: getOptionalAttr(node, 'text'),
+      ...(rank !== undefined ? { rank } : {}),
+      ...(percent !== undefined ? { percent } : {}),
+      ...(bottom !== undefined ? { bottom } : {}),
+      ...(aboveAverage !== undefined ? { aboveAverage } : {}),
+      ...(equalAverage !== undefined ? { equalAverage } : {}),
+      ...(stdDev !== undefined ? { stdDev } : {}),
+      ...(timePeriod ? { timePeriod } : {}),
+      formulas: getElementsByLocalName(node, 'formula').map(formulaNode => formulaNode.textContent || ''),
+      ...(colorScale ? { colorScale } : {}),
+      ...(dataBar ? { dataBar } : {}),
+      ...(iconSet ? { iconSet } : {})
+    };
+  }
+
+  private static parseColorScale(node?: Element) {
+    if (!node) {
+      return undefined;
+    }
+
+    const values = getElementsByLocalName(node, 'cfvo').map(cfvoNode => {
+      const gte = getOptionalAttr(cfvoNode, 'gte');
+      return {
+        type: getOptionalAttr(cfvoNode, 'type') || 'num',
+        value: getOptionalAttr(cfvoNode, 'val'),
+        gte: gte === undefined ? undefined : gte !== '0'
+      };
+    });
+
+    const colors = getElementsByLocalName(node, 'color').map(colorNode => {
+      const colorRef = ColorUtils.createColorRef(
+        getOptionalAttr(colorNode, 'rgb'),
+        getOptionalAttr(colorNode, 'theme'),
+        getOptionalAttr(colorNode, 'indexed'),
+        getOptionalAttr(colorNode, 'tint')
+      );
+
+      return {
+        colorRef,
+        color: ColorUtils.resolveColorRef(colorRef)
+      };
+    });
+
+    if (values.length < 2 || colors.length < 2 || values.length !== colors.length) {
+      return undefined;
+    }
+
+    return {
+      values,
+      colors
+    };
+  }
+
+  private static parseDataBar(node?: Element) {
+    if (!node) {
+      return undefined;
+    }
+
+    const values = getElementsByLocalName(node, 'cfvo').map(cfvoNode => {
+      const gte = getOptionalAttr(cfvoNode, 'gte');
+      return {
+        type: getOptionalAttr(cfvoNode, 'type') || 'num',
+        value: getOptionalAttr(cfvoNode, 'val'),
+        gte: gte === undefined ? undefined : gte !== '0'
+      };
+    });
+
+    const colorNode = getElementsByLocalName(node, 'color')[0];
+    const colorRef = colorNode
+      ? ColorUtils.createColorRef(
+          getOptionalAttr(colorNode, 'rgb'),
+          getOptionalAttr(colorNode, 'theme'),
+          getOptionalAttr(colorNode, 'indexed'),
+          getOptionalAttr(colorNode, 'tint')
+        )
+      : undefined;
+
+    if (values.length < 2 || !colorRef) {
+      return undefined;
+    }
+
+    const showValue = getOptionalAttr(node, 'showValue');
+
+    return {
+      values,
+      colorRef,
+      color: ColorUtils.resolveColorRef(colorRef),
+      minLength: this.parseOptionalNumber(getOptionalAttr(node, 'minLength')),
+      maxLength: this.parseOptionalNumber(getOptionalAttr(node, 'maxLength')),
+      showValue: showValue === undefined ? undefined : showValue !== '0'
+    };
+  }
+
+  private static parseIconSet(node?: Element) {
+    if (!node) {
+      return undefined;
+    }
+
+    const values = getElementsByLocalName(node, 'cfvo').map(cfvoNode => {
+      const gte = getOptionalAttr(cfvoNode, 'gte');
+      return {
+        type: getOptionalAttr(cfvoNode, 'type') || 'num',
+        value: getOptionalAttr(cfvoNode, 'val'),
+        gte: gte === undefined ? undefined : gte !== '0'
+      };
+    });
+
+    if (values.length < 2) {
+      return undefined;
+    }
+
+    const showValue = getOptionalAttr(node, 'showValue');
+    const reverse = getOptionalAttr(node, 'reverse');
+
+    return {
+      name: getOptionalAttr(node, 'iconSet'),
+      values,
+      reverse: reverse === undefined ? undefined : reverse !== '0',
+      showValue: showValue === undefined ? undefined : showValue !== '0'
+    };
+  }
+
+  private static parseOptionalInteger(value?: string): number | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    const parsed = parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  private static parseOptionalNumber(value?: string): number | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  private static parseOptionalBoolean(value?: string): boolean | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    return value !== '0';
   }
 }

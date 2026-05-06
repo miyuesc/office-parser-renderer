@@ -33,13 +33,13 @@ export class DocxParser {
         return this.emptyDocument(warnings, mainPart.path);
       }
 
-      const parsedDocument = DocumentParser.parse(documentXml, { pkg, sourcePartPath: mainPart.path });
+      const parsedDocument = DocumentParser.parse(documentXml, { pkg, sourcePartPath: mainPart.path, warnings });
       const styles = StylesParser.parse(pkg.readText('word/styles.xml'));
       const numbering = NumberingParser.parse(pkg.readText('word/numbering.xml'));
       const settings = SettingsParser.parse(pkg.readText('word/settings.xml'));
       const headerRefs = parsedDocument.sections.flatMap(section => section.headerRefs || []);
       const footerRefs = parsedDocument.sections.flatMap(section => section.footerRefs || []);
-      const headerFooter = HeaderFooterParser.parseReferencedParts(pkg, mainPart.path, headerRefs, footerRefs);
+      const headerFooter = HeaderFooterParser.parseReferencedParts(pkg, mainPart.path, headerRefs, footerRefs, warnings);
 
       for (const unsupported of settings.unsupported) {
         warnings.unsupportedFeature(`DOCX setting is recorded but not rendered: ${unsupported}`, 'word/settings.xml');

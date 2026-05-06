@@ -32,10 +32,16 @@ export interface HyperlinkTarget {
 
 export type ParseWarningSeverity = 'info' | 'warning' | 'error';
 
+export type ParseWarningCategory = 'package' | 'parser' | 'renderer' | 'fidelity';
+
+export type FidelityWarningImpact = 'unsupported' | 'degraded' | 'clipped' | 'fallback';
+
 export interface ParseWarning {
   code: string;
   message: string;
   severity: ParseWarningSeverity;
+  category?: ParseWarningCategory;
+  impact?: FidelityWarningImpact;
   partPath?: string;
   relationshipId?: string;
 }

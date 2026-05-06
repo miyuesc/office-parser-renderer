@@ -1,5 +1,8 @@
-import { Cell, Row, Styles } from '../parser/types';
+import { Cell, ConditionalRenderStyle, Row, Styles } from '../parser/types';
 import { UnitConversion, FontMapping, ColorUtils, NumberFormatter } from '@opr/shared';
+import { CellFormatUtils } from '../utils/CellFormatUtils';
+
+export type FormulaDisplayMode = 'auto' | 'value' | 'formula';
 
 export class CellRenderer {
   static render(
@@ -12,7 +15,9 @@ export class CellRenderer {
     h: number,
     styles: Styles | undefined,
     defaultFont: string,
-    scale: number = 1
+    scale: number = 1,
+    formulaDisplay: FormulaDisplayMode = 'auto',
+    conditionalStyle?: ConditionalRenderStyle
   ) {
     const cell = row.cells.get(c);
     let cellStyleStr = defaultFont;
@@ -34,9 +39,13 @@ export class CellRenderer {
     if (styles && cell && cell.styleId !== undefined) {
       const xf = styles.cellXfs[cell.styleId];
       if (xf) {
+        const rowStyleId = row.styleId;
+        const rowXf = rowStyleId !== undefined && rowStyleId !== cell.styleId ? styles.cellXfs[rowStyleId] : undefined;
+        const fontXf = xf.applyFont !== true && rowXf?.applyFont === true ? rowXf : xf;
+
         // Font
-        if (styles.fonts[xf.fontId]) {
-          const font = styles.fonts[xf.fontId];
+        if (styles.fonts[fontXf.fontId]) {
+          const font = styles.fonts[fontXf.fontId];
           const sizePt = font.size || 11;
           fontSize = UnitConversion.ptToPixel(sizePt) * scale;
 
@@ -73,6 +82,31 @@ export class CellRenderer {
       isUnderline = true;
     }
 
+    if (conditionalStyle?.font) {
+      const font = conditionalStyle.font;
+      const sizePt = font.size || font.descriptor?.size;
+      if (sizePt) {
+        fontSize = UnitConversion.ptToPixel(sizePt) * scale;
+      }
+
+      const rawName = font.name || font.descriptor?.family;
+      if (rawName) {
+        fontFamily = FontMapping[rawName]?.safe_css_family || `"${rawName}", Arial, sans-serif`;
+      }
+
+      if (font.bold !== undefined) isBold = Boolean(font.bold);
+      if (font.italic !== undefined) isItalic = Boolean(font.italic);
+      if (font.underline !== undefined) isUnderline = Boolean(font.underline);
+      if (font.strike !== undefined) isStrike = Boolean(font.strike);
+      if (font.color) {
+        fgColor = ColorUtils.formatColor(font.color) || fgColor;
+      }
+    }
+
+    if (conditionalStyle?.fill?.fgColor) {
+      bgColor = ColorUtils.formatColor(conditionalStyle.fill.fgColor) || bgColor;
+    }
+
     cellStyleStr = `${isItalic ? 'italic ' : ''}${isBold ? 'bold ' : ''}${fontSize}px ${fontFamily}`;
 
     // Fill Background
@@ -81,16 +115,28 @@ export class CellRenderer {
       ctx.fillRect(x, y, w, h);
     }
 
-    if (cell) {
+    if (cell || conditionalStyle) {
       ctx.save();
       ctx.beginPath();
       ctx.rect(x, y, w, h);
       ctx.clip();
 
       const padding = 2 * scale;
-      const effectiveW = w - padding * 2;
+      const iconSlotWidth = conditionalStyle?.iconSet ? Math.max(14 * scale, fontSize * 1.15) : 0;
+      const contentStartX = x + padding + iconSlotWidth;
+      const contentEndX = x + w - padding;
+      const effectiveW = Math.max(0, contentEndX - contentStartX);
+      const showCellText = conditionalStyle?.dataBar?.showValue !== false && conditionalStyle?.iconSet?.showValue !== false;
 
-      if (cell.richText && cell.richText.length > 0) {
+      if (conditionalStyle?.dataBar && conditionalStyle.dataBar.widthRatio > 0) {
+        this.renderDataBar(ctx, x, y, w, h, padding, effectiveW, scale, conditionalStyle.dataBar);
+      }
+
+      if (conditionalStyle?.iconSet) {
+        this.renderIconSet(ctx, x, y, h, padding, iconSlotWidth, fontSize, scale, conditionalStyle.iconSet);
+      }
+
+      if (showCellText && cell?.richText && cell.richText.length > 0) {
         let totalWidth = 0;
         for (const run of cell.richText) {
           const f = run.font;
@@ -110,9 +156,9 @@ export class CellRenderer {
           totalWidth += ctx.measureText(run.text).width;
         }
 
-        let curX = x + padding;
-        if (align === 'center') curX = x + w / 2 - totalWidth / 2;
-        else if (align === 'right') curX = x + w - totalWidth - padding;
+        let curX = contentStartX;
+        if (align === 'center') curX = contentStartX + effectiveW / 2 - totalWidth / 2;
+        else if (align === 'right') curX = contentEndX - totalWidth;
 
         let curY = y + h / 2;
         if (vAlign === 'top') curY = y + padding + fontSize / 2;
@@ -164,14 +210,14 @@ export class CellRenderer {
 
           curX += textW;
         }
-      } else {
-        const text = this.getCellText(cell, styles);
+      } else if (showCellText && cell) {
+        const text = this.getCellText(cell, styles, formulaDisplay);
         ctx.font = cellStyleStr;
         ctx.fillStyle = fgColor;
 
-        let textX = x + padding;
-        if (align === 'center') textX = x + w / 2;
-        else if (align === 'right') textX = x + w - padding;
+        let textX = contentStartX;
+        if (align === 'center') textX = contentStartX + effectiveW / 2;
+        else if (align === 'right') textX = contentEndX;
 
         ctx.textAlign = align === 'center' ? 'center' : align === 'right' ? 'right' : 'left';
 
@@ -219,51 +265,164 @@ export class CellRenderer {
     }
   }
 
-  static getCellText(cell: Cell, styles?: Styles): string {
+  private static renderDataBar(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    padding: number,
+    effectiveW: number,
+    scale: number,
+    dataBar: NonNullable<ConditionalRenderStyle['dataBar']>
+  ) {
+    const barWidth = Math.max(0, effectiveW * dataBar.widthRatio);
+    if (barWidth <= 0) {
+      return;
+    }
+
+    const barX = x + padding + effectiveW * dataBar.xRatio;
+    const barHeight = Math.max(4 * scale, Math.min(h - padding * 2, h * 0.55));
+    const barY = y + (h - barHeight) / 2;
+
+    ctx.fillStyle = ColorUtils.formatColor(dataBar.color) || dataBar.color;
+    ctx.fillRect(barX, barY, barWidth, barHeight);
+  }
+
+  private static renderIconSet(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    h: number,
+    padding: number,
+    iconSlotWidth: number,
+    fontSize: number,
+    scale: number,
+    iconSet: NonNullable<ConditionalRenderStyle['iconSet']>
+  ) {
+    const glyph = this.resolveIconGlyph(iconSet.name, iconSet.iconIndex, iconSet.iconCount);
+    if (!glyph) {
+      return;
+    }
+
+    ctx.save();
+    ctx.font = `${Math.max(fontSize, 12 * scale)}px Arial, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = glyph.color;
+    ctx.fillText(glyph.text, x + padding + iconSlotWidth / 2, y + h / 2);
+    ctx.restore();
+  }
+
+  private static resolveIconGlyph(name: string, iconIndex: number, iconCount: number) {
+    const normalized = name || `${iconCount}Arrows`;
+
+    if (normalized.includes('Arrows')) {
+      const colored = !normalized.includes('Gray');
+      const palette = colored
+        ? ['#d13438', '#ff8c00', '#ffb900', '#498205', '#107c10']
+        : ['#8a8886', '#a19f9d', '#c8c6c4', '#a19f9d', '#8a8886'];
+      const glyphs =
+        iconCount === 5 ? ['↓', '↘', '→', '↗', '↑'] : iconCount === 4 ? ['↓', '→', '↗', '↑'] : ['↓', '→', '↑'];
+      return this.pickIconGlyph(glyphs, palette, iconIndex);
+    }
+
+    if (normalized.includes('TrafficLights')) {
+      return this.pickIconGlyph(
+        ['●', '●', '●', '●'],
+        ['#d13438', '#ffb900', '#92c353', '#107c10'],
+        iconIndex
+      );
+    }
+
+    if (normalized.includes('Flags')) {
+      return this.pickIconGlyph(['⚑', '⚑', '⚑'], ['#d13438', '#ffb900', '#107c10'], iconIndex);
+    }
+
+    if (normalized.includes('Signs')) {
+      return this.pickIconGlyph(['◆', '▲', '●'], ['#d13438', '#ffb900', '#107c10'], iconIndex);
+    }
+
+    if (normalized.includes('Symbols')) {
+      return this.pickIconGlyph(['✕', '!', '✓'], ['#d13438', '#ffb900', '#107c10'], iconIndex);
+    }
+
+    if (normalized.includes('Rating')) {
+      const glyphs = iconCount === 5 ? ['▁', '▂', '▃', '▄', '▅'] : ['▁', '▃', '▄', '▅'];
+      const palette = ['#d13438', '#f7630c', '#ffb900', '#92c353', '#107c10'];
+      return this.pickIconGlyph(glyphs, palette, iconIndex);
+    }
+
+    if (normalized.includes('Quarters')) {
+      return this.pickIconGlyph(['○', '◔', '◑', '◕', '●'], ['#8a8886', '#8a8886', '#8a8886', '#8a8886', '#8a8886'], iconIndex);
+    }
+
+    if (normalized.includes('RedToBlack')) {
+      return this.pickIconGlyph(['●', '●', '●', '●'], ['#d13438', '#f7630c', '#ffb900', '#323130'], iconIndex);
+    }
+
+    return this.pickIconGlyph(
+      iconCount === 5 ? ['○', '◔', '◑', '◕', '●'] : iconCount === 4 ? ['○', '◔', '◕', '●'] : ['○', '◑', '●'],
+      ['#d13438', '#ffb900', '#107c10', '#107c10', '#107c10'],
+      iconIndex
+    );
+  }
+
+  private static pickIconGlyph(glyphs: string[], colors: string[], iconIndex: number) {
+    const safeIndex = Math.min(Math.max(iconIndex, 0), glyphs.length - 1);
+    return {
+      text: glyphs[safeIndex],
+      color: colors[Math.min(safeIndex, colors.length - 1)] || '#8a8886'
+    };
+  }
+
+  static getCellText(cell: Cell, styles?: Styles, formulaDisplay: FormulaDisplayMode = 'auto'): string {
+    const formulaText = cell.formula ? `=${cell.formula}` : '';
+    if (formulaDisplay === 'formula' && formulaText) {
+      return formulaText;
+    }
+
+    if (formulaDisplay === 'auto' && formulaText && !this.hasVisibleFormulaResult(cell)) {
+      return formulaText;
+    }
+
     if (cell.value === undefined || cell.value === null) return '';
 
     if (cell.type === 'number' && typeof cell.value === 'number' && styles && cell.styleId !== undefined) {
-      const xf = styles.cellXfs[cell.styleId];
-      if (xf && (xf.applyNumberFormat || xf.numFmtId !== undefined)) {
-        const numFmtId = xf.numFmtId || 0;
-        let formatCode = 'General';
-        if (styles.numFmts && styles.numFmts.has(numFmtId)) {
-          formatCode = styles.numFmts.get(numFmtId)!;
-        } else {
-          switch (numFmtId) {
-            case 0:
-              formatCode = 'General';
-              break;
-            case 1:
-              formatCode = '0';
-              break;
-            case 2:
-              formatCode = '0.00';
-              break;
-            case 9:
-              formatCode = '0%';
-              break;
-            case 10:
-              formatCode = '0.00%';
-              break;
-            case 14:
-              formatCode = 'm/d/yy';
-              break;
+      const numberFormat = CellFormatUtils.resolveNumberFormat(cell, styles);
+      if (numberFormat && numberFormat.formatCode !== 'General') {
+        if (CellFormatUtils.isDateFormat(numberFormat.formatCode, numberFormat.numFmtId)) {
+          const dateValue = CellFormatUtils.getDateValue(cell, styles);
+          if (dateValue) {
+            return NumberFormatter.format(dateValue, numberFormat.formatCode);
           }
         }
 
-        if (formatCode !== 'General') {
-          const isDateFormat = (fmt: string) => /y|m|d|h|s|am\/pm/i.test(fmt);
-          if (isDateFormat(formatCode) || (numFmtId >= 14 && numFmtId <= 22)) {
-            const dateValue = new Date(Math.round((cell.value - 25569) * 86400 * 1000));
-            return NumberFormatter.format(dateValue, formatCode);
-          }
-          return NumberFormatter.format(cell.value, formatCode);
-        }
+        return NumberFormatter.format(cell.value, numberFormat.formatCode);
       }
     }
 
     return String(cell.value);
+  }
+
+  private static hasVisibleFormulaResult(cell: Cell) {
+    if (!cell.formula) {
+      return false;
+    }
+
+    if (cell.hasFormulaResult !== undefined) {
+      return cell.hasFormulaResult;
+    }
+
+    if (typeof cell.value === 'number') {
+      return !Number.isNaN(cell.value);
+    }
+
+    if (typeof cell.value === 'boolean') {
+      return true;
+    }
+
+    return String(cell.value ?? '').length > 0;
   }
 
   static breakTextIntoLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {

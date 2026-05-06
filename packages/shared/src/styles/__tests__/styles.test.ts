@@ -110,4 +110,17 @@ describe('ThemeParser and ColorUtils', () => {
     expect(ColorUtils.resolveColorRef({ theme: 4 }, theme)).toBe('#112233');
     expect(ColorUtils.resolveColorRef({ theme: 5 }, theme)).toBe('#445566');
   });
+
+  it('should interpolate RGB colors for shared visual features', () => {
+    expect(ColorUtils.interpolateColor('#ff0000', '#00ff00', 0.5)).toBe('rgb(128, 128, 0)');
+    expect(ColorUtils.interpolateColor('rgba(255, 0, 0, 0.5)', 'rgba(0, 0, 255, 1)', 0.5)).toBe(
+      'rgba(128, 0, 128, 0.75)'
+    );
+  });
+
+  it('should keep SpreadsheetML zero-alpha ARGB colors visible', () => {
+    expect(ColorUtils.formatColor('00FF0000')).toBe('rgb(255, 0, 0)');
+    expect(ColorUtils.formatColor('#000000FF')).toBe('rgb(0, 0, 255)');
+    expect(ColorUtils.resolveColorRef({ rgb: '00FF0000', tint: 0.5 })).toBe('#ff8080');
+  });
 });

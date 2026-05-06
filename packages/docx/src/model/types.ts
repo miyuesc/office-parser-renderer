@@ -1,4 +1,4 @@
-import type { OfficeImage, ParagraphStyle, TextStyle, WarningCollector } from '@opr/shared';
+import type { BookmarkResource, DrawingElement, HyperlinkResource, OfficeImage, OfficeMath, ParagraphStyle, TextStyle, WarningCollector } from '@opr/shared';
 
 export interface DocxDocument {
   sourcePartPath: string;
@@ -21,6 +21,7 @@ export interface DocxParagraph {
   style?: ParagraphStyle;
   numbering?: DocxParagraphNumbering;
   runs: DocxRun[];
+  floatingDrawings?: DocxFloatingDrawing[];
   section?: DocxSection;
 }
 
@@ -31,7 +32,65 @@ export interface DocxRun {
   breaks?: Array<'line' | 'page' | string>;
   fields?: DocxField[];
   images?: OfficeImage[];
+  math?: OfficeMath;
+  hyperlink?: DocxHyperlink;
+  bookmarks?: BookmarkResource[];
   revision?: DocxRevision;
+}
+
+export interface DocxHyperlink extends HyperlinkResource {
+  anchor?: string;
+}
+
+export interface DocxFloatingDrawing {
+  objectType: 'image' | 'chart' | 'shape' | 'connector' | 'group' | 'unknown';
+  drawing?: DrawingElement;
+  anchor: DocxFloatingAnchor;
+}
+
+export interface DocxFloatingAnchor {
+  drawingId?: string;
+  name?: string;
+  relativeHeight?: number;
+  behindDoc?: boolean;
+  locked?: boolean;
+  layoutInCell?: boolean;
+  allowOverlap?: boolean;
+  useSimplePosition?: boolean;
+  simplePosition?: {
+    x: number;
+    y: number;
+  };
+  horizontalPosition?: DocxFloatingPosition;
+  verticalPosition?: DocxFloatingPosition;
+  size?: {
+    width: number;
+    height: number;
+  };
+  effectExtent?: {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+  };
+  wrap?: DocxFloatingWrap;
+}
+
+export interface DocxFloatingPosition {
+  relativeFrom?: string;
+  align?: string;
+  offset?: number;
+}
+
+export interface DocxFloatingWrap {
+  type: 'none' | 'square' | 'tight' | 'through' | 'topAndBottom' | string;
+  textWrap?: string;
+  distances?: {
+    top?: number;
+    right?: number;
+    bottom?: number;
+    left?: number;
+  };
 }
 
 export interface DocxRevision {
