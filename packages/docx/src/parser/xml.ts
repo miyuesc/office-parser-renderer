@@ -61,19 +61,29 @@ export function parseRunProperties(rPr?: Element): TextStyle | undefined {
       style.highlight = fill.startsWith('#') ? fill : `#${fill}`;
     }
   }
-  if (getFirstElementByLocalName(rPr, 'b')) style.bold = true;
-  if (getFirstElementByLocalName(rPr, 'i')) style.italic = true;
-  if (getFirstElementByLocalName(rPr, 'strike')) style.strike = true;
-  if (underline) style.underline = attr(underline, 'val') || true;
+  const bold = parseBooleanProperty(rPr, 'b');
+  const italic = parseBooleanProperty(rPr, 'i');
+  const strike = parseBooleanProperty(rPr, 'strike');
+  if (bold !== undefined) style.bold = bold;
+  if (italic !== undefined) style.italic = italic;
+  if (strike !== undefined) style.strike = strike;
+  if (underline) {
+    const value = attr(underline, 'val');
+    style.underline = value === 'none' || value === '0' || value === 'false' ? false : value || true;
+  }
 
   if (fonts) {
-    const fontNames = [attr(fonts, 'eastAsia'), attr(fonts, 'ascii'), attr(fonts, 'hAnsi'), attr(fonts, 'cs')].filter(
-      (value): value is string => !!value
-    );
-    if (fontNames.length > 0) {
-      style.fontFamily = fontNames[0];
-      if (fontNames.length > 1) {
-        style.fontFallback = Array.from(new Set(fontNames.slice(1)));
+    const resolvedFontNames = [
+      attr(fonts, 'eastAsia') || resolveThemeFont(attr(fonts, 'eastAsiaTheme')),
+      attr(fonts, 'ascii') || resolveThemeFont(attr(fonts, 'asciiTheme')),
+      attr(fonts, 'hAnsi') || resolveThemeFont(attr(fonts, 'hAnsiTheme')),
+      attr(fonts, 'cs') || resolveThemeFont(attr(fonts, 'csTheme') || attr(fonts, 'cstheme'))
+    ].filter((value): value is string => !!value);
+
+    if (resolvedFontNames.length > 0) {
+      style.fontFamily = resolvedFontNames[0];
+      if (resolvedFontNames.length > 1) {
+        style.fontFallback = Array.from(new Set(resolvedFontNames.slice(1)));
       }
     }
   }
@@ -107,7 +117,8 @@ export function parseParagraphProperties(pPr?: Element): ParagraphStyle | undefi
     style.spacing = {
       before: parseOptionalNumber(attr(spacing, 'before')),
       after: parseOptionalNumber(attr(spacing, 'after')),
-      line: parseOptionalNumber(attr(spacing, 'line'))
+      line: parseOptionalNumber(attr(spacing, 'line')),
+      lineRule: attr(spacing, 'lineRule')
     };
   }
   if (rPr) {
@@ -119,6 +130,39 @@ export function parseParagraphProperties(pPr?: Element): ParagraphStyle | undefi
 
 function parseOptionalNumber(value?: string): number | undefined {
   return value === undefined ? undefined : parseNumberAttr(value);
+}
+
+function parseBooleanProperty(rPr: Element, localName: string): boolean | undefined {
+  const property = getFirstElementByLocalName(rPr, localName);
+  if (!property) {
+    return undefined;
+  }
+
+  const value = attr(property, 'val');
+  if (value === undefined || value === '') {
+    return true;
+  }
+
+  return value === '1' || value.toLowerCase() === 'true' || value.toLowerCase() === 'on';
+}
+
+function resolveThemeFont(value?: string): string | undefined {
+  switch (value) {
+    case 'majorEastAsia':
+      return '微软雅黑';
+    case 'minorEastAsia':
+      return '等线';
+    case 'majorHAnsi':
+    case 'majorAscii':
+    case 'majorBidi':
+      return 'Cambria';
+    case 'minorHAnsi':
+    case 'minorAscii':
+    case 'minorBidi':
+      return 'Calibri';
+    default:
+      return undefined;
+  }
 }
 
 function mapHighlightColor(value?: string): string | undefined {

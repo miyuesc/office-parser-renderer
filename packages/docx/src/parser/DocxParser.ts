@@ -54,6 +54,7 @@ export class DocxParser {
         numbering,
         settings,
         sections: parsedDocument.sections,
+        background: parsedDocument.background,
         warnings: warnings.toArray()
       };
 

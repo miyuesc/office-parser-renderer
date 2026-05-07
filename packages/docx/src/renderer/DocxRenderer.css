@@ -1,0 +1,124 @@
+.opr-docx-renderer {
+  display: block;
+  overflow: auto;
+  background: #ffffff;
+  padding: 0;
+}
+
+.opr-docx-renderer--paginated {
+  background: #f3f4f6;
+}
+
+.opr-docx-renderer--with-navigation {
+  display: flex;
+  align-items: stretch;
+  padding: 0;
+}
+
+.opr-docx-page-container {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  background: #ffffff;
+  cursor: grab;
+}
+
+.opr-docx-page-container--paginated {
+  background: #f3f4f6;
+}
+
+.opr-docx-page {
+  position: relative;
+  box-sizing: border-box;
+  background: #ffffff;
+}
+
+.opr-docx-page--paginated {
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.18);
+}
+
+.opr-docx-canvas {
+  display: block;
+}
+
+.opr-docx-text-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: pre-wrap;
+}
+
+.opr-docx-math {
+  font-family: 'Cambria Math', STIXGeneral, 'Times New Roman', serif;
+}
+
+.opr-docx-math--inline {
+  font-size: 12pt;
+}
+
+.opr-docx-math--block {
+  display: block;
+  font-size: 16pt;
+  text-align: center;
+}
+
+.opr-docx-navigation-pane {
+  width: 240px;
+  flex: 0 0 240px;
+  overflow: auto;
+  border-right: 1px solid #e5e7eb;
+  background: #ffffff;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.opr-docx-navigation-title {
+  font: 600 13px Arial, sans-serif;
+  color: #111827;
+  margin: 0 0 8px;
+}
+
+.opr-docx-navigation-empty {
+  color: #6b7280;
+  font: 12px Arial, sans-serif;
+  padding: 6px 2px;
+}
+
+.opr-docx-navigation-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.opr-docx-navigation-tree--child {
+  padding-left: 12px;
+}
+
+.opr-docx-navigation-item {
+  margin: 0;
+  padding: 0;
+}
+
+.opr-docx-navigation-button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 5px 6px;
+  cursor: pointer;
+  font: 13px Arial, sans-serif;
+  color: #374151;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.opr-docx-navigation-button:hover {
+  background: #f3f4f6;
+}

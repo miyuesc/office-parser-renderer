@@ -16,6 +16,7 @@ import {
 import { CellRenderer, FormulaDisplayMode } from './CellRenderer';
 import { ConditionalFormattingEvaluator } from './ConditionalFormattingEvaluator';
 import { BorderClipRect, BorderRenderer, DrawCmd } from './BorderRenderer';
+import './XlsxRenderer.css';
 
 /**
  * 渲染器配置选项
@@ -133,26 +134,18 @@ export class XlsxRenderer {
   constructor(container: HTMLElement, options: Partial<XlsxRendererOptions> = {}) {
     this.container = container;
 
-    // Create styles for Tabs
-
-    this.injectStyles();
-
     // Setup DOM Structure
-    this.container.style.display = 'flex';
-    this.container.style.flexDirection = 'column';
-    this.container.style.overflow = 'hidden';
+    this.container.classList.add('opr-xlsx-renderer');
 
     // Canvas Wrapper
     this.canvasWrapper = document.createElement('div');
-    this.canvasWrapper.style.flex = '1';
-    this.canvasWrapper.style.position = 'relative';
-    this.canvasWrapper.style.overflow = 'hidden';
+    this.canvasWrapper.className = 'xlsx-canvas-wrapper';
     this.container.appendChild(this.canvasWrapper);
 
     // Canvas
     this.canvas = document.createElement('canvas');
     this.canvas.dataset.testid = 'xlsx-canvas';
-    this.canvas.style.display = 'block';
+    this.canvas.className = 'xlsx-canvas';
     this.canvasWrapper.appendChild(this.canvas);
     this.ctx = this.canvas.getContext('2d')!;
 
@@ -238,62 +231,6 @@ export class XlsxRenderer {
 
     // Initial Resize
     this.resize();
-  }
-
-  private injectStyles() {
-    if (document.getElementById('xlsx-renderer-styles')) return;
-    const style = document.createElement('style');
-    style.id = 'xlsx-renderer-styles';
-    style.innerHTML = `
-      .xlsx-tab-bar {
-        height: 32px;
-        background: #f3f3f3;
-        display: flex;
-        overflow-x: auto;
-        border-top: 1px solid #e1e1e1;
-        align-items: flex-end;
-        padding-left: 5px;
-        user-select: none;
-      }
-      .xlsx-tab {
-        padding: 5px 15px;
-        font-family: 'Segoe UI', sans-serif;
-        font-size: 13px;
-        color: #444;
-        cursor: pointer;
-        border-right: 1px solid #e0e0e0;
-        border-top: 1px solid transparent;
-        background: #f3f3f3;
-        transition: background 0.2s;
-        margin-right: 2px;
-        white-space: nowrap;
-      }
-      .xlsx-tab:hover {
-        background: #e6e6e6;
-      }
-      .xlsx-tab.active {
-        background: #ffffff;
-        color: #217346;
-        font-weight: 600;
-        border-top: 2px solid #217346;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-      }
-      .xlsx-comment-tooltip {
-        position: absolute;
-        z-index: 5;
-        min-width: 160px;
-        max-width: 280px;
-        padding: 8px 10px;
-        border: 1px solid #d4b106;
-        background: #fff8c5;
-        color: #222;
-        font: 12px/1.4 Arial, sans-serif;
-        white-space: pre-wrap;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.18);
-        pointer-events: none;
-      }
-    `;
-    document.head.appendChild(style);
   }
 
   private handleMouseEnter() {
@@ -2200,6 +2137,7 @@ export class XlsxRenderer {
     window.removeEventListener('mouseup', this._handleMouseUp);
 
     this.container.innerHTML = '';
+    this.container.classList.remove('opr-xlsx-renderer');
   }
 
   public scrollTo(params: { row?: number; col?: number }) {

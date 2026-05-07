@@ -1,3 +1,5 @@
+import './ZoomController.css';
+
 /**
  * 缩放控制器选项接口
  */
@@ -51,7 +53,6 @@ export class ZoomController {
    */
   private initUI() {
     this.container.className = 'opr-zoom-container';
-    this.injectStyles();
 
     // 减号按钮
     this.minusBtn = document.createElement('div');
@@ -86,56 +87,6 @@ export class ZoomController {
     this.valueDisplay.className = 'opr-zoom-value';
     this.updateValueDisplay();
     this.container.appendChild(this.valueDisplay);
-  }
-
-  /**
-   * 注入样式
-   */
-  private injectStyles() {
-    if (document.getElementById('opr-zoom-styles')) return;
-    const style = document.createElement('style');
-    style.id = 'opr-zoom-styles';
-    style.innerHTML = `
-      .opr-zoom-container {
-        display: flex;
-        align-items: center;
-        background: #f9f9f9;
-        padding: 0 10px;
-        height: 100%;
-        user-select: none;
-      }
-      .opr-zoom-btn {
-        width: 20px;
-        height: 20px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        color: #666;
-        font-weight: bold;
-        font-size: 16px;
-        user-select: none;
-        border-radius: 2px;
-        transition: background 0.2s;
-      }
-      .opr-zoom-btn:hover {
-        background: #e0e0e0;
-      }
-      .opr-zoom-slider {
-        width: 80px;
-        margin: 0 8px;
-        cursor: pointer;
-      }
-      .opr-zoom-value {
-        font-family: 'Segoe UI', sans-serif;
-        font-size: 12px;
-        color: #666;
-        min-width: 35px;
-        text-align: right;
-        margin-left: 5px;
-      }
-    `;
-    document.head.appendChild(style);
   }
 
   /**

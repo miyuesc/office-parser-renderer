@@ -9,6 +9,7 @@ export interface DocxDocument {
   numbering: DocxNumbering;
   settings: DocxSettings;
   sections: DocxSection[];
+  background?: DocxPageBackground;
   navigation?: DocxNavigation;
   warnings: ReturnType<WarningCollector['toArray']>;
 }
@@ -167,6 +168,11 @@ export interface DocxSection {
     footer?: number;
     gutter?: number;
   };
+  docGrid?: {
+    type?: string;
+    linePitch?: number;
+    charSpace?: number;
+  };
 }
 
 export interface DocxHeaderFooterRef {
@@ -181,6 +187,21 @@ export interface DocxHeaderFooterPart {
   variant: 'default' | 'first' | 'even' | string;
   partPath: string;
   blocks: DocxBlock[];
+  watermarks?: DocxWatermark[];
+}
+
+export interface DocxPageBackground {
+  color?: string;
+}
+
+export interface DocxWatermark {
+  type: 'text';
+  text: string;
+  color?: string;
+  opacity?: number;
+  rotation?: number;
+  fontFamily?: string;
+  fontSize?: number;
 }
 
 export interface DocxParagraphNumbering {
@@ -194,6 +215,10 @@ export interface DocxStyles {
     run?: TextStyle;
   };
   byId: Map<string, DocxStyle>;
+  defaultParagraphStyleId?: string;
+  defaultCharacterStyleId?: string;
+  defaultTableStyleId?: string;
+  defaultNumberingStyleId?: string;
 }
 
 export interface DocxStyle {

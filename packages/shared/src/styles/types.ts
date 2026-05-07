@@ -81,6 +81,7 @@ export interface ParagraphStyle {
     before?: number;
     after?: number;
     line?: number;
+    lineRule?: 'auto' | 'exact' | 'atLeast' | string;
   };
 }
 

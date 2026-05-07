@@ -48,8 +48,23 @@ export class StylesParser {
       };
 
       styles.byId.set(id, style);
+      if (style.isDefault) {
+        this.setDefaultStyleId(styles, style.type, id);
+      }
     }
 
     return styles;
+  }
+
+  private static setDefaultStyleId(styles: DocxStyles, type: string, id: string) {
+    if (type === 'paragraph') {
+      styles.defaultParagraphStyleId = id;
+    } else if (type === 'character') {
+      styles.defaultCharacterStyleId = id;
+    } else if (type === 'table') {
+      styles.defaultTableStyleId = id;
+    } else if (type === 'numbering') {
+      styles.defaultNumberingStyleId = id;
+    }
   }
 }

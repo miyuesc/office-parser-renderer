@@ -1,0 +1,67 @@
+.opr-xlsx-renderer {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.xlsx-canvas-wrapper {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.xlsx-canvas {
+  display: block;
+}
+
+.xlsx-tab-bar {
+  height: 32px;
+  background: #f3f3f3;
+  display: flex;
+  overflow-x: auto;
+  border-top: 1px solid #e1e1e1;
+  align-items: flex-end;
+  padding-left: 5px;
+  user-select: none;
+}
+
+.xlsx-tab {
+  padding: 5px 15px;
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 13px;
+  color: #444;
+  cursor: pointer;
+  border-right: 1px solid #e0e0e0;
+  border-top: 1px solid transparent;
+  background: #f3f3f3;
+  transition: background 0.2s;
+  margin-right: 2px;
+  white-space: nowrap;
+}
+
+.xlsx-tab:hover {
+  background: #e6e6e6;
+}
+
+.xlsx-tab.active {
+  background: #ffffff;
+  color: #217346;
+  font-weight: 600;
+  border-top: 2px solid #217346;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.xlsx-comment-tooltip {
+  position: absolute;
+  z-index: 5;
+  min-width: 160px;
+  max-width: 280px;
+  padding: 8px 10px;
+  border: 1px solid #d4b106;
+  background: #fff8c5;
+  color: #222;
+  font: 12px/1.4 Arial, sans-serif;
+  white-space: pre-wrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+}

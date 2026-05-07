@@ -1,0 +1,73 @@
+.opr-pptx-shell {
+  display: block;
+}
+
+.opr-pptx-shell--with-preview {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.opr-pptx-slide-preview-list {
+  width: 180px;
+  flex: 0 0 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.opr-pptx-slide-preview-button {
+  text-align: left;
+  padding: 8px;
+  border: 1px solid #d8dce3;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.opr-pptx-slide-preview-button--active {
+  border: 2px solid #2563eb;
+}
+
+.opr-pptx-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.opr-pptx-slide {
+  position: relative;
+  width: 960px;
+  aspect-ratio: 16 / 9;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 56px;
+  background: #ffffff;
+  border: 1px solid #d8dce3;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+  font-family: Arial, sans-serif;
+}
+
+.opr-pptx-slide-title {
+  margin-bottom: 24px;
+  font-size: 14px;
+  color: #667085;
+}
+
+.opr-pptx-slide-number {
+  position: absolute;
+  right: 24px;
+  bottom: 18px;
+  font-size: 13px;
+  color: #667085;
+}
+
+.opr-pptx-text {
+  margin: 0 0 14px;
+  font-size: 28px;
+  line-height: 1.25;
+  color: #111827;
+}
+
+.opr-pptx-empty {
+  padding: 40px;
+  color: #667085;
+}

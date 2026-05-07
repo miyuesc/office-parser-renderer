@@ -32,14 +32,19 @@ interface DocumentParserOptions {
 }
 
 export class DocumentParser {
-  static parse(xmlString: string, options: DocumentParserOptions = {}): { body: DocxBlock[]; sections: DocxSection[] } {
+  static parse(xmlString: string, options: DocumentParserOptions = {}): {
+    body: DocxBlock[];
+    sections: DocxSection[];
+    background?: { color?: string };
+  } {
     const doc = FileHandler.parseXML(xmlString);
     const body = getFirstElementByLocalName(doc, 'body');
     const blocks: DocxBlock[] = [];
     const sections: DocxSection[] = [];
+    const background = this.parseBackground(getFirstElementByLocalName(doc, 'background'));
 
     if (!body) {
-      return { body: blocks, sections };
+      return { body: blocks, sections, background };
     }
 
     for (const child of Array.from(body.childNodes)) {
@@ -64,7 +69,7 @@ export class DocumentParser {
       sections.push(this.parseSection(bodySectPr));
     }
 
-    return { body: blocks, sections };
+    return { body: blocks, sections, background };
   }
 
   static parseBlocksFromElement(container: ParentNode, options: DocumentParserOptions = {}): DocxBlock[] {
@@ -232,16 +237,12 @@ export class DocumentParser {
   ): { run: DocxRun; floatingDrawings: DocxFloatingDrawing[] } {
     const rPr = firstChildElementByLocalName(node, 'rPr');
     const styleId = rPr ? valueOfFirst(rPr, 'rStyle') : undefined;
-    const breaks = childElementsByLocalName(node, 'br').map(br => attr(br, 'type') || 'line');
+    const breaks = [
+      ...childElementsByLocalName(node, 'lastRenderedPageBreak').map(() => 'renderedPage'),
+      ...childElementsByLocalName(node, 'br').map(br => attr(br, 'type') || 'line')
+    ];
     const style = parseRunProperties(rPr);
-    const text = childElementsByLocalName(node, 't')
-      .map(textNode => textNode.textContent || '')
-      .join('');
-    const deletedText = childElementsByLocalName(node, 'delText')
-      .map(textNode => textNode.textContent || '')
-      .join('');
     const symbolNodes = childElementsByLocalName(node, 'sym');
-    const symbolText = symbolNodes.map(sym => this.parseSymbol(sym)).join('');
     const symbolFontFamily = symbolNodes.map(sym => attr(sym, 'font')).find((value): value is string => !!value);
     const fields = childElementsByLocalName(node, 'instrText')
       .map(instrText => this.parseFieldInstruction(instrText.textContent || ''))
@@ -257,7 +258,7 @@ export class DocumentParser {
 
     return {
       run: {
-        text: text + deletedText + symbolText,
+        text: this.parseRunVisibleText(node),
         style: resolvedStyle,
         styleId,
         breaks: breaks.length > 0 ? breaks : undefined,
@@ -269,6 +270,28 @@ export class DocumentParser {
       },
       floatingDrawings
     };
+  }
+
+  private static parseRunVisibleText(node: Element) {
+    return Array.from(node.childNodes)
+      .map(child => {
+        if (child.nodeType !== 1) {
+          return '';
+        }
+
+        const element = child as Element;
+        if (element.localName === 't' || element.localName === 'delText') {
+          return element.textContent || '';
+        }
+        if (element.localName === 'tab') {
+          return '\t';
+        }
+        if (element.localName === 'sym') {
+          return this.parseSymbol(element);
+        }
+        return '';
+      })
+      .join('');
   }
 
   private static parseTable(node: Element, options: DocumentParserOptions): DocxTable {
@@ -381,6 +404,17 @@ export class DocumentParser {
     }
 
     return fill.startsWith('#') ? fill : `#${fill}`;
+  }
+
+  private static parseBackground(background?: Element) {
+    const color = background ? attr(background, 'color') : undefined;
+    if (!color || color === 'auto') {
+      return undefined;
+    }
+
+    return {
+      color: color.startsWith('#') ? color : `#${color}`
+    };
   }
 
   private static parseSymbol(sym: Element) {
@@ -785,6 +819,7 @@ export class DocumentParser {
   private static parseSection(node: Element): DocxSection {
     const pgSz = firstChildElementByLocalName(node, 'pgSz');
     const pgMar = firstChildElementByLocalName(node, 'pgMar');
+    const docGrid = firstChildElementByLocalName(node, 'docGrid');
 
     return {
       headerRefs: childElementsByLocalName(node, 'headerReference').map(ref => this.parseHeaderFooterRef(ref)),
@@ -806,6 +841,13 @@ export class DocumentParser {
             header: parseNumberAttr(attr(pgMar, 'header')),
             footer: parseNumberAttr(attr(pgMar, 'footer')),
             gutter: parseNumberAttr(attr(pgMar, 'gutter'))
+          }
+        : undefined,
+      docGrid: docGrid
+        ? {
+            type: attr(docGrid, 'type'),
+            linePitch: parseNumberAttr(attr(docGrid, 'linePitch')),
+            charSpace: parseNumberAttr(attr(docGrid, 'charSpace'))
           }
         : undefined
     };

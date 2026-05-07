@@ -124,6 +124,20 @@
       </div>
     </div>
 
+    <div class="toolbar" v-if="currentFormat === 'docx'">
+      <div class="toolbar-group">
+        <span class="toolbar-label">缩放:</span>
+        <button class="btn btn-icon" @click="handleDocxZoom(Math.max(0.25, docxZoom - 0.1))">-</button>
+        <button class="btn btn-icon" @click="handleDocxZoom(0.75)">75%</button>
+        <button class="btn btn-icon" @click="handleDocxZoom(1)">100%</button>
+        <button class="btn btn-icon" @click="handleDocxZoom(1.25)">125%</button>
+        <button class="btn btn-icon" @click="handleDocxZoom(1.5)">150%</button>
+        <button class="btn btn-icon" @click="handleDocxZoom(2)">200%</button>
+        <button class="btn btn-icon" @click="handleDocxZoom(Math.min(3, docxZoom + 0.1))">+</button>
+        <span class="toolbar-value">{{ Math.round(docxZoom * 100) }}%</span>
+      </div>
+    </div>
+
     <!-- 单元格信息展示 -->
     <div v-if="statusMessage" class="status-panel" data-testid="status-panel">
       {{ statusMessage }}
@@ -206,6 +220,7 @@ const accessInfo = ref<WorksheetCellAccess | undefined>(undefined);
 const currentFormat = ref<OfficeFormat>('unknown');
 const statusMessage = ref('');
 const formatLabel = ref('未加载');
+const docxZoom = ref(1);
 
 // 当前文档（用于重新创建渲染器）
 let currentDoc: ParsedOfficeDocument | null = null;
@@ -343,10 +358,15 @@ function renderDocxDocument(parsed: Extract<ParsedOfficeDocument, { format: 'doc
   if (!containerRef.value) return;
 
   docxRenderer = new DocxRenderer(containerRef.value, {
-    width: Math.min(containerRef.value.clientWidth - 40, 816)
+    width: Math.min(containerRef.value.clientWidth - 40, 816),
+    zoom: docxZoom.value,
+    showNavigationPane: true
   });
   docxRenderer.render(parsed.doc);
-  statusMessage.value = `${parsed.fileName} · ${parsed.doc.body.length} 个内容块 · ${parsed.doc.sections.length || 1} 个节`;
+  const stats = docxRenderer.getStats();
+  statusMessage.value = `${parsed.fileName} · 共 ${stats.totalPages} 页 · ${parsed.doc.body.length} 个内容块 · ${
+    parsed.doc.sections.length || 1
+  } 个节`;
   (window as any).__oprPlayground = { renderer: docxRenderer, currentDoc: parsed.doc, format: 'docx' };
 }
 
@@ -364,6 +384,9 @@ function resetRenderState() {
     xlsxRenderer.destroy();
     xlsxRenderer = null;
   }
+  if (docxRenderer) {
+    docxRenderer.destroy();
+  }
   docxRenderer = null;
   pptxRenderer = null;
   cellInfo.value = null;
@@ -371,6 +394,8 @@ function resetRenderState() {
   statusMessage.value = '';
   if (containerRef.value) {
     containerRef.value.innerHTML = '';
+    containerRef.value.className = 'render-container';
+    containerRef.value.removeAttribute('style');
     delete containerRef.value.dataset.format;
   }
 }
@@ -428,6 +453,22 @@ function handleZoom(scale: number) {
   xlsxRenderer.zoomTo(scale);
 }
 
+function handleDocxZoom(scale: number) {
+  docxZoom.value = scale;
+  if (docxRenderer) {
+    docxZoom.value = docxRenderer.zoomTo(scale);
+  } else if (currentDoc?.format === 'docx') {
+    renderDocument(currentDoc);
+  }
+}
+
+function handleDocxZoomChange(event: Event) {
+  const zoom = (event as CustomEvent<{ zoom?: number }>).detail?.zoom;
+  if (typeof zoom === 'number') {
+    docxZoom.value = zoom;
+  }
+}
+
 /**
  * 获取单元格信息
  */
@@ -465,9 +506,11 @@ function handleGetCellByRef() {
 
 onMounted(() => {
   logger.info('Playground mounted');
+  containerRef.value?.addEventListener('docx-zoom-change', handleDocxZoomChange);
 });
 
 onUnmounted(() => {
+  containerRef.value?.removeEventListener('docx-zoom-change', handleDocxZoomChange);
   resetRenderState();
   delete (window as any).__oprPlayground;
 });
@@ -547,6 +590,14 @@ onUnmounted(() => {
   font-size: 13px;
   color: #555;
   font-weight: 500;
+}
+
+.toolbar-value {
+  min-width: 42px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
 }
 
 .toolbar-divider {
@@ -680,7 +731,12 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.render-container[data-format='docx'],
+.render-container[data-format='docx'] {
+  padding: 0;
+  overflow: auto;
+  background: #eef1f5;
+}
+
 .render-container[data-format='pptx'] {
   padding: 24px;
   overflow: auto;

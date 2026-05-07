@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import JSZip from 'jszip';
+import { readFileSync } from 'node:fs';
 import { loadSampleCase } from '../../../../../samples/utils/SampleCaseLoader';
 import { PageLayoutEngine } from '../../layout';
 import { DocxNavigationBuilder } from '../../navigation';
 import { DocxRenderer } from '../../renderer';
 import { DocxParser } from '../DocxParser';
+import { StylesParser } from '../StylesParser';
 
 describe('DocxParser', () => {
   it('should parse the basic heading sample into a structured model', async () => {
@@ -112,11 +114,44 @@ describe('DocxParser', () => {
     expect(container.textContent).toContain('Table cell');
   });
 
+  it('should parse and apply default paragraph styles to unstyled paragraphs', () => {
+    const styles = StylesParser.parse(`
+      <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+        <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+          <w:name w:val="Normal"/>
+          <w:pPr>
+            <w:spacing w:before="300"/>
+          </w:pPr>
+          <w:rPr>
+            <w:sz w:val="60"/>
+          </w:rPr>
+        </w:style>
+      </w:styles>
+    `);
+    const doc: any = {
+      sourcePartPath: 'word/document.xml',
+      body: [{ type: 'paragraph', runs: [{ text: 'Unstyled paragraph should use Normal.' }] }],
+      headers: new Map(),
+      footers: new Map(),
+      styles,
+      numbering: { abstractNums: new Map(), nums: new Map() },
+      settings: { compatibilityFlags: [], unsupported: [] },
+      sections: [],
+      warnings: []
+    };
+
+    const pages = new PageLayoutEngine().layout(doc);
+
+    expect(styles.defaultParagraphStyleId).toBe('Normal');
+    expect(pages[0].blocks[0].box.height).toBeGreaterThan(60);
+  });
+
   it('should expose DOCX render options and toggle navigation and revision text', () => {
     const doc: any = {
       sourcePartPath: 'word/document.xml',
       body: [
         { type: 'paragraph', styleId: 'Heading1', runs: [{ text: 'Title' }] },
+        { type: 'paragraph', styleId: 'Heading2', runs: [{ text: 'Child Title' }] },
         { type: 'paragraph', runs: [{ text: 'Inserted', revision: { type: 'insert' } }] },
         { type: 'paragraph', runs: [{ text: 'Deleted', revision: { type: 'delete' } }] }
       ],
@@ -124,7 +159,10 @@ describe('DocxParser', () => {
       footers: new Map(),
       styles: {
         defaults: { paragraph: {}, run: {} },
-        byId: new Map([['Heading1', { id: 'Heading1', type: 'paragraph', name: 'heading 1', text: { bold: true, size: 16 } }]])
+        byId: new Map([
+          ['Heading1', { id: 'Heading1', type: 'paragraph', name: 'heading 1', text: { bold: true, size: 16 } }],
+          ['Heading2', { id: 'Heading2', type: 'paragraph', name: 'heading 2', text: { bold: true, size: 14 } }]
+        ])
       },
       numbering: { abstractNums: new Map(), nums: new Map() },
       settings: { compatibilityFlags: [], unsupported: [] },
@@ -140,6 +178,12 @@ describe('DocxParser', () => {
     renderer.render(doc);
 
     expect(container.querySelector('[data-testid="docx-navigation-pane"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="docx-navigation-tree"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-nav-heading-id]')).toHaveLength(2);
+    expect(container.querySelector('[data-nav-heading-id="heading-2"]')?.textContent).toContain('Child Title');
+    expect(container.querySelector('[data-nav-heading-id="heading-2"]')?.getAttribute('data-heading-level')).toBe('2');
+    expect(container.querySelector('[data-nav-heading-id="heading-1"]')?.hasAttribute('data-heading-id')).toBe(false);
+    expect(renderer.jumpToHeading('heading-2')).toBe(true);
     expect(container.textContent).toContain('Inserted');
     expect(container.textContent).toContain('Deleted');
 
@@ -728,6 +772,8 @@ describe('DocxParser', () => {
     });
     expect(container.textContent).toContain('Eq: x² + (a)/(b) = √(y)');
     expect(container.textContent).toContain('∑_(i=1)^n i');
+    expect(container.querySelector('[data-testid="docx-math"][data-display-mode="inline"]')?.textContent).toBe('x² + (a)/(b) = √(y)');
+    expect(container.querySelector('[data-testid="docx-math"][data-display-mode="block"]')?.textContent).toBe('∑_(i=1)^n i');
     expect(doc.warnings).toEqual([]);
   });
 
@@ -924,6 +970,7 @@ describe('DocxParser', () => {
 
     expect(pages).toHaveLength(2);
     expect(pages[1].pageBox.width).toBeGreaterThan(pages[1].pageBox.height);
+    expect(pages[1].section?.pageSize?.orientation).toBe('landscape');
   });
 
   it('should preserve a shared page scale so landscape pages render wider than portrait pages', async () => {
@@ -1336,6 +1383,114 @@ describe('DocxParser', () => {
     getContextSpy.mockRestore();
   });
 
+  it('should support renderer zoom and table rows sized by cell content', () => {
+    const doc: any = {
+      sourcePartPath: 'word/document.xml',
+      body: [
+        {
+          type: 'table',
+          gridWidths: [1440, 4320],
+          rows: [
+            {
+              cells: [
+                { blocks: [{ type: 'paragraph', runs: [{ text: '检查时间' }] }] },
+                { blocks: [{ type: 'paragraph', runs: [{ text: '2026年04月28日' }] }] }
+              ]
+            },
+            {
+              cells: [
+                { blocks: [{ type: 'paragraph', runs: [{ text: '检查内容' }] }] },
+                {
+                  blocks: [
+                    {
+                      type: 'paragraph',
+                      runs: [{ text: '现场作业车辆及机械是否安装警示灯或闪光箭头。特种设备现场安装拆除是否有相应作业资质。'.repeat(5) }]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          type: 'paragraph',
+          runs: [{ text: '检查人员签字:\t受检单位（代表）签字:' }]
+        }
+      ],
+      headers: new Map(),
+      footers: new Map(),
+      styles: { byId: new Map(), defaults: { run: { size: 11 } } },
+      numbering: { abstractNums: new Map(), nums: new Map() },
+      settings: { compatibilityFlags: [], unsupported: [] },
+      sections: [
+        {
+          pageSize: { width: 11906, height: 16838 },
+          margins: { top: 1440, right: 1440, bottom: 1440, left: 1440 }
+        }
+      ],
+      warnings: []
+    };
+    const fakeCtx = {
+      scale: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      fillRect: vi.fn(),
+      strokeRect: vi.fn(),
+      beginPath: vi.fn(),
+      rect: vi.fn(),
+      clip: vi.fn(),
+      fillText: vi.fn(),
+      measureText: vi.fn((text: string) => ({ width: Array.from(text).length * 8 })),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+      setLineDash: vi.fn(),
+      translate: vi.fn(),
+      rotate: vi.fn()
+    } as any;
+    const getContextSpy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => fakeCtx);
+    const container = document.createElement('div');
+    const renderer = new DocxRenderer(container, { width: 794, zoom: 1 });
+    const pages = new PageLayoutEngine().layout(doc);
+
+    renderer.render(doc);
+    const pageBeforeZoom = container.querySelector('[data-testid="docx-page"]') as HTMLElement;
+    const columnWidths = (renderer as any).resolveTableColumnWidths(doc.body[0], pages[0].blocks[0].box.width);
+    const rowHeights = (renderer as any).resolveTableRowHeights(fakeCtx, doc.body[0], doc, columnWidths, { pageIndex: 0, totalPages: 1 });
+    const signatureLines = (renderer as any).layoutParagraphLines(
+      fakeCtx,
+      doc.body[1],
+      {},
+      { size: 11 },
+      [{ text: doc.body[1].runs[0].text, style: { size: 11 } }],
+      '',
+      0,
+      360,
+      0,
+      96
+    );
+    const tabItem = signatureLines[0].items.find((item: any) => item.text === '' && item.width > 0);
+
+    expect(renderer.getZoom()).toBe(1);
+    expect(pageBeforeZoom.style.width).toBe('794px');
+    expect(pages[0].blocks[0].box.height).toBeGreaterThan(120);
+    expect(rowHeights[0]).toBeLessThan(60);
+    expect(rowHeights[1]).toBeGreaterThan(rowHeights[0] + 40);
+    expect(tabItem?.width).toBeGreaterThan(30);
+
+    const zoomEvents: number[] = [];
+    container.addEventListener('docx-zoom-change', event => {
+      zoomEvents.push((event as CustomEvent<{ zoom: number }>).detail.zoom);
+    });
+    renderer.zoomTo(1.5);
+    const pageAfterZoom = container.querySelector('[data-testid="docx-page"]') as HTMLElement;
+    expect(renderer.getZoom()).toBe(1.5);
+    expect(zoomEvents).toEqual([1.5]);
+    expect(pageAfterZoom.style.width).toBe('1191px');
+
+    getContextSpy.mockRestore();
+  });
+
   it('should detect titlePg cover pages and use first-page header only for cover pages', async () => {
     const buildDoc = async (titlePage: boolean) => {
       const zip = new JSZip();
@@ -1413,5 +1568,227 @@ describe('DocxParser', () => {
     expect(new PageLayoutEngine().layout(normalDoc)[0].isCoverPage).toBe(false);
     expect(normalContainer.querySelector('[data-cover-page="true"]')).toBeNull();
     expect(normalContainer.querySelector('[data-testid="docx-header"]')?.textContent).toContain('Default Header');
+  });
+
+  it('should render page background, text watermarks, and exact paragraph line height', async () => {
+    const zip = new JSZip();
+
+    zip.file(
+      '[Content_Types].xml',
+      `
+        <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+          <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+          <Default Extension="xml" ContentType="application/xml"/>
+          <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+        </Types>
+      `
+    );
+    zip.folder('_rels')!.file(
+      '.rels',
+      `
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdOffice" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+        </Relationships>
+      `
+    );
+    zip.folder('word')!.file(
+      'document.xml',
+      `
+        <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+          <w:background w:color="FFF2CC"/>
+          <w:body>
+            <w:p>
+              <w:pPr>
+                <w:spacing w:line="600" w:lineRule="exact"/>
+                <w:ind w:left="720" w:firstLine="360"/>
+              </w:pPr>
+              <w:r><w:t>Line height and indent</w:t></w:r>
+            </w:p>
+            <w:sectPr>
+              <w:headerReference w:type="default" r:id="rIdHeader"/>
+              <w:pgSz w:w="11906" w:h="16838"/>
+              <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/>
+            </w:sectPr>
+          </w:body>
+        </w:document>
+      `
+    );
+    zip.folder('word')!.folder('_rels')!.file(
+      'document.xml.rels',
+      `
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>
+        </Relationships>
+      `
+    );
+    zip.folder('word')!.file(
+      'header1.xml',
+      `
+        <w:hdr
+          xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+          xmlns:v="urn:schemas-microsoft-com:vml"
+          xmlns:o="urn:schemas-microsoft-com:office:office">
+          <w:p>
+            <w:r>
+              <w:pict>
+                <v:shape fillcolor="#d9d9d9" style="rotation:315;opacity:.25">
+                  <v:textpath string="DRAFT" style="font-family:SimSun;font-size:48pt"/>
+                </v:shape>
+              </w:pict>
+            </w:r>
+          </w:p>
+        </w:hdr>
+      `
+    );
+
+    const doc = await DocxParser.parse(await zip.generateAsync({ type: 'arraybuffer' }));
+    const pages = new PageLayoutEngine().layout(doc);
+    const fills: Array<{ style: string; args: unknown[] }> = [];
+    const fakeCtx = {
+      scale: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      fillRect: vi.fn(function (this: any, ...args: unknown[]) {
+        fills.push({ style: this.fillStyle, args });
+      }),
+      strokeRect: vi.fn(),
+      beginPath: vi.fn(),
+      rect: vi.fn(),
+      clip: vi.fn(),
+      fillText: vi.fn(),
+      measureText: vi.fn((text: string) => ({ width: Array.from(text).length * 10 })),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+      setLineDash: vi.fn(),
+      translate: vi.fn(),
+      rotate: vi.fn()
+    } as any;
+    const getContextSpy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => fakeCtx);
+    const container = document.createElement('div');
+
+    new DocxRenderer(container).render(doc);
+
+    expect(doc.background).toEqual({ color: '#FFF2CC' });
+    expect(doc.headers.get('rIdHeader')?.watermarks?.[0]).toMatchObject({
+      type: 'text',
+      text: 'DRAFT',
+      color: '#d9d9d9',
+      opacity: 0.25,
+      rotation: 315,
+      fontFamily: 'SimSun',
+      fontSize: 48
+    });
+    expect(fills).toContainEqual(
+      expect.objectContaining({ style: '#FFF2CC', args: [0, 0, pages[0].pageBox.width, pages[0].pageBox.height] })
+    );
+    expect(fakeCtx.fillText).toHaveBeenCalledWith('DRAFT', 0, 0);
+    expect(fakeCtx.rotate).toHaveBeenCalledWith((315 * Math.PI) / 180);
+    expect(pages[0].blocks[0].box.height).toBeGreaterThanOrEqual(40);
+
+    getContextSpy.mockRestore();
+  });
+
+  it('should honor disabled run bold, theme fonts, cached page breaks, and mixed CJK wrapping', async () => {
+    const zip = new JSZip();
+
+    zip.file(
+      '[Content_Types].xml',
+      `
+        <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+          <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+          <Default Extension="xml" ContentType="application/xml"/>
+          <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+        </Types>
+      `
+    );
+    zip.folder('_rels')!.file(
+      '.rels',
+      `
+        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+          <Relationship Id="rIdOffice" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+        </Relationships>
+      `
+    );
+    zip.folder('word')!.file(
+      'styles.xml',
+      `
+        <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+          <w:docDefaults>
+            <w:rPrDefault>
+              <w:rPr>
+                <w:rFonts w:asciiTheme="minorHAnsi" w:eastAsiaTheme="minorEastAsia" w:hAnsiTheme="minorHAnsi"/>
+                <w:sz w:val="24"/>
+              </w:rPr>
+            </w:rPrDefault>
+          </w:docDefaults>
+          <w:style w:type="paragraph" w:styleId="Heading1">
+            <w:name w:val="heading 1"/>
+            <w:rPr><w:b/><w:sz w:val="32"/></w:rPr>
+          </w:style>
+        </w:styles>
+      `
+    );
+    zip.folder('word')!.file(
+      'document.xml',
+      `
+        <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+          <w:body>
+            <w:p>
+              <w:pPr><w:pStyle w:val="Heading1"/></w:pPr>
+              <w:r>
+                <w:rPr><w:b w:val="0"/></w:rPr>
+                <w:t>Heading should not be bold</w:t>
+              </w:r>
+            </w:p>
+            <w:p>
+              <w:r><w:t>Three.js和CesiumJS实现数字孪生</w:t></w:r>
+            </w:p>
+            <w:p>
+              <w:r><w:lastRenderedPageBreak/><w:t>Second rendered page</w:t></w:r>
+            </w:p>
+            <w:sectPr>
+              <w:pgSz w:w="11906" w:h="16838"/>
+              <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/>
+            </w:sectPr>
+          </w:body>
+        </w:document>
+      `
+    );
+
+    const doc = await DocxParser.parse(await zip.generateAsync({ type: 'arraybuffer' }));
+    const renderer = new DocxRenderer(document.createElement('div'));
+    const heading = doc.body[0] as any;
+    const headingStyle = (renderer as any).resolveParagraphStyle(doc, heading);
+    const headingRuns = (renderer as any).createRenderableRuns(heading, doc, { pageIndex: 0, totalPages: 2 }, headingStyle.text);
+
+    expect(doc.styles.defaults?.run).toMatchObject({
+      fontFamily: '等线',
+      fontFallback: expect.arrayContaining(['Calibri'])
+    });
+    expect(heading.runs[0].style.bold).toBe(false);
+    expect(headingRuns[0].style.bold).toBe(false);
+    expect((doc.body[2] as any).runs[0].breaks).toContain('renderedPage');
+    expect(new PageLayoutEngine().layout(doc)).toHaveLength(2);
+    expect((renderer as any).splitTextForWrap('Three.js和CesiumJS实现')).toEqual(['Three.js', '和', 'CesiumJS', '实现']);
+  });
+
+  it('should keep the playground gis.docx pagination close to the Office-rendered document', async () => {
+    const source = readFileSync('../../playground/public/gis.docx');
+    const doc = await DocxParser.parse(source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength));
+    const pages = new PageLayoutEngine().layout(doc);
+
+    expect(doc.body[0].type).toBe('paragraph');
+    expect((doc.body[0] as any).runs[0].style).toMatchObject({ bold: false });
+    expect(doc.styles.defaults?.run).toMatchObject({
+      fontFamily: '等线',
+      fontFallback: expect.arrayContaining(['Calibri'])
+    });
+    expect(doc.sections[0].docGrid).toMatchObject({ type: 'lines', linePitch: 312 });
+    expect((new PageLayoutEngine() as any).getSectionLinePitch(doc.sections[0])).toBe(36);
+    expect(doc.body.flatMap((block: any) => (block.type === 'paragraph' ? block.runs : [])).filter(run => run.breaks?.includes('renderedPage')))
+      .toHaveLength(8);
+    expect(pages).toHaveLength(11);
+    expect(pages.some(page => page.blocks.some(block => block.overflow?.clipped))).toBe(false);
   });
 });

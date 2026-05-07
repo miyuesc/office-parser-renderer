@@ -1,5 +1,6 @@
 import { CommonRendererOptions, defaultCommonRendererOptions } from '@opr/shared';
 import { PptxDocument, PptxSlide } from '../model';
+import './PptxRenderer.css';
 
 export interface PptxRendererOptions extends CommonRendererOptions {
   /** 初始幻灯片索引，0-based */
@@ -171,41 +172,34 @@ export class PptxRenderer {
     if (!this.options.showSlidePreviewList) {
       const wrapper = document.createElement('div');
       wrapper.dataset.testid = 'pptx-shell';
+      wrapper.className = 'opr-pptx-shell';
       wrapper.appendChild(pptx.slides.length > 0 ? this.renderSlide(pptx.slides[this.currentSlideIndex]) : this.renderEmpty());
       return wrapper;
     }
 
     const shell = document.createElement('div');
     shell.dataset.testid = 'pptx-shell';
-    shell.style.display = 'flex';
-    shell.style.gap = '16px';
-    shell.style.alignItems = 'flex-start';
+    shell.className = 'opr-pptx-shell opr-pptx-shell--with-preview';
 
     const list = document.createElement('aside');
     list.dataset.testid = 'pptx-slide-preview-list';
-    list.style.width = '180px';
-    list.style.flex = '0 0 180px';
-    list.style.display = 'flex';
-    list.style.flexDirection = 'column';
-    list.style.gap = '8px';
+    list.className = 'opr-pptx-slide-preview-list';
 
     pptx.slides.forEach((slide, index) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.dataset.slideIndex = String(index);
       button.textContent = `${index + 1}. ${slide.name || slide.path}`;
-      button.style.textAlign = 'left';
-      button.style.padding = '8px';
-      button.style.border = index === this.currentSlideIndex ? '2px solid #2563eb' : '1px solid #d8dce3';
-      button.style.background = '#ffffff';
-      button.style.cursor = 'pointer';
+      button.className = 'opr-pptx-slide-preview-button';
+      if (index === this.currentSlideIndex) {
+        button.classList.add('opr-pptx-slide-preview-button--active');
+      }
       button.onclick = () => this.jumpToSlide(index);
       list.appendChild(button);
     });
 
     const main = document.createElement('main');
-    main.style.flex = '1';
-    main.style.minWidth = '0';
+    main.className = 'opr-pptx-main';
     main.appendChild(pptx.slides.length > 0 ? this.renderSlide(pptx.slides[this.currentSlideIndex]) : this.renderEmpty());
 
     shell.appendChild(list);
@@ -216,43 +210,25 @@ export class PptxRenderer {
   private renderSlide(slide: PptxSlide): HTMLElement {
     const slideEl = document.createElement('section');
     slideEl.dataset.testid = 'pptx-slide';
-    slideEl.style.position = 'relative';
-    slideEl.style.width = '960px';
-    slideEl.style.aspectRatio = '16 / 9';
-    slideEl.style.boxSizing = 'border-box';
-    slideEl.style.margin = '0 auto';
-    slideEl.style.padding = '56px';
-    slideEl.style.background = '#ffffff';
-    slideEl.style.border = '1px solid #d8dce3';
-    slideEl.style.boxShadow = '0 10px 30px rgba(15, 23, 42, 0.12)';
-    slideEl.style.fontFamily = 'Arial, sans-serif';
+    slideEl.className = 'opr-pptx-slide';
 
     const title = document.createElement('div');
     title.textContent = slide.name || slide.path;
-    title.style.marginBottom = '24px';
-    title.style.fontSize = '14px';
-    title.style.color = '#667085';
+    title.className = 'opr-pptx-slide-title';
     slideEl.appendChild(title);
 
     if (this.options.showSlideNumber && this.document) {
       const pageNumber = document.createElement('div');
       pageNumber.dataset.testid = 'pptx-slide-number';
       pageNumber.textContent = `${this.currentSlideIndex + 1} / ${this.document.slides.length}`;
-      pageNumber.style.position = 'absolute';
-      pageNumber.style.right = '24px';
-      pageNumber.style.bottom = '18px';
-      pageNumber.style.fontSize = '13px';
-      pageNumber.style.color = '#667085';
+      pageNumber.className = 'opr-pptx-slide-number';
       slideEl.appendChild(pageNumber);
     }
 
     for (const element of slide.elements) {
       const p = document.createElement('p');
       p.textContent = element.text;
-      p.style.margin = '0 0 14px';
-      p.style.fontSize = '28px';
-      p.style.lineHeight = '1.25';
-      p.style.color = '#111827';
+      p.className = 'opr-pptx-text';
       slideEl.appendChild(p);
     }
 
@@ -263,8 +239,7 @@ export class PptxRenderer {
     const empty = document.createElement('div');
     empty.dataset.testid = 'pptx-empty';
     empty.textContent = '未解析到幻灯片';
-    empty.style.padding = '40px';
-    empty.style.color = '#667085';
+    empty.className = 'opr-pptx-empty';
     return empty;
   }
 }
