@@ -110,12 +110,14 @@ export interface DocxTable {
   type: 'table';
   width?: DocxWidth;
   gridWidths?: number[];
+  cellMargins?: DocxTableCellMargins;
   borders?: DocxTableBorders;
   rows: DocxTableRow[];
 }
 
 export interface DocxTableRow {
   cells: DocxTableCell[];
+  height?: DocxTableRowHeight;
 }
 
 export interface DocxTableCell {
@@ -123,8 +125,21 @@ export interface DocxTableCell {
   width?: DocxWidth;
   gridSpan?: number;
   verticalMerge?: 'restart' | 'continue';
+  cellMargins?: DocxTableCellMargins;
   shading?: string;
   borders?: DocxTableCellBorders;
+}
+
+export interface DocxTableCellMargins {
+  top?: number;
+  right?: number;
+  bottom?: number;
+  left?: number;
+}
+
+export interface DocxTableRowHeight {
+  value?: number;
+  rule?: 'auto' | 'atLeast' | 'exact' | string;
 }
 
 export interface DocxWidth {

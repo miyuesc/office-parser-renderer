@@ -71,6 +71,7 @@ export interface ParagraphStyle {
   text?: TextStyle;
   alignment?: 'left' | 'center' | 'right' | 'justify' | string;
   verticalAlignment?: 'top' | 'center' | 'bottom' | string;
+  snapToGrid?: boolean;
   indent?: {
     left?: number;
     right?: number;

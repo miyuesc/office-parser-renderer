@@ -239,7 +239,9 @@ export class DocumentParser {
     const styleId = rPr ? valueOfFirst(rPr, 'rStyle') : undefined;
     const breaks = [
       ...childElementsByLocalName(node, 'lastRenderedPageBreak').map(() => 'renderedPage'),
-      ...childElementsByLocalName(node, 'br').map(br => attr(br, 'type') || 'line')
+      ...childElementsByLocalName(node, 'br')
+        .map(br => attr(br, 'type') || 'textWrapping')
+        .filter(type => type !== 'line' && type !== 'textWrapping')
     ];
     const style = parseRunProperties(rPr);
     const symbolNodes = childElementsByLocalName(node, 'sym');
@@ -286,6 +288,10 @@ export class DocumentParser {
         if (element.localName === 'tab') {
           return '\t';
         }
+        if (element.localName === 'br') {
+          const type = attr(element, 'type') || 'textWrapping';
+          return type === 'line' || type === 'textWrapping' ? '\n' : '';
+        }
         if (element.localName === 'sym') {
           return this.parseSymbol(element);
         }
@@ -301,15 +307,29 @@ export class DocumentParser {
     return {
       type: 'table',
       width: this.parseWidth(tblPr ? firstChildElementByLocalName(tblPr, 'tblW') : undefined),
+      cellMargins: this.parseTableCellMargins(tblPr ? firstChildElementByLocalName(tblPr, 'tblCellMar') : undefined),
       gridWidths: tblGrid
         ? childElementsByLocalName(tblGrid, 'gridCol')
             .map(gridCol => parseNumberAttr(attr(gridCol, 'w'), 0))
             .filter(value => value > 0)
         : undefined,
       borders: tblPr ? this.parseTableBorders(firstChildElementByLocalName(tblPr, 'tblBorders')) : undefined,
-      rows: childElementsByLocalName(node, 'tr').map(row => ({
-        cells: childElementsByLocalName(row, 'tc').map(cell => this.parseTableCell(cell, options))
-      }))
+      rows: childElementsByLocalName(node, 'tr').map(row => this.parseTableRow(row, options))
+    };
+  }
+
+  private static parseTableRow(row: Element, options: DocumentParserOptions) {
+    const trPr = firstChildElementByLocalName(row, 'trPr');
+    const height = trPr ? firstChildElementByLocalName(trPr, 'trHeight') : undefined;
+
+    return {
+      cells: childElementsByLocalName(row, 'tc').map(cell => this.parseTableCell(cell, options)),
+      height: height
+        ? {
+            value: parseNumberAttr(attr(height, 'val')),
+            rule: attr(height, 'hRule')
+          }
+        : undefined
     };
   }
 
@@ -327,6 +347,7 @@ export class DocumentParser {
       width: this.parseWidth(tcPr ? firstChildElementByLocalName(tcPr, 'tcW') : undefined),
       gridSpan: gridSpan && gridSpan > 1 ? gridSpan : undefined,
       verticalMerge: vMerge ? ((attr(vMerge, 'val') === 'restart' ? 'restart' : 'continue') as DocxTableCell['verticalMerge']) : undefined,
+      cellMargins: this.parseTableCellMargins(tcPr ? firstChildElementByLocalName(tcPr, 'tcMar') : undefined),
       shading: this.parseShading(shading),
       borders: tcPr ? this.parseCellBorders(firstChildElementByLocalName(tcPr, 'tcBorders')) : undefined
     };
@@ -350,6 +371,29 @@ export class DocumentParser {
       type,
       value
     };
+  }
+
+  private static parseTableCellMargins(node?: Element) {
+    if (!node) {
+      return undefined;
+    }
+
+    const margins = {
+      top: this.parseMarginSide(firstChildElementByLocalName(node, 'top')),
+      right: this.parseMarginSide(firstChildElementByLocalName(node, 'right')),
+      bottom: this.parseMarginSide(firstChildElementByLocalName(node, 'bottom')),
+      left: this.parseMarginSide(firstChildElementByLocalName(node, 'left'))
+    };
+
+    return Object.values(margins).some(value => value !== undefined) ? margins : undefined;
+  }
+
+  private static parseMarginSide(node?: Element) {
+    if (!node || attr(node, 'type') === 'nil') {
+      return undefined;
+    }
+
+    return parseNumberAttr(attr(node, 'w'), 0);
   }
 
   private static parseCellBorders(tcBorders?: Element) {

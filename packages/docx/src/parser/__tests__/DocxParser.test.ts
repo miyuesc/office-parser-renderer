@@ -1212,6 +1212,7 @@ describe('DocxParser', () => {
             <w:name w:val="Base Paragraph"/>
             <w:pPr>
               <w:jc w:val="center"/>
+              <w:snapToGrid w:val="0"/>
               <w:ind w:left="720" w:firstLine="360"/>
               <w:spacing w:before="120" w:after="240"/>
             </w:pPr>
@@ -1261,6 +1262,7 @@ describe('DocxParser', () => {
     expect(doc.styles.defaults?.run).toMatchObject({ fontFamily: 'Aptos', size: 11 });
     expect(doc.styles.byId.get('BasePara')?.paragraph).toMatchObject({
       alignment: 'center',
+      snapToGrid: false,
       indent: { left: 720, firstLine: 360 },
       spacing: { before: 120, after: 240 }
     });
@@ -1789,6 +1791,23 @@ describe('DocxParser', () => {
     expect(doc.body.flatMap((block: any) => (block.type === 'paragraph' ? block.runs : [])).filter(run => run.breaks?.includes('renderedPage')))
       .toHaveLength(8);
     expect(pages).toHaveLength(11);
+    expect(pages.some(page => page.blocks.some(block => block.overflow?.clipped))).toBe(false);
+  });
+
+  it('should keep the playground safety-check DOCX table on one rendered page', async () => {
+    const source = readFileSync('../../playground/public/测试docx2.docx');
+    const doc = await DocxParser.parse(source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength));
+    const pages = new PageLayoutEngine().layout(doc);
+    const table = doc.body.find((block: any) => block.type === 'table') as any;
+    const checkContentParagraph = table.rows[3].cells[1].blocks[0];
+    const checkContentText = checkContentParagraph.runs.map((run: any) => run.text).join('');
+
+    expect(pages).toHaveLength(1);
+    expect(table.rows).toHaveLength(5);
+    expect(table.cellMargins).toMatchObject({ top: 0, left: 108, bottom: 0, right: 108 });
+    expect(table.rows[3].height).toMatchObject({ value: 504, rule: 'atLeast' });
+    expect(checkContentText).toContain('1:现场作业车辆及机械是否安装警示灯或闪光箭头。\n2:特种设备现场安装、拆除是否有相应作业资质。');
+    expect(checkContentParagraph.runs.flatMap((run: any) => run.breaks || [])).toHaveLength(0);
     expect(pages.some(page => page.blocks.some(block => block.overflow?.clipped))).toBe(false);
   });
 });

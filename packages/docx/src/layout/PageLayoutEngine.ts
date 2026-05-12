@@ -130,18 +130,34 @@ export class PageLayoutEngine {
     return pageBox.height - pageBox.margins.bottom;
   }
 
-  private estimateBlockHeight(document: DocxDocument, block: DocxBlock, width: number, section?: DocxSection): number {
+  private estimateBlockHeight(
+    document: DocxDocument,
+    block: DocxBlock,
+    width: number,
+    section?: DocxSection,
+    options: { disableSectionLinePitch?: boolean } = {}
+  ): number {
     if (block.type === 'table') {
-      return this.estimateTableHeight(document, block, width, section);
+      return this.estimateTableHeight(document, block, width, section, options);
     }
 
-    return this.estimateParagraphHeight(document, block, width, section);
+    return this.estimateParagraphHeight(document, block, width, section, options);
   }
 
-  private estimateParagraphHeight(document: DocxDocument, paragraph: DocxParagraph, width: number, section?: DocxSection): number {
+  private estimateParagraphHeight(
+    document: DocxDocument,
+    paragraph: DocxParagraph,
+    width: number,
+    section?: DocxSection,
+    options: { disableSectionLinePitch?: boolean } = {}
+  ): number {
     const paragraphStyle = this.resolveParagraphStyle(document, paragraph);
     const paragraphTextStyle = paragraphStyle.text || this.resolveParagraphTextStyle(document, paragraph);
-    const lineHeight = this.getLineHeight(paragraphTextStyle, paragraphStyle, this.getSectionLinePitch(section));
+    const lineHeight = this.getLineHeight(
+      paragraphTextStyle,
+      paragraphStyle,
+      options.disableSectionLinePitch ? undefined : this.getSectionLinePitch(section)
+    );
     const spacingBefore = this.toPx(paragraphStyle.spacing?.before || 0);
     const spacingAfter = this.toPx(paragraphStyle.spacing?.after || 0);
     const leftIndent = this.toPx(paragraphStyle.indent?.left || 0);
@@ -220,7 +236,13 @@ export class PageLayoutEngine {
     return spacingBefore + lineCount * lineHeight + spacingAfter + imageHeight + 6;
   }
 
-  private estimateTableHeight(document: DocxDocument, table: DocxTable, width: number, section?: DocxSection): number {
+  private estimateTableHeight(
+    document: DocxDocument,
+    table: DocxTable,
+    width: number,
+    section?: DocxSection,
+    options: { disableSectionLinePitch?: boolean } = {}
+  ): number {
     const columnWidths = this.resolveTableColumnWidths(table, width);
 
     return table.rows.reduce((height, row) => {
@@ -234,10 +256,23 @@ export class PageLayoutEngine {
 
         const cellWidth = columnWidths.slice(colIndex, colIndex + colSpan).reduce((sum, columnWidth) => sum + columnWidth, 0);
         colIndex += colSpan;
-        const contentWidth = Math.max(1, cellWidth - 12);
-        return cell.blocks.reduce((cellHeight, block) => cellHeight + this.estimateBlockHeight(document, block, contentWidth, section) + 2, 10);
+        const margins = this.resolveCellMargins(table, cell);
+        const contentWidth = Math.max(1, cellWidth - margins.left - margins.right);
+        return (
+          margins.top +
+          cell.blocks.reduce(
+            (cellHeight, block) =>
+              cellHeight +
+              this.estimateBlockHeight(document, block, contentWidth, section, {
+                ...options,
+                disableSectionLinePitch: true
+              }),
+            0
+          ) +
+          margins.bottom
+        );
       });
-      return height + Math.max(28, ...cellHeights);
+      return height + Math.max(this.resolveRowMinimumHeight(row), ...cellHeights);
     }, 0);
   }
 
@@ -454,10 +489,11 @@ export class PageLayoutEngine {
   private getLineHeight(style: TextStyle, paragraphStyle?: ParagraphStyle, sectionLinePitch?: number) {
     const fontHeight = (style.size || 11) * 1.333;
     const defaultLineHeight = Math.max(fontHeight * 1.45, fontHeight + 6);
+    const effectiveSectionLinePitch = paragraphStyle?.snapToGrid === false ? undefined : sectionLinePitch;
     const spacing = paragraphStyle?.spacing;
     if (!spacing?.line) {
-      if (sectionLinePitch) {
-        return Math.ceil(Math.max(fontHeight + 2, sectionLinePitch));
+      if (effectiveSectionLinePitch) {
+        return Math.ceil(Math.max(fontHeight + 2, effectiveSectionLinePitch));
       }
       return Math.ceil(defaultLineHeight);
     }
@@ -470,7 +506,34 @@ export class PageLayoutEngine {
       return Math.ceil(Math.max(defaultLineHeight, this.toPx(spacing.line)));
     }
 
-    return Math.ceil(defaultLineHeight * (spacing.line / 240));
+    return Math.ceil(Math.max(fontHeight + 2, fontHeight * (spacing.line / 240)));
+  }
+
+  private resolveCellMargins(table: DocxTable, cell: DocxTable['rows'][number]['cells'][number]) {
+    return {
+      top: this.resolveCellMargin(table, cell, 'top', 6),
+      right: this.resolveCellMargin(table, cell, 'right', 6),
+      bottom: this.resolveCellMargin(table, cell, 'bottom', 6),
+      left: this.resolveCellMargin(table, cell, 'left', 6)
+    };
+  }
+
+  private resolveCellMargin(
+    table: DocxTable,
+    cell: DocxTable['rows'][number]['cells'][number],
+    side: 'top' | 'right' | 'bottom' | 'left',
+    fallbackPx: number
+  ) {
+    const value = cell.cellMargins?.[side] ?? table.cellMargins?.[side];
+    return value === undefined ? fallbackPx : this.toPx(value);
+  }
+
+  private resolveRowMinimumHeight(row: DocxTable['rows'][number]) {
+    if (row.height?.value === undefined || row.height.rule === 'auto') {
+      return 28;
+    }
+
+    return Math.max(0, this.toPx(row.height.value));
   }
 
   private getSectionLinePitch(section?: DocxSection) {

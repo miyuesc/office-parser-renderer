@@ -949,12 +949,19 @@ export class DocxRenderer {
           ctx.fillRect(colX, rowY, colWidth, cellHeight);
         }
 
-        let cellY = rowY + 6;
+        const margins = this.resolveCellMargins(table, cell);
+        let cellY = rowY + margins.top;
         for (const block of cell.blocks) {
-          const remainingHeight = Math.max(1, rowY + cellHeight - 6 - cellY);
-          const blockHeight = Math.min(remainingHeight, this.measureBlockHeight(ctx, block, documentModel, Math.max(1, colWidth - 12), context, section));
-          this.renderBlockCanvas(ctx, block, documentModel, colX + 6, cellY, Math.max(1, colWidth - 12), blockHeight, context, section);
-          cellY += blockHeight + 2;
+          const contentWidth = Math.max(1, colWidth - margins.left - margins.right);
+          const remainingHeight = Math.max(1, rowY + cellHeight - margins.bottom - cellY);
+          const blockHeight = Math.min(
+            remainingHeight,
+            this.measureBlockHeight(ctx, block, documentModel, contentWidth, context, section, {
+              disableSectionLinePitch: true
+            })
+          );
+          this.renderBlockCanvas(ctx, block, documentModel, colX + margins.left, cellY, contentWidth, blockHeight, context, undefined);
+          cellY += blockHeight;
         }
         ctx.restore();
         this.renderCellBorders(ctx, table, cell, rowIndex, colIndex - colSpan, rowSpan, colSpan, maxColumns, colX, rowY, colWidth, cellHeight);
@@ -984,15 +991,20 @@ export class DocxRenderer {
 
         const cellWidth = columnWidths.slice(colIndex, colIndex + colSpan).reduce((sum, columnWidth) => sum + columnWidth, 0);
         colIndex += colSpan;
-        const contentWidth = Math.max(1, cellWidth - 12);
+        const margins = this.resolveCellMargins(table, cell);
+        const contentWidth = Math.max(1, cellWidth - margins.left - margins.right);
         const contentHeight: number = cell.blocks.reduce(
-          (height: number, block: DocxBlock) => height + this.measureBlockHeight(ctx, block, documentModel, contentWidth, context, section) + 2,
-          0
+          (height: number, block: DocxBlock) =>
+            height +
+            this.measureBlockHeight(ctx, block, documentModel, contentWidth, context, section, {
+              disableSectionLinePitch: true
+            }),
+          margins.top + margins.bottom
         );
-        return Math.max(28, contentHeight + 10);
+        return contentHeight;
       });
 
-      return Math.max(28, ...cellHeights);
+      return Math.max(this.resolveRowMinimumHeight(row), ...cellHeights);
     });
   }
 
@@ -1002,7 +1014,8 @@ export class DocxRenderer {
     documentModel: DocxDocument,
     width: number,
     context: { pageIndex: number; totalPages: number },
-    section?: DocxLayoutPage['section']
+    section?: DocxLayoutPage['section'],
+    options: { disableSectionLinePitch?: boolean } = {}
   ): number {
     if (block.type === 'table') {
       const columnWidths = this.resolveTableColumnWidths(block, width);
@@ -1021,7 +1034,7 @@ export class DocxRenderer {
     const contentWidth = Math.max(1, width - contentX - rightIndent);
     const prefix = this.getListPrefix(block, documentModel);
     const tabStopWidth = this.toPx(documentModel.settings.defaultTabStop || 720);
-    const sectionLinePitch = this.getSectionLinePitch(section);
+    const sectionLinePitch = options.disableSectionLinePitch ? undefined : this.getSectionLinePitch(section);
     const lines = this.layoutParagraphLines(
       ctx,
       block,
@@ -1533,10 +1546,11 @@ export class DocxRenderer {
   private getLineHeight(style: TextStyle, paragraphStyle?: ParagraphStyle, sectionLinePitch?: number) {
     const fontHeight = (style.size || 11) * 1.333;
     const defaultLineHeight = Math.max(fontHeight * 1.45, fontHeight + 6);
+    const effectiveSectionLinePitch = paragraphStyle?.snapToGrid === false ? undefined : sectionLinePitch;
     const spacing = paragraphStyle?.spacing;
     if (!spacing?.line) {
-      if (sectionLinePitch) {
-        return Math.ceil(Math.max(fontHeight + 2, sectionLinePitch));
+      if (effectiveSectionLinePitch) {
+        return Math.ceil(Math.max(fontHeight + 2, effectiveSectionLinePitch));
       }
       return Math.ceil(defaultLineHeight);
     }
@@ -1549,7 +1563,34 @@ export class DocxRenderer {
       return Math.ceil(Math.max(defaultLineHeight, this.toPx(spacing.line)));
     }
 
-    return Math.ceil(defaultLineHeight * (spacing.line / 240));
+    return Math.ceil(Math.max(fontHeight + 2, fontHeight * (spacing.line / 240)));
+  }
+
+  private resolveCellMargins(table: DocxTable, cell: DocxTableCell) {
+    return {
+      top: this.resolveCellMargin(table, cell, 'top', 6),
+      right: this.resolveCellMargin(table, cell, 'right', 6),
+      bottom: this.resolveCellMargin(table, cell, 'bottom', 6),
+      left: this.resolveCellMargin(table, cell, 'left', 6)
+    };
+  }
+
+  private resolveCellMargin(
+    table: DocxTable,
+    cell: DocxTableCell,
+    side: 'top' | 'right' | 'bottom' | 'left',
+    fallbackPx: number
+  ) {
+    const value = cell.cellMargins?.[side] ?? table.cellMargins?.[side];
+    return value === undefined ? fallbackPx : this.toPx(value);
+  }
+
+  private resolveRowMinimumHeight(row: DocxTable['rows'][number]) {
+    if (row.height?.value === undefined || row.height.rule === 'auto') {
+      return 28;
+    }
+
+    return Math.max(0, this.toPx(row.height.value));
   }
 
   private getSectionLinePitch(section?: DocxLayoutPage['section']) {

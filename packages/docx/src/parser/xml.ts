@@ -101,6 +101,7 @@ export function parseParagraphProperties(pPr?: Element): ParagraphStyle | undefi
   const ind = getFirstElementByLocalName(pPr, 'ind');
   const spacing = getFirstElementByLocalName(pPr, 'spacing');
   const rPr = getFirstElementByLocalName(pPr, 'rPr');
+  const snapToGrid = parseBooleanProperty(pPr, 'snapToGrid');
 
   if (jc) {
     style.alignment = attr(jc, 'val');
@@ -120,6 +121,9 @@ export function parseParagraphProperties(pPr?: Element): ParagraphStyle | undefi
       line: parseOptionalNumber(attr(spacing, 'line')),
       lineRule: attr(spacing, 'lineRule')
     };
+  }
+  if (snapToGrid !== undefined) {
+    style.snapToGrid = snapToGrid;
   }
   if (rPr) {
     style.text = parseRunProperties(rPr);
