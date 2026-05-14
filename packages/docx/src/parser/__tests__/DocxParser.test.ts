@@ -1804,10 +1804,45 @@ describe('DocxParser', () => {
 
     expect(pages).toHaveLength(1);
     expect(table.rows).toHaveLength(5);
+    expect(table.indent).toMatchObject({ value: 0, type: 'dxa' });
+    expect(table.layout).toBe('autofit');
     expect(table.cellMargins).toMatchObject({ top: 0, left: 108, bottom: 0, right: 108 });
     expect(table.rows[3].height).toMatchObject({ value: 504, rule: 'atLeast' });
+    expect(table.rows[0].cells[0].verticalAlignment).toBe('top');
     expect(checkContentText).toContain('1:现场作业车辆及机械是否安装警示灯或闪光箭头。\n2:特种设备现场安装、拆除是否有相应作业资质。');
     expect(checkContentParagraph.runs.flatMap((run: any) => run.breaks || [])).toHaveLength(0);
     expect(pages.some(page => page.blocks.some(block => block.overflow?.clipped))).toBe(false);
+  });
+
+  it('should position DOCX tables from table indentation and alignment metadata', () => {
+    const table = {
+      type: 'table' as const,
+      indent: { type: 'dxa' as const, value: 720 },
+      gridWidths: [1440],
+      rows: [
+        {
+          cells: [
+            {
+              blocks: [{ type: 'paragraph' as const, runs: [{ text: 'Indented table' }] }]
+            }
+          ]
+        }
+      ]
+    };
+    const doc = {
+      sourcePartPath: 'word/document.xml',
+      body: [table],
+      headers: new Map(),
+      footers: new Map(),
+      styles: { byId: new Map() },
+      numbering: { abstractNums: new Map(), nums: new Map() },
+      settings: {},
+      sections: [{ pageSize: { width: 9000, height: 9000 }, margins: { left: 900, right: 900, top: 900, bottom: 900 } }],
+      warnings: []
+    };
+    const page = new PageLayoutEngine().layout(doc)[0];
+
+    expect(page.blocks[0].box.x).toBe(108);
+    expect(page.blocks[0].box.width).toBe(96);
   });
 });

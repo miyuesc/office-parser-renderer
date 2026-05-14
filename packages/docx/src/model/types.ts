@@ -109,6 +109,9 @@ export interface DocxField {
 export interface DocxTable {
   type: 'table';
   width?: DocxWidth;
+  indent?: DocxWidth;
+  alignment?: 'left' | 'center' | 'right' | 'both' | string;
+  layout?: 'autofit' | 'fixed' | string;
   gridWidths?: number[];
   cellMargins?: DocxTableCellMargins;
   borders?: DocxTableBorders;
@@ -126,6 +129,7 @@ export interface DocxTableCell {
   gridSpan?: number;
   verticalMerge?: 'restart' | 'continue';
   cellMargins?: DocxTableCellMargins;
+  verticalAlignment?: 'top' | 'center' | 'bottom' | 'both' | string;
   shading?: string;
   borders?: DocxTableCellBorders;
 }

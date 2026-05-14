@@ -303,10 +303,15 @@ export class DocumentParser {
   private static parseTable(node: Element, options: DocumentParserOptions): DocxTable {
     const tblPr = firstChildElementByLocalName(node, 'tblPr');
     const tblGrid = firstChildElementByLocalName(node, 'tblGrid');
+    const tableAlignment = tblPr ? valueOfFirst(tblPr, 'jc') : undefined;
+    const tableLayout = tblPr ? firstChildElementByLocalName(tblPr, 'tblLayout') : undefined;
 
     return {
       type: 'table',
       width: this.parseWidth(tblPr ? firstChildElementByLocalName(tblPr, 'tblW') : undefined),
+      indent: this.parseWidth(tblPr ? firstChildElementByLocalName(tblPr, 'tblInd') : undefined),
+      alignment: tableAlignment,
+      layout: tableLayout ? attr(tableLayout, 'type') : undefined,
       cellMargins: this.parseTableCellMargins(tblPr ? firstChildElementByLocalName(tblPr, 'tblCellMar') : undefined),
       gridWidths: tblGrid
         ? childElementsByLocalName(tblGrid, 'gridCol')
@@ -338,6 +343,7 @@ export class DocumentParser {
     const gridSpan = tcPr ? parseNumberAttr(valueOfFirst(tcPr, 'gridSpan'), 1) : undefined;
     const vMerge = tcPr ? firstChildElementByLocalName(tcPr, 'vMerge') : undefined;
     const shading = tcPr ? firstChildElementByLocalName(tcPr, 'shd') : undefined;
+    const verticalAlignment = tcPr ? valueOfFirst(tcPr, 'vAlign') : undefined;
 
     return {
       blocks: [
@@ -348,6 +354,7 @@ export class DocumentParser {
       gridSpan: gridSpan && gridSpan > 1 ? gridSpan : undefined,
       verticalMerge: vMerge ? ((attr(vMerge, 'val') === 'restart' ? 'restart' : 'continue') as DocxTableCell['verticalMerge']) : undefined,
       cellMargins: this.parseTableCellMargins(tcPr ? firstChildElementByLocalName(tcPr, 'tcMar') : undefined),
+      verticalAlignment,
       shading: this.parseShading(shading),
       borders: tcPr ? this.parseCellBorders(firstChildElementByLocalName(tcPr, 'tcBorders')) : undefined
     };

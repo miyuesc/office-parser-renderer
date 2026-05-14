@@ -75,12 +75,14 @@ export class PageLayoutEngine {
       const availableHeight = Math.max(1, contentBottom - cursorY);
       const clipped = height > availableHeight;
 
+      const tableMetrics = block.type === 'table' ? this.resolveTableLayoutMetrics(block, contentWidth) : undefined;
+
       pages[pages.length - 1].blocks.push({
         block,
         box: {
-          x: pageBox.margins.left,
+          x: pageBox.margins.left + (tableMetrics?.offsetX || 0),
           y: cursorY,
-          width: contentWidth,
+          width: tableMetrics?.width || contentWidth,
           height: clipped ? availableHeight : height
         },
         overflow: clipped
@@ -445,14 +447,42 @@ export class PageLayoutEngine {
     return this.toPx(width.value);
   }
 
+  private resolveTableLayoutMetrics(table: DocxTable, availableWidth: number) {
+    const columnWidths = this.resolveTableColumnWidths(table, availableWidth);
+    const width = columnWidths.reduce((sum, columnWidth) => sum + columnWidth, 0);
+    return {
+      width,
+      offsetX: this.resolveTableOffsetX(table, availableWidth, width)
+    };
+  }
+
+  private resolveTableOffsetX(table: DocxTable, availableWidth: number, tableWidth: number) {
+    const indent = this.resolvePreferredWidth(table.indent, availableWidth);
+    if (indent !== undefined && table.alignment !== 'center' && table.alignment !== 'right' && table.alignment !== 'end') {
+      return indent;
+    }
+
+    if (table.alignment === 'center') {
+      return Math.max(0, (availableWidth - tableWidth) / 2);
+    }
+
+    if (table.alignment === 'right' || table.alignment === 'end') {
+      return Math.max(0, availableWidth - tableWidth);
+    }
+
+    return 0;
+  }
+
   private resolveTableColumnWidths(table: DocxTable, availableWidth: number) {
     const maxColumns = Math.max(1, ...table.rows.map(row => row.cells.reduce((sum, cell) => sum + (cell.gridSpan || 1), 0)));
-    const tableWidth = Math.min(availableWidth, this.resolvePreferredWidth(table.width, availableWidth) || availableWidth);
+    const preferredTableWidth = this.resolvePreferredWidth(table.width, availableWidth);
 
     let columnWidths =
       table.gridWidths && table.gridWidths.length > 0
         ? table.gridWidths.slice(0, maxColumns).map(width => this.toPx(width))
         : [];
+    const gridTableWidth = columnWidths.length > 0 ? columnWidths.reduce((sum, width) => sum + width, 0) : undefined;
+    const tableWidth = Math.min(availableWidth, preferredTableWidth || gridTableWidth || availableWidth);
 
     if (columnWidths.length === 0) {
       columnWidths = new Array(maxColumns).fill(0);
@@ -511,10 +541,10 @@ export class PageLayoutEngine {
 
   private resolveCellMargins(table: DocxTable, cell: DocxTable['rows'][number]['cells'][number]) {
     return {
-      top: this.resolveCellMargin(table, cell, 'top', 6),
-      right: this.resolveCellMargin(table, cell, 'right', 6),
-      bottom: this.resolveCellMargin(table, cell, 'bottom', 6),
-      left: this.resolveCellMargin(table, cell, 'left', 6)
+      top: this.resolveCellMargin(table, cell, 'top', 0),
+      right: this.resolveCellMargin(table, cell, 'right', 108 / 15),
+      bottom: this.resolveCellMargin(table, cell, 'bottom', 0),
+      left: this.resolveCellMargin(table, cell, 'left', 108 / 15)
     };
   }
 

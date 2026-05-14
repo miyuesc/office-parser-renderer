@@ -950,16 +950,20 @@ export class DocxRenderer {
         }
 
         const margins = this.resolveCellMargins(table, cell);
-        let cellY = rowY + margins.top;
-        for (const block of cell.blocks) {
+        const blockHeights = cell.blocks.map(block => {
+          const contentWidth = Math.max(1, colWidth - margins.left - margins.right);
+          return this.measureBlockHeight(ctx, block, documentModel, contentWidth, context, section, {
+            disableSectionLinePitch: true
+          });
+        });
+        const contentHeight = blockHeights.reduce((sum, blockHeight) => sum + blockHeight, 0);
+        const availableContentHeight = Math.max(1, cellHeight - margins.top - margins.bottom);
+        let cellY = rowY + margins.top + this.resolveCellVerticalOffset(cell, availableContentHeight, contentHeight);
+        for (let blockIndex = 0; blockIndex < cell.blocks.length; blockIndex++) {
+          const block = cell.blocks[blockIndex];
           const contentWidth = Math.max(1, colWidth - margins.left - margins.right);
           const remainingHeight = Math.max(1, rowY + cellHeight - margins.bottom - cellY);
-          const blockHeight = Math.min(
-            remainingHeight,
-            this.measureBlockHeight(ctx, block, documentModel, contentWidth, context, section, {
-              disableSectionLinePitch: true
-            })
-          );
+          const blockHeight = Math.min(remainingHeight, blockHeights[blockIndex] || 0);
           this.renderBlockCanvas(ctx, block, documentModel, colX + margins.left, cellY, contentWidth, blockHeight, context, undefined);
           cellY += blockHeight;
         }
@@ -1568,10 +1572,10 @@ export class DocxRenderer {
 
   private resolveCellMargins(table: DocxTable, cell: DocxTableCell) {
     return {
-      top: this.resolveCellMargin(table, cell, 'top', 6),
-      right: this.resolveCellMargin(table, cell, 'right', 6),
-      bottom: this.resolveCellMargin(table, cell, 'bottom', 6),
-      left: this.resolveCellMargin(table, cell, 'left', 6)
+      top: this.resolveCellMargin(table, cell, 'top', 0),
+      right: this.resolveCellMargin(table, cell, 'right', 108 / 15),
+      bottom: this.resolveCellMargin(table, cell, 'bottom', 0),
+      left: this.resolveCellMargin(table, cell, 'left', 108 / 15)
     };
   }
 
@@ -1591,6 +1595,17 @@ export class DocxRenderer {
     }
 
     return Math.max(0, this.toPx(row.height.value));
+  }
+
+  private resolveCellVerticalOffset(cell: DocxTableCell, availableHeight: number, contentHeight: number) {
+    const freeSpace = Math.max(0, availableHeight - contentHeight);
+    if (cell.verticalAlignment === 'center') {
+      return freeSpace / 2;
+    }
+    if (cell.verticalAlignment === 'bottom') {
+      return freeSpace;
+    }
+    return 0;
   }
 
   private getSectionLinePitch(section?: DocxLayoutPage['section']) {
@@ -2179,12 +2194,14 @@ export class DocxRenderer {
 
   private resolveTableColumnWidths(table: DocxTable, availableWidth: number) {
     const maxColumns = Math.max(1, ...table.rows.map(row => row.cells.reduce((sum, cell) => sum + (cell.gridSpan || 1), 0)));
-    const tableWidth = Math.min(availableWidth, this.resolvePreferredWidth(table.width, availableWidth) || availableWidth);
+    const preferredTableWidth = this.resolvePreferredWidth(table.width, availableWidth);
 
     let columnWidths =
       table.gridWidths && table.gridWidths.length > 0
         ? table.gridWidths.slice(0, maxColumns).map(width => this.toPx(width))
         : [];
+    const gridTableWidth = columnWidths.length > 0 ? columnWidths.reduce((sum, width) => sum + width, 0) : undefined;
+    const tableWidth = Math.min(availableWidth, preferredTableWidth || gridTableWidth || availableWidth);
 
     if (columnWidths.length === 0) {
       columnWidths = new Array(maxColumns).fill(0);
